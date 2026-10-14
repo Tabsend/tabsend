@@ -1,0 +1,56 @@
+# Tabsend relay + Postgres — a self-host starting point. See docs/DEPLOY.md.
+#
+# This composes the relay with a Postgres 17 database. It does NOT include TLS: Web Push
+# REQUIRES HTTPS, so in production put a reverse proxy (Caddy — see docs/DEPLOY.md) in
+# front of the relay to terminate TLS on your domain, and set PUBLIC_RELAY_URL to that
+# https:// origin. For a quick LAN/dev trial you can run this as-is on http.
+#
+#   1. cp server/.env.example .env   # set the public URL/contact + a real DB password
+#   2. docker compose up -d --build --wait   # --wait: return only once it is healthy
+#
+# The relay auto-migrates on boot (idempotent, additive), so no separate migration step.
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tabsend
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: tabsend
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tabsend -d tabsend"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  relay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      DATABASE_URL: postgres://tabsend:${POSTGRES_PASSWORD:-change-me}@db:5432/tabsend
+      # The public https origin your devices pair against (embedded in pairing links/QRs).
+      PUBLIC_RELAY_URL: ${PUBLIC_RELAY_URL:-http://localhost:8787}
+      # Behind the recommended reverse proxy — key rate limits on the real client IP.
+      TRUST_PROXY: "1"
+      # Web Push identity is generated once and stored in Postgres. Set BOTH key
+      # variables only to preserve an externally managed/existing VAPID identity.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:you@example.com}
+    ports:
+      # Bind to loopback so only the reverse proxy reaches the relay. Drop the 127.0.0.1
+      # prefix for a direct LAN/dev trial without a proxy.
+      - "127.0.0.1:8787:8787"
+
+volumes:
+  db-data:

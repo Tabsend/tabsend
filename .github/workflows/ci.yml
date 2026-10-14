@@ -1,0 +1,198 @@
+name: CI
+
+# Runs on main, on release tags, and on pull requests — NOT on every branch push.
+#
+# It used to be a bare `on: push`, which meant each of this repo's many
+# claude/*, codex/* and agent/* worktree branches ran the whole matrix on every
+# push, macOS job included. macOS minutes bill at 10x on the free plan, so a
+# handful of checkpoint pushes in one afternoon exhausted the monthly quota and
+# left main unable to run CI at all (2026-08-19).
+#
+# A branch still gets full coverage the moment it opens a pull request, which is
+# when the result is actually being read. To check a branch before that, run the
+# gates locally — README.md and docs/RELEASE_CHECKLIST.md list them, and the
+# Android job needs only JDK 17 plus the commandlinetools SDK.
+# `paths-ignore` skips a run only when EVERY changed file matches, so a commit that
+# touches docs alongside code still gets the full matrix. It exists because the macOS
+# job costs the same for a README typo as for a protocol change.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['docs/**', '**/*.md', 'LICENSE']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: lint · typecheck · test (sqlite + postgres)
+    runs-on: ubuntu-latest
+
+    # Postgres service for the dialect matrix (server suite runs against both).
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tabsend_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.13.1
+
+      - name: Set up Node 26
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint + format check (biome)
+        run: pnpm lint
+
+      - name: Typecheck all packages
+        run: pnpm typecheck
+
+      - name: Run tests (SQLite — default dialect)
+        run: pnpm test
+
+      - name: Run server tests (Postgres dialect)
+        env:
+          TABSEND_TEST_PG: '1'
+          TABSEND_TEST_PG_URL: postgres://postgres:postgres@localhost:5432/tabsend_test
+        run: pnpm --filter @tabsend/server test
+
+  # Independent, additive job — does NOT touch the pnpm matrix above. Builds the
+  # relay image and boots it exactly as a self-hoster would. Nothing in the pnpm
+  # matrix exercises the Dockerfile, so breakage there (a base image dropping
+  # corepack, a lockfile the image cannot install with --frozen-lockfile) only ever
+  # showed up on the machine doing the deploy. `network_mode: host` in the LAN
+  # compose file needs a Linux runner, which is what we have.
+  docker:
+    name: docker (relay image builds + boots)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate compose file
+        run: docker compose -f docker-compose.lan.yml config
+
+      # Verbatim the command docs/DEPLOY.md gives a self-hoster, `--wait` included —
+      # so this proves the documented readiness wait actually works, not just that the
+      # image builds. `--wait` returns only once the healthcheck passes, which is what
+      # lets the probe below run with no retry loop of its own.
+      #
+      # Also covers the frozen-lockfile install: the image's
+      # `pnpm install --frozen-lockfile` fails the build if the lockfile is stale.
+      - name: Build image and start the relay
+        run: docker compose -f docker-compose.lan.yml up -d --build --wait --wait-timeout 120
+
+      # Host networking, so the relay's two listeners are on the runner's own
+      # localhost: 8786 cleartext (the extension's port) and 8787 self-signed HTTPS
+      # (the phone's — hence -k, the cert is pinned rather than trusted, ADR-0019).
+      # No polling: if --wait returned, the relay is already answering. A refusal here
+      # means the healthcheck reports healthy too early, which is a real bug.
+      - name: Probe both listeners
+        run: |
+          curl -fsS http://127.0.0.1:8786/v1/config
+          curl -fsSk https://127.0.0.1:8787/v1/config
+
+      - name: Container logs
+        if: always()
+        run: docker compose -f docker-compose.lan.yml logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.lan.yml down --volumes
+
+  # Independent, additive job — does NOT touch the pnpm matrix above. Runs the
+  # Android app's JVM unit tests (crypto_box interop vector + state/logic). No
+  # emulator: these are plain host-JVM tests, so CI stays fast and hermetic.
+  android:
+    name: android (unit tests — crypto interop)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Unit tests (JVM, no emulator)
+        working-directory: android
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      # Every claude/* worktree branch in this repo pushes independently, so an
+      # unconditional build+upload here was producing a full debug APK artifact
+      # per commit on every branch and burning through the free Actions storage
+      # quota. Gate it to main and release tags: those are the only refs anyone
+      # actually downloads a dogfood APK from. Feature branches and PRs still
+      # get the unit-test signal above, just not the APK build/upload cost.
+      #
+      # Restore the stable signing key from repository secrets. Without it every
+      # runner invents its own debug keystore, and Android then refuses to install
+      # a new artifact over the previous one — see android/app/build.gradle.kts.
+      # A missing secret is not fatal (forks, and any run before the secret was
+      # set): the build falls back to the throwaway debug key and just cannot be
+      # installed as an update.
+      - name: Restore signing keystore
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set — this APK cannot be installed over an existing build."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/tabsend.keystore"
+          echo "TABSEND_KEYSTORE_FILE=$RUNNER_TEMP/tabsend.keystore" >> "$GITHUB_ENV"
+
+      # Build the installable debug APK (v1 dogfood ships debug builds — see
+      # android/app/build.gradle.kts) and publish it as a run artifact, so the
+      # owner downloads builds from GitHub instead of local adb installs.
+      - name: Build debug APK
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        working-directory: android
+        env:
+          TABSEND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TABSEND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TABSEND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+      # retention-days keeps main-branch APKs from piling up for the repo's
+      # default 90 days; overwrite guards against the rare same-run retry.
+      - name: Upload APK artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        uses: actions/upload-artifact@v5
+        with:
+          name: tabsend-app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
+
+  # The iOS job lives in ios.yml, filtered to ios/** -- it runs on macOS, which
+  # bills at 10x, so it should not run for server or Android changes.

@@ -1,0 +1,29 @@
+{
+  "name": "tabsend",
+  "version": "0.7.0",
+  "private": true,
+  "description": "Tabsend — move one browser tab, on demand, to a specific other browser endpoint. Monorepo root.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@11.13.1",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "vitest run",
+    "e2e": "pnpm --filter @tabsend/e2e e2e",
+    "e2e:push": "pnpm --filter @tabsend/e2e e2e:push",
+    "package:chrome": "node scripts/pack.mjs chrome",
+    "package:firefox": "node scripts/pack.mjs firefox",
+    "package": "node scripts/pack.mjs all"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.4",
+    "@types/node": "26.1.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}

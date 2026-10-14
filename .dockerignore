@@ -1,0 +1,25 @@
+# Keep the build context small + reproducible: never copy installed deps or build
+# outputs (the image installs deps itself), local databases, or VCS/secrets.
+**/node_modules
+dist
+dist-firefox
+dist-packages
+web-ext-artifacts
+.git
+.gitignore
+.data
+.pgdata
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+.cache
+coverage
+**/*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.claude
+.vscode
+.idea
+.DS_Store

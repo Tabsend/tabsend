@@ -1,0 +1,23 @@
+{
+  "name": "@tabsend/forwarder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tabsend wake-up forwarder — holds the project's Apple and Google push credentials and rings phones for any relay, hosted or self-hosted. No content ever passes through it.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "fastify": "^5.10.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "selfsigned": "^5.5.0",
+    "tsx": "^4.23.1"
+  }
+}

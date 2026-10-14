@@ -1,0 +1,51 @@
+name: iOS
+
+# Split out of ci.yml (2026-09-29) so it runs only when iOS code changes. It is
+# the only macOS job, and macOS minutes bill at 10x, so one run costs about as
+# much as ten Linux runs. ios/ is self-contained (it builds nothing from outside
+# it), so a change elsewhere cannot break this job. Same refs as ci.yml: main,
+# release tags, pull requests; "Run workflow" forces a run.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+jobs:
+  # SwiftPM exercises the protocol/crypto core directly. The Xcode build is
+  # separate evidence that the generated app project — including the embedded
+  # share extension — still compiles. A generic simulator destination avoids
+  # booting an emulator, and disabled signing keeps CI free of Apple secrets.
+  ios:
+    name: ios (unit tests + simulator build)
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Unit tests (SwiftPM, no simulator)
+        working-directory: ios/TabsendKit
+        run: ./test.sh
+
+      - name: Install XcodeGen if needed
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build app and share extension (unsigned simulator)
+        run: |
+          xcodebuild \
+            -project ios/Tabsend.xcodeproj \
+            -scheme Tabsend \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build

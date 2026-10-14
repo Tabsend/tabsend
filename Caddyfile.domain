@@ -1,0 +1,23 @@
+# Caddy config for the domain deployment (docker-compose.domain.yml).
+#
+# One site, one upstream. Caddy obtains and renews the certificate itself via the DNS
+# challenge, and proxies both the REST API and the /v1/stream WebSocket — reverse_proxy
+# upgrades connections transparently, so the fast path needs no extra configuration.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$RELAY_DOMAIN} {
+	encode zstd gzip
+
+	# DNS challenge: no inbound port 80/443 required from the public internet, which is
+	# what lets this work when the A record points at a private LAN address. Replace
+	# `cloudflare` (and the token) if you build Dockerfile.caddy with another provider.
+	tls {
+		dns cloudflare {$CF_API_TOKEN}
+	}
+
+	# `relay` is the compose service name, resolved on the internal Docker network.
+	reverse_proxy relay:8787
+}

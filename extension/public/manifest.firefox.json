@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Tabsend",
+  "version": "0.1.0",
+  "description": "Move one browser tab, on demand, to a specific other browser endpoint.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tabsend@tabsend.app",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["browsingActivity", "websiteContent"]
+      }
+    }
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "icons": {
+    "16": "icons/tabsend-16.png",
+    "32": "icons/tabsend-32.png",
+    "48": "icons/tabsend-48.png",
+    "128": "icons/tabsend-128.png"
+  },
+  "action": {
+    "default_popup": "chooser.html",
+    "default_title": "Tabsend — send this tab",
+    "default_icon": {
+      "16": "icons/tabsend-16.png",
+      "32": "icons/tabsend-32.png",
+      "48": "icons/tabsend-48.png",
+      "128": "icons/tabsend-128.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Ctrl+Shift+S", "mac": "Command+Shift+S" },
+      "description": "Open the Tabsend chooser (or quick-send in Quick-send mode)"
+    },
+    "send-to-primary": {
+      "description": "Send this tab to your primary device (blind-fire, with a 4s undo)"
+    }
+  },
+  "permissions": ["tabs", "storage", "contextMenus", "alarms", "scripting", "notifications"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*", "http://*/*", "https://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

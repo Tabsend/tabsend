@@ -1,0 +1,19 @@
+# Android / Gradle build outputs
+.gradle/
+build/
+app/build/
+captures/
+local.properties
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+# The CI signing key is injected from repository secrets and must never land here.
+*.p12
+*.jks
+
+# Gradle daemon / caches that may leak in
+.gradletasknamecache
+
+# OS noise
+.DS_Store

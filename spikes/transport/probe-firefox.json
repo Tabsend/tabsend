@@ -1,0 +1,18 @@
+{
+  "kind": "firefox",
+  "result": {
+    "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:152.0) Gecko/20100101 Firefox/152.0",
+    "hasPushManager": false,
+    "hasPushSubscription": false,
+    "hasNotification": true,
+    "hasNavigatorServiceWorker": false,
+    "hasSelfRegistration": false,
+    "hasBrowserPush": false,
+    "steps": [
+      "navigator.serviceWorker NOT present on extension background page"
+    ],
+    "subscribed": false,
+    "endpoint": null,
+    "error": null
+  }
+}

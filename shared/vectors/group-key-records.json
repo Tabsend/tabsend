@@ -1,0 +1,259 @@
+{
+  "//": "Which group-key record createdAt values a client accepts (shared/src/keyrecord.ts, ADR-0028 §6 amended 2026-10-13). Run by shared/src/keyrecord.test.ts, android KeyringTest.kt and iOS KeyringTests.swift. nowMs is this device's clock. 'departed' is the value of a record's departed field (X14): null stands for absent or null; a client that cannot read the value as a list of strings refuses the record, like one that fails a rule. 'vouched' is the list a receiver may rely on once the sender's own id is taken out.",
+  "nowMs": 1791892800000,
+  "nowIso": "2026-10-13T12:00:00.000Z",
+  "createdAt": [
+    {
+      "value": "2026-10-13T12:00:00.000Z",
+      "accept": true,
+      "why": "now"
+    },
+    {
+      "value": "2025-01-01T00:00:00.000Z",
+      "accept": true,
+      "why": "the past"
+    },
+    {
+      "value": "2026-10-14T12:00:00.000Z",
+      "accept": true,
+      "why": "exactly a day ahead"
+    },
+    {
+      "value": "2026-10-14T12:00:00.001Z",
+      "accept": false,
+      "why": "more than a day ahead"
+    },
+    {
+      "value": "9999-12-31T23:59:59.999Z",
+      "accept": false,
+      "why": "far future pins the key"
+    },
+    {
+      "value": "Wed, 31 Dec 9999 00:00:00 GMT",
+      "accept": false,
+      "why": "not ISO; sorts above every ISO date"
+    },
+    {
+      "value": "2026-10-13T12:00:00Z",
+      "accept": false,
+      "why": "no milliseconds: sorts differently"
+    },
+    {
+      "value": "2026-10-13T12:00:00.000+00:00",
+      "accept": false,
+      "why": "offset instead of Z"
+    },
+    {
+      "value": "+010000-01-01T00:00:00.000Z",
+      "accept": false,
+      "why": "expanded year"
+    },
+    {
+      "value": "2026-02-30T12:00:00.000Z",
+      "accept": false,
+      "why": "no such day"
+    },
+    {
+      "value": "2026-06-30T23:59:60.000Z",
+      "accept": false,
+      "why": "leap second: browsers refuse it, Java reads it as the next second"
+    },
+    {
+      "value": "2026-10-13T12:00:00.000z",
+      "accept": false,
+      "why": "lower-case z"
+    },
+    {
+      "value": "zzz",
+      "accept": false,
+      "why": "not a date"
+    },
+    {
+      "value": "",
+      "accept": false,
+      "why": "empty"
+    }
+  ],
+  "departed": [
+    {
+      "value": null,
+      "accept": true,
+      "why": "absent or null: a group's first key names nobody"
+    },
+    {
+      "value": [],
+      "accept": true,
+      "why": "an empty list names nobody"
+    },
+    {
+      "value": ["a", "b"],
+      "accept": true,
+      "why": "two ids"
+    },
+    {
+      "value": [
+        "id-01",
+        "id-02",
+        "id-03",
+        "id-04",
+        "id-05",
+        "id-06",
+        "id-07",
+        "id-08",
+        "id-09",
+        "id-10",
+        "id-11",
+        "id-12",
+        "id-13",
+        "id-14",
+        "id-15",
+        "id-16",
+        "id-17",
+        "id-18",
+        "id-19",
+        "id-20",
+        "id-21",
+        "id-22",
+        "id-23",
+        "id-24",
+        "id-25",
+        "id-26",
+        "id-27",
+        "id-28",
+        "id-29",
+        "id-30",
+        "id-31",
+        "id-32"
+      ],
+      "accept": true,
+      "why": "the most a record may name"
+    },
+    {
+      "value": [
+        "id-01",
+        "id-02",
+        "id-03",
+        "id-04",
+        "id-05",
+        "id-06",
+        "id-07",
+        "id-08",
+        "id-09",
+        "id-10",
+        "id-11",
+        "id-12",
+        "id-13",
+        "id-14",
+        "id-15",
+        "id-16",
+        "id-17",
+        "id-18",
+        "id-19",
+        "id-20",
+        "id-21",
+        "id-22",
+        "id-23",
+        "id-24",
+        "id-25",
+        "id-26",
+        "id-27",
+        "id-28",
+        "id-29",
+        "id-30",
+        "id-31",
+        "id-32",
+        "id-33"
+      ],
+      "accept": false,
+      "why": "more than a key copy is allowed to carry"
+    },
+    {
+      "value": ["a", "a"],
+      "accept": false,
+      "why": "the same id twice"
+    },
+    {
+      "value": [""],
+      "accept": false,
+      "why": "an empty id"
+    },
+    {
+      "value": ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],
+      "accept": true,
+      "why": "an id of the longest length"
+    },
+    {
+      "value": ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],
+      "accept": false,
+      "why": "an id longer than any the relay mints"
+    },
+    {
+      "value": [1],
+      "accept": false,
+      "why": "a number, not an id"
+    },
+    {
+      "value": "a",
+      "accept": false,
+      "why": "a string, not a list"
+    },
+    {
+      "value": {
+        "a": 1
+      },
+      "accept": false,
+      "why": "an object, not a list"
+    },
+    {
+      "value": [null],
+      "accept": false,
+      "why": "a null item"
+    },
+    {
+      "value": [["a"]],
+      "accept": false,
+      "why": "a nested list"
+    },
+    {
+      "value": ["😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"],
+      "accept": true,
+      "why": "32 emoji are 64 UTF-16 units, the length every client counts"
+    },
+    {
+      "value": ["😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"],
+      "accept": false,
+      "why": "33 emoji are 66 UTF-16 units, however few characters they look like"
+    },
+    {
+      "value": ["é", "é"],
+      "accept": true,
+      "why": "canonically equal text but different strings, which is how ids are compared"
+    }
+  ],
+  "vouched": [
+    {
+      "departed": ["a", "b"],
+      "sender": "a",
+      "expect": ["b"],
+      "why": "a device cannot vouch that it has left"
+    },
+    {
+      "departed": ["a"],
+      "sender": "a",
+      "expect": null,
+      "why": "nothing left to rely on"
+    },
+    {
+      "departed": ["a", "b"],
+      "sender": "z",
+      "expect": ["a", "b"],
+      "why": "another sender changes nothing"
+    },
+    {
+      "departed": null,
+      "sender": "z",
+      "expect": null,
+      "why": "nothing named"
+    }
+  ]
+}

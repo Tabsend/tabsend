@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Binds the per-device Sharing Shortcuts published by send/ShareShortcuts to the
+  share target itself. Without this declaration the shortcuts exist only in the
+  launcher's long-press menu and never reach the share sheet's Direct Share row.
+
+  The filter has to be a subset of ShareActivity's own ACTION_SEND intent filter
+  (text/plain), or the system drops the target silently.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <share-target android:targetClass="io.tabsend.app.send.ShareActivity">
+        <data android:mimeType="text/plain" />
+        <category android:name="io.tabsend.app.category.SEND_TARGET" />
+    </share-target>
+</shortcuts>

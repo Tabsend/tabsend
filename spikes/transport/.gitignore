@@ -1,0 +1,7 @@
+# throwaway spike artifacts — not for the build
+node_modules/
+.chrome-profile/
+relay/vapid.json
+results.json
+results.txt
+*.log

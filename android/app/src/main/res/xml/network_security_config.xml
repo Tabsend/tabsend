@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Https-only by default (DEPLOY.md: real relays must sit behind TLS). The one
+     exception is loopback, for the USB test drive (`adb reverse tcp:8787 tcp:8787`
+     → http://localhost:8787) plus the emulator's host alias 10.0.2.2. Without
+     this, Android 9+ blocks cleartext in-process — pairing against a local relay
+     fails with "couldn't reach the relay" even though the tunnel is up. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

@@ -1,0 +1,18 @@
+# pnpm workspace — real TypeScript packages only.
+# android/ is still a placeholder directory (see its README.md); it has no
+# package.json yet and joins the workspace when its chunk lands (→ Chunk 5).
+packages:
+  - shared
+  - server
+  - forwarder
+  - extension
+  - console
+  - e2e
+# better-sqlite3 ships a native addon; esbuild (via tsx, dev-only) fetches a platform binary.
+# Both need their install scripts allowed.
+# spawn-sync (transitive via web-ext, dev-only Firefox packaging) has an OPTIONAL node-gyp
+# build we don't need — it's a spawnSync polyfill for ancient Node; disabled explicitly.
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+  spawn-sync: false

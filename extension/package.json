@@ -1,0 +1,25 @@
+{
+  "name": "@tabsend/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tabsend MV3 browser extension — Chrome first, Firefox port. Chunk 3 MVP: identity, send pipeline, chooser popup, context menus, poll-based receive.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "vite build",
+    "build:firefox": "TABSEND_TARGET=firefox vite build"
+  },
+  "dependencies": {
+    "@tabsend/shared": "workspace:*",
+    "libsodium-wrappers": "^0.7.15",
+    "qrcode-generator": "^2.0.4"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.278",
+    "@types/libsodium-wrappers": "^0.7.14",
+    "vite": "^8.1.4",
+    "web-ext": "10.6.0"
+  }
+}

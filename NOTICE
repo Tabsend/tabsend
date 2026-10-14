@@ -1,0 +1,30 @@
+Tabsend
+Copyright 2026 Benjamin Misja (alvanx)
+
+This product includes software developed by Benjamin Misja (alvanx).
+
+Except where stated otherwise below, this repository is licensed under the
+Apache License, Version 2.0. See the LICENSE file at the root of this
+repository, or http://www.apache.org/licenses/LICENSE-2.0
+
+  Apache License, Version 2.0 (SPDX: Apache-2.0)
+    - extension/   browser extension
+    - shared/      wire contracts shared by the relay and all clients
+    - console/     web console
+    - android/     Android application
+    - forwarder/   iOS wake-up forwarder service
+    - e2e/, spikes/, and the repository root
+
+  Functional Source License, Version 1.1, ALv2 Future License
+  (SPDX: FSL-1.1-ALv2)
+    - server/      the Tabsend relay
+
+The relay in server/ is licensed under FSL-1.1-ALv2 and carries its own
+LICENSE file at server/LICENSE. Each version of the relay converts to the
+Apache License, Version 2.0 on the second anniversary of the date that
+version was made available. Running the relay for yourself, your family, or
+your organisation is permitted; see server/LICENSE-NOTE.md for a plain-English
+summary and server/LICENSE for the binding terms.
+
+shared/ is deliberately Apache-2.0 so that it can be consumed by both the
+FSL-licensed relay and the Apache-licensed clients.

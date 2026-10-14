@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The signature card (docs/APP_UI.md "Phones: native-leaning"): used on the
+     first-run pairing screen and nowhere else. Card fill, 1.5dp ink outline, and a
+     hard offset shadow 4dp right and down with no blur. The shadow is a second
+     rectangle drawn first and inset from the top/left; the card is inset from the
+     bottom/right by the same 4dp, so the two together fill the view's bounds. A
+     view using this pads its end and bottom 4dp more than its start and top, so
+     the content centres on the face. Set padding AFTER the background in code
+     (setBackgroundResource resets padding). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:left="4dp"
+        android:top="4dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ts_shadow" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+    <item
+        android:right="4dp"
+        android:bottom="4dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ts_card" />
+            <stroke
+                android:width="1.5dp"
+                android:color="@color/ts_ink" />
+            <corners android:radius="16dp" />
+        </shape>
+    </item>
+</layer-list>

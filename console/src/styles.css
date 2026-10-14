@@ -1,0 +1,635 @@
+/*
+ * Tabsend Console — calm, honest, specific (DOGFOOD taste). One accent (the brand
+ * blue), a quiet neutral surface, generous whitespace, no decoration that isn't
+ * load-bearing. Theme-aware: light + dark via prefers-color-scheme.
+ */
+
+:root {
+  --accent: #2563eb;
+  --accent-weak: #4c8dff;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --border: #e2e5ea;
+  --text: #1a1d21;
+  --muted: #6b7280;
+  --danger: #c0362c;
+  --danger-weak: #e5534b;
+  --online: #22a559;
+  --offline: #9aa0aa;
+  --amber: #d08700;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 4px 16px rgba(16, 24, 40, 0.06);
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116;
+    --surface: #171b22;
+    --surface-2: #1e232c;
+    --border: #2a303a;
+    --text: #e6e9ee;
+    --muted: #9aa2ae;
+    --online: #38c172;
+    --offline: #6b7280;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 0 20px 64px;
+}
+
+/* header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0 16px;
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  z-index: 5;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--accent);
+}
+.brand span {
+  color: var(--text);
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.self-label {
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* presence dot — base first so more-specific variants below win the cascade */
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--offline);
+  flex-shrink: 0;
+}
+
+/* connection badge */
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--muted);
+}
+.conn .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--offline);
+}
+.conn-live .dot {
+  background: var(--online);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--online) 22%, transparent);
+}
+.conn-polling .dot {
+  background: var(--amber);
+}
+
+/* cards / panels */
+.card,
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px;
+}
+.panel {
+  margin-top: 16px;
+}
+
+/* "New device joined" banner (PLANS.md P-10). Amber, like a waiting state:
+   something to look at, not an outage. */
+.new-device {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--amber);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--amber) 10%, var(--surface));
+}
+.new-device-title {
+  font-weight: 600;
+}
+.new-device-body {
+  margin: 4px 0 10px;
+}
+.new-device-actions {
+  display: flex;
+  gap: 8px;
+}
+/* One row per device on the first-look card: its name, and a way to remove it. */
+.new-device-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.new-device-row + .new-device-actions {
+  margin-top: 8px;
+}
+h1 {
+  font-size: 22px;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+h2 {
+  font-size: 17px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+h3 {
+  font-size: 14px;
+  margin: 22px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.muted {
+  color: var(--muted);
+}
+.center {
+  text-align: center;
+  padding: 40px 0;
+}
+
+/* tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 14px;
+  margin-bottom: -1px;
+  font: inherit;
+  font-weight: 550;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--text);
+}
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* buttons */
+.btn {
+  appearance: none;
+  font: inherit;
+  font-weight: 550;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 9px 15px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+.btn:hover {
+  border-color: color-mix(in srgb, var(--text) 22%, var(--border));
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+}
+.btn.danger {
+  color: #fff;
+  background: var(--danger-weak);
+  border-color: var(--danger-weak);
+}
+.btn.danger:hover {
+  background: var(--danger);
+}
+.btn.small {
+  padding: 6px 11px;
+  font-size: 13px;
+}
+.btn.tiny {
+  padding: 3px 8px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+/* fields */
+.field {
+  width: 100%;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text);
+  margin-bottom: 14px;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+/* onboarding */
+.onboarding {
+  margin-top: 40px;
+}
+.note {
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-radius: 9px;
+  padding: 11px 13px;
+  margin-top: 16px;
+}
+.note.warn {
+  background: color-mix(in srgb, var(--amber) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--border));
+  color: var(--text);
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+
+/* panel head */
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 12px;
+}
+
+/* device list */
+.device-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.device {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-top: 1px solid var(--border);
+}
+.device-info {
+  min-width: 0;
+}
+.device-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.device-name {
+  font-weight: 600;
+}
+.device.is-stale .device-name {
+  color: var(--muted);
+}
+.device-sub {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.device-actions {
+  display: flex;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.dot.online {
+  background: var(--online);
+}
+/* presence we can't currently check — dotted, so it reads as a different kind
+   of answer than the solid offline dot rather than as a third status */
+.dot.unknown {
+  background: transparent;
+  border: 1.5px dotted var(--offline);
+}
+
+/* tags */
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.tag-self {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.tag-stale {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 35%, var(--border));
+}
+
+/* history */
+.history-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.entry {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.entry-icon {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.entry-icon.placeholder {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.entry-body {
+  min-width: 0;
+  flex: 1;
+}
+.entry-route-line {
+  margin-bottom: 2px;
+}
+.entry-route {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+}
+.entry-route .arrow {
+  color: var(--accent);
+}
+/* mail imagery [ADR-0026 §9]: the glyph travels WITH the device name, because on
+   this surface neither end is ever the device you are holding */
+.mail-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mail-end svg {
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+/* delivery state — the one thing a per-console copy could never tell you */
+.state {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: help;
+}
+.state-arrived {
+  color: var(--online);
+  border-color: color-mix(in srgb, var(--online) 35%, var(--border));
+}
+.state-waiting {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 35%, var(--border));
+}
+.state-never-arrived {
+  color: var(--danger-weak);
+  border-color: color-mix(in srgb, var(--danger-weak) 40%, var(--border));
+}
+/* a row whose blob is sealed under a key this console does not hold */
+.entry-title.sealed {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--muted);
+  cursor: help;
+}
+.entry-title {
+  display: inline-block;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.entry-title:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.entry-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.entry-host {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+.entry-foot .sep {
+  opacity: 0.5;
+}
+.empty {
+  padding: 22px 0;
+}
+
+/* one multi-tab send, rendered as one block: header states the route once, the
+   tabs sit indented under it so the block reads as a single event */
+.entry-group {
+  border-top: 1px solid var(--border);
+  padding: 14px 0 4px;
+}
+.batch-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+}
+.batch-count {
+  font-weight: 600;
+  color: var(--text);
+}
+.batch-head .arrow {
+  color: var(--accent);
+}
+.batch-head .sep {
+  opacity: 0.5;
+}
+.batch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--border);
+  margin-left: 3px;
+}
+.batch-list .entry {
+  border-top: none;
+  padding: 8px 0;
+}
+
+/* key/value block */
+.kv {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+.kv-row {
+  display: flex;
+  gap: 12px;
+  font-size: 13.5px;
+}
+.kv-key {
+  width: 120px;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.kv-val {
+  word-break: break-all;
+}
+
+/* status line */
+.status {
+  min-height: 22px;
+  margin-top: 14px;
+  font-size: 13.5px;
+  text-align: center;
+}
+.status.error {
+  color: var(--danger-weak);
+}
+.status.info {
+  color: var(--muted);
+}
+
+/* dialogs / overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, #0b0e12 55%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 20;
+}
+.dialog {
+  width: 100%;
+  max-width: 420px;
+}
+.dialog h3 {
+  margin-top: 0;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  font-size: 17px;
+  color: var(--text);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 18px;
+}
+
+/* pairing modal */
+.qr {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 14px;
+}
+.qr svg {
+  border-radius: 8px;
+  display: block;
+}
+.pair-code {
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 26px;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  padding: 8px 0;
+}
+.pair-actions {
+  display: flex;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 4px;
+}

@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tabsend settings</title>
+    <link rel="icon" href="icons/tabsend-32.png" />
+    <link rel="icon" sizes="16x16" href="icons/tabsend-16.png" />
+    <link rel="icon" sizes="48x48" href="icons/tabsend-48.png" />
+    <link rel="stylesheet" href="/src/pages/ui.css" />
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        padding: 48px 16px 96px;
+      }
+      main { width: 100%; max-width: 560px; }
+      .setting-control { flex: none; }
+      .setting.stack .setting-detail { margin-top: 6px; }
+      #primary { margin-top: 2px; }
+      .relay-line {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 4px 10px;
+        margin: 0;
+      }
+      #current-relay { word-break: break-all; font-size: 14px; }
+      /* Empty when nothing is known, quiet green when healthy, a waiting-tint
+         strip when the relay has gone quiet — this page is where you look when
+         sends stop. */
+      #relay-status { font-size: 13px; color: var(--success); font-weight: 600; margin: 6px 0 0; }
+      #relay-status:empty { display: none; }
+      #relay-status.down {
+        color: var(--waiting);
+        font-weight: 500;
+        background: var(--waiting-tint);
+        border-radius: 10px;
+        padding: 10px 12px;
+        line-height: 1.45;
+      }
+      #move-form label { display: block; font-weight: 600; margin-bottom: 8px; }
+      #move-form .input-row { display: flex; gap: 8px; }
+      #move-form .input-row input { flex: 1; min-width: 0; }
+      /* The verdict: a tinted strip the width of the input above it, so the
+         finding and its action read as one result, not a stray line. */
+      #probe-result {
+        display: none;
+        margin-top: 12px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: var(--chip);
+      }
+      #probe-result.visible { display: block; }
+      #probe-result.same { background: var(--success-tint); }
+      #probe-result.different { background: var(--waiting-tint); }
+      #probe-result.bad { background: var(--danger-tint); }
+      .probe-row { display: flex; align-items: flex-start; gap: 10px; }
+      #probe-icon { width: 18px; height: 18px; flex: none; margin-top: 1px; color: var(--muted); }
+      #probe-result.same #probe-icon { color: var(--success); }
+      #probe-result.different #probe-icon { color: var(--waiting); }
+      #probe-result.bad #probe-icon { color: var(--danger); }
+      #probe-icon:empty { display: none; }
+      #probe-note { margin: 0; font-size: 14px; line-height: 1.5; }
+      #probe-actions { margin-top: 10px; margin-left: 28px; }
+      #probe-actions:empty { display: none; }
+      /* Unfinished move: the same strip, in the accent tint, because it reports
+         an incomplete action rather than a good or bad finding. */
+      #pending-switch {
+        display: none;
+        margin: 4px 0 6px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: var(--accent-tint);
+      }
+      #pending-switch.visible { display: block; }
+      #pending-switch svg { width: 18px; height: 18px; flex: none; margin-top: 1px; color: var(--accent); }
+      #pending-note { margin: 0; font-size: 14px; line-height: 1.5; font-weight: 600; }
+      #pending-sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      #pending-actions { margin-top: 10px; margin-left: 28px; }
+      #pairing-box { margin-top: 18px; }
+      #pairing-unregistered { margin: 0; }
+      details { margin-top: 12px; font-size: 13px; color: var(--muted); }
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: var(--accent);
+        width: max-content;
+        border-radius: 4px;
+      }
+      details p { margin: 8px 0 0; line-height: 1.5; }
+      #page-error {
+        display: none;
+        margin: 0 0 24px;
+      }
+      #page-error.visible { display: block; }
+      /* "Saved ✓" — pinned where it is seen, not at the foot of a long page. */
+      .saved {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%);
+        margin: 0;
+        padding: 8px 14px;
+        border: var(--outline);
+        border-radius: 999px;
+        background: var(--card);
+        color: var(--success);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .saved:empty { display: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="page-title">
+        <img src="icons/tabsend-48.png" alt="" />
+        <h1>Settings</h1>
+      </header>
+
+      <div id="page-error" class="notice danger" role="alert"></div>
+
+      <section class="section" aria-labelledby="sec-sending">
+        <h2 class="section-label" id="sec-sending">Sending</h2>
+        <div class="rows">
+          <div class="setting stack" role="radiogroup" aria-labelledby="toolbar-title">
+            <span class="setting-text">
+              <span class="setting-title" id="toolbar-title">Clicking the toolbar icon</span>
+            </span>
+            <div class="segmented">
+              <label>
+                <input type="radio" name="toolbar" value="chooser" />
+                <span>Open the chooser</span>
+              </label>
+              <label>
+                <input type="radio" name="toolbar" value="quicksend" />
+                <span>Quick-send to primary</span>
+              </label>
+            </div>
+            <span class="setting-detail">
+              The chooser lets you pick a device every time (default). Quick-send sends straight
+              to your primary device, with a 4-second “Undo” on the page.
+            </span>
+          </div>
+
+          <div class="setting stack">
+            <label class="setting-text" for="primary">
+              <span class="setting-title">Primary device</span>
+              <span class="setting-detail">Where quick-send and the “send to primary” shortcut go. Learned from your recent sends unless you pin it.</span>
+            </label>
+            <select id="primary"></select>
+          </div>
+
+          <label class="setting">
+            <span class="setting-text">
+              <span class="setting-title">Pin the primary device</span>
+              <span class="setting-detail">Stop it moving to your most-recent device.</span>
+            </span>
+            <input type="checkbox" class="switch" id="primary-pinned" />
+          </label>
+
+          <label class="setting">
+            <span class="setting-text">
+              <span class="setting-title">Confirm each send</span>
+              <span class="setting-detail">An in-page toast naming the device. Errors always show.</span>
+            </span>
+            <input type="checkbox" class="switch" id="success-toast" />
+          </label>
+
+          <label class="setting">
+            <span class="setting-text">
+              <span class="setting-title">Show the waiting row in the chooser</span>
+              <span class="setting-detail">“⏳ 1 waiting for …” while a send is queued to an asleep device.</span>
+            </span>
+            <input type="checkbox" class="switch" id="pending-row" />
+          </label>
+
+          <label class="setting">
+            <span class="setting-text">
+              <span class="setting-title">Right-click menus</span>
+              <span class="setting-detail">Show “Send tab / link to …” when you right-click a page or link.</span>
+            </span>
+            <input type="checkbox" class="switch" id="context-menus" />
+          </label>
+
+          <div class="setting">
+            <span class="setting-text">
+              <span class="setting-title">Keyboard shortcut</span>
+              <span class="setting-detail">
+                <code>Ctrl/Cmd + Shift + S</code> does what the toolbar icon does. A second,
+                unbound shortcut sends straight to your primary device.
+              </span>
+            </span>
+            <button type="button" class="linkish setting-control" id="open-shortcuts">Rebind…</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="sec-receiving">
+        <h2 class="section-label" id="sec-receiving">Receiving</h2>
+        <div class="rows">
+          <label class="setting">
+            <span class="setting-text">
+              <span class="setting-title">Notify when a tab arrives</span>
+              <span class="setting-detail">
+                Says which window the tab opened in; click it to go there. The toolbar badge
+                counts new tabs either way.
+              </span>
+            </span>
+            <input type="checkbox" class="switch" id="notify-receive" />
+          </label>
+
+          <div class="setting">
+            <span class="setting-text">
+              <span class="setting-title">History</span>
+              <span class="setting-detail">
+                Every tab your devices send each other, and whether it arrived. A tab that never
+                arrived can be sent again from there. The newest 50 stay on this browser for
+                offline use.
+              </span>
+            </span>
+            <button type="button" id="open-history" class="btn-secondary setting-control">Open history</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="sec-devices">
+        <h2 class="section-label" id="sec-devices">Devices</h2>
+        <div class="rows">
+          <div class="setting stack">
+            <span class="setting-text">
+              <span class="setting-title">Pair a device</span>
+              <span class="setting-detail">
+                Connect another browser or your phone to this group with a link or QR code —
+                handy when quick-send has taken over the toolbar icon.
+              </span>
+            </span>
+            <p class="setting-detail" id="pairing-unregistered" style="display: none">
+              Finish setting up Tabsend first, then come back here to pair another device.
+              <button type="button" class="linkish" id="pairing-setup-link">Set up Tabsend</button>
+            </p>
+            <div><button type="button" id="pair-device" class="btn-primary">Show pairing link</button></div>
+            <div id="pairing-box">
+              <div id="pairing-ready">
+                <div id="pairing-qr"></div>
+                <input id="pairing-link" type="text" readonly aria-label="Pairing link" />
+                <div class="pair-actions">
+                  <button type="button" class="linkish" id="copy-link">Copy pairing link</button>
+                  <span id="copy-note"></span>
+                </div>
+                <p class="pair-hint">Scan the QR with a phone, or copy the pairing link to a browser extension.</p>
+                <div id="pairing-local-only" role="status"></div>
+              </div>
+              <div id="pairing-note"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- id: the first-run manage screen deep-links here (options.html#connection). -->
+      <section class="section" id="connection" aria-labelledby="sec-connection">
+        <h2 class="section-label" id="sec-connection">Connection</h2>
+        <div class="rows">
+          <div class="setting stack">
+            <p class="relay-line">
+              <span class="setting-title">Relay</span>
+              <code id="current-relay">…</code>
+            </p>
+            <p id="relay-status" role="status"></p>
+
+            <!-- A move to another relay that was started here and not finished.
+                 Choosing a different relay no longer unpairs anything, so this state
+                 can outlive the tab that began it: it is rebuilt from stored state on
+                 every load, and it is the only thing that says the browser is
+                 half-way somewhere. Same verdict-strip shape as the probe result. -->
+            <div id="pending-switch" role="status">
+              <div class="probe-row">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 8v4l3 2" />
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+                <div>
+                  <p id="pending-note"></p>
+                  <p id="pending-sub"></p>
+                </div>
+              </div>
+              <div class="btn-row" id="pending-actions"></div>
+            </div>
+          </div>
+
+          <!-- One address in, one verdict out. The extension can already tell its
+               own relay from a stranger (relayId + an authenticated probe), so it
+               classifies instead of asking the user to. -->
+          <div id="move-form" class="setting stack">
+            <label for="new-address">Where is your relay now?</label>
+            <div class="input-row">
+              <input type="url" id="new-address" placeholder="http://192.168.1.50:8787" spellcheck="false" />
+              <button type="button" id="relay-check" class="btn-secondary">Check</button>
+            </div>
+            <div id="probe-result">
+              <div class="probe-row">
+                <svg id="probe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+                <p id="probe-note"></p>
+              </div>
+              <div class="btn-row" id="probe-actions"></div>
+            </div>
+            <details>
+              <summary>Advanced details</summary>
+              <p>
+                For a home-network relay, use its browser address. With the included
+                self-signed LAN setup, that is <code>http://&lt;LAN-IP&gt;:8786</code>;
+                <code>https://&lt;LAN-IP&gt;:8787</code> is for the Android app.
+              </p>
+              <p>
+                Tabsend checks whether the address is the relay you are already on (then only
+                the address changes and your devices stay paired) or a different one (then it
+                opens setup, and keeps the current pairing until the new relay accepts this
+                browser).
+              </p>
+            </details>
+          </div>
+          <p class="setting" id="setup-line" style="display: none">
+            <button type="button" id="change-relay" class="btn-secondary">Set up Tabsend</button>
+          </p>
+        </div>
+      </section>
+
+      <p class="saved" id="saved" role="status"></p>
+    </main>
+    <script type="module" src="/src/pages/options.ts"></script>
+  </body>
+</html>

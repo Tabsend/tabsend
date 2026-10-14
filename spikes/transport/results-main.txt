@@ -1,0 +1,16 @@
+
+================= SPIKE A — CHROME RESULTS (ms, relative to relay send) =================
+FOREGROUND / WARM (SW recently active)   bar < 1000 ms   [n=8]
+  push received : n=8 min=81 median=96 p90=213 max=228
+  fetch complete: n=8 min=83 median=100 p90=221 max=248
+  tab opened    : n=8 min=95 median=108 p90=232 max=261
+  bootΔ (warm should be large): n=8 min=5304 median=18645 p90=29536 max=32176
+
+COLD-WAKE (SW idle-terminated)           bar < 5000 ms   [n=6]
+  push received : n=6 min=189 median=206 p90=256 max=283
+  fetch complete: n=6 min=192 median=210 p90=262 max=287
+  tab opened    : n=6 min=200 median=225 p90=279 max=305
+  bootΔ (cold should be small): n=6 min=1 median=1 p90=2 max=2
+========================================================================================
+
+full JSON in results.json

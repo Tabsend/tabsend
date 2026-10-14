@@ -1,0 +1,269 @@
+{
+  "generatedAt": "2026-07-17T01:10:18.500Z",
+  "warm": [
+    {
+      "phase": "warm",
+      "warmObserved": true,
+      "pushLatency": 94,
+      "fetchComplete": 97,
+      "tabOpen": 106,
+      "tabHitServer": 105,
+      "bootToPush": 5304
+    },
+    {
+      "phase": "warm",
+      "warmObserved": true,
+      "pushLatency": 107,
+      "fetchComplete": 111,
+      "tabOpen": 121,
+      "tabHitServer": 117,
+      "bootToPush": 9093
+    },
+    {
+      "phase": "warm",
+      "warmObserved": true,
+      "pushLatency": 85,
+      "fetchComplete": 89,
+      "tabOpen": 102,
+      "tabHitServer": 100,
+      "bootToPush": 12917
+    },
+    {
+      "phase": "warm",
+      "warmObserved": true,
+      "pushLatency": 82,
+      "fetchComplete": 83,
+      "tabOpen": 98,
+      "tabHitServer": 90,
+      "bootToPush": 16682
+    },
+    {
+      "phase": "warm",
+      "warmObserved": true,
+      "pushLatency": 228,
+      "fetchComplete": 248,
+      "tabOpen": 261,
+      "tabHitServer": 259,
+      "bootToPush": 20607
+    },
+    {
+      "phase": "warm",
+      "warmObserved": true,
+      "pushLatency": 206,
+      "fetchComplete": 209,
+      "tabOpen": 219,
+      "tabHitServer": 218,
+      "bootToPush": 24656
+    },
+    {
+      "phase": "warm",
+      "warmObserved": true,
+      "pushLatency": 81,
+      "fetchComplete": 84,
+      "tabOpen": 95,
+      "tabHitServer": 94,
+      "bootToPush": 28405
+    },
+    {
+      "phase": "warm",
+      "warmObserved": true,
+      "pushLatency": 97,
+      "fetchComplete": 102,
+      "tabOpen": 109,
+      "tabHitServer": 109,
+      "bootToPush": 32176
+    }
+  ],
+  "cold": [
+    {
+      "phase": "cold",
+      "warmObserved": false,
+      "pushLatency": 190,
+      "fetchComplete": 193,
+      "tabOpen": 213,
+      "tabHitServer": 202,
+      "bootToPush": 2
+    },
+    {
+      "phase": "cold",
+      "warmObserved": false,
+      "pushLatency": 229,
+      "fetchComplete": 237,
+      "tabOpen": 252,
+      "tabHitServer": 249,
+      "bootToPush": 1
+    },
+    {
+      "phase": "cold",
+      "warmObserved": false,
+      "pushLatency": 198,
+      "fetchComplete": 200,
+      "tabOpen": 210,
+      "tabHitServer": 209,
+      "bootToPush": 1
+    },
+    {
+      "phase": "cold",
+      "warmObserved": false,
+      "pushLatency": 213,
+      "fetchComplete": 220,
+      "tabOpen": 237,
+      "tabHitServer": 234,
+      "bootToPush": 1
+    },
+    {
+      "phase": "cold",
+      "warmObserved": false,
+      "pushLatency": 283,
+      "fetchComplete": 287,
+      "tabOpen": 305,
+      "tabHitServer": 295,
+      "bootToPush": 1
+    },
+    {
+      "phase": "cold",
+      "warmObserved": false,
+      "pushLatency": 189,
+      "fetchComplete": 192,
+      "tabOpen": 200,
+      "tabHitServer": 200,
+      "bootToPush": 2
+    }
+  ],
+  "summary": {
+    "warm": {
+      "n": 8,
+      "pushLatency": {
+        "n": 8,
+        "min": 81,
+        "median": 96,
+        "p90": 213,
+        "max": 228,
+        "all": [
+          81,
+          82,
+          85,
+          94,
+          97,
+          107,
+          206,
+          228
+        ]
+      },
+      "fetchComplete": {
+        "n": 8,
+        "min": 83,
+        "median": 100,
+        "p90": 221,
+        "max": 248,
+        "all": [
+          83,
+          84,
+          89,
+          97,
+          102,
+          111,
+          209,
+          248
+        ]
+      },
+      "tabOpen": {
+        "n": 8,
+        "min": 95,
+        "median": 108,
+        "p90": 232,
+        "max": 261,
+        "all": [
+          95,
+          98,
+          102,
+          106,
+          109,
+          121,
+          219,
+          261
+        ]
+      },
+      "bootToPush": {
+        "n": 8,
+        "min": 5304,
+        "median": 18645,
+        "p90": 29536,
+        "max": 32176,
+        "all": [
+          5304,
+          9093,
+          12917,
+          16682,
+          20607,
+          24656,
+          28405,
+          32176
+        ]
+      }
+    },
+    "cold": {
+      "n": 6,
+      "pushLatency": {
+        "n": 6,
+        "min": 189,
+        "median": 206,
+        "p90": 256,
+        "max": 283,
+        "all": [
+          189,
+          190,
+          198,
+          213,
+          229,
+          283
+        ]
+      },
+      "fetchComplete": {
+        "n": 6,
+        "min": 192,
+        "median": 210,
+        "p90": 262,
+        "max": 287,
+        "all": [
+          192,
+          193,
+          200,
+          220,
+          237,
+          287
+        ]
+      },
+      "tabOpen": {
+        "n": 6,
+        "min": 200,
+        "median": 225,
+        "p90": 279,
+        "max": 305,
+        "all": [
+          200,
+          210,
+          213,
+          237,
+          252,
+          305
+        ]
+      },
+      "bootToPush": {
+        "n": 6,
+        "min": 1,
+        "median": 1,
+        "p90": 2,
+        "max": 2,
+        "all": [
+          1,
+          1,
+          1,
+          1,
+          2,
+          2
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tint behind the relay-outage line. Amber, not colorError's red: nothing has
+     failed permanently and no tab is lost, there is just something the user has
+     to go and fix. Same reasoning as @color/relay_warning on the relay-move
+     "different relay" verdict. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/relay_warning_bg" />
+    <corners android:radius="8dp" />
+</shape>

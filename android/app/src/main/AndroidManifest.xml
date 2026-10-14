@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Relay traffic, plus the wake-up forwarder and Google's push service on a build
+         with Google push [0034]. No analytics. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Connectivity.isOnline, which demotes a relay-unreachable diagnosis to a
+         plain "you're offline" one. WorkManager's manifest merges this in anyway,
+         but app code must not depend on a library's manifest for its own
+         correctness: without it the check throws and the wrong copy ships. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Instant delivery: a foreground service holds the relay
+         WebSocket. specialUse (not dataSync) so newer Android's dataSync time
+         caps never cut the connection. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- QR pairing scanner (zxing). Frames are decoded on-device; nothing leaves. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- networkSecurityConfig: https-only, except cleartext to loopback/emulator
+         host for the local-relay test drive (see res/xml/network_security_config). -->
+    <application
+        android:name=".TabsendApp"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="Tabsend"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Tabsend">
+
+        <!-- Home: pairing + device management. Also catches pairing deep links. -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Scanning the extension's QR opens its https PAIRING_LINK (any relay
+                 host). Without App Links domain verification this offers the app in
+                 the chooser; manual paste is the guaranteed path (see chunk-5c report). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:pathPrefix="/pair" />
+            </intent-filter>
+
+            <!-- Per-device Sharing Shortcuts (Direct Share). The declaration has
+                 to hang off the LAUNCHER activity even though the share target it
+                 names is ShareActivity; the system reads it from here only. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <!-- The group's history (P-7, widened by ADR-0028). Reached from the home
+             screen; the notification remains how a tab arrives, this is where the
+             record of it stays. -->
+        <activity
+            android:name=".ui.HistoryActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <!-- The OS share-sheet target. "Send to Tabsend" when sharing a URL. After a
+             pick the same window shows the send toast; configChanges keeps it (and
+             the chooser) alive through a rotation instead of recreating it. -->
+        <activity
+            android:name=".send.ShareActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:exported="true"
+            android:label="Tabsend"
+            android:theme="@style/Theme.Tabsend.Transparent"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- Every received-link tap: invisible one-shot activity that fans the
+             URLs out to the default browser and records that they were opened
+             (see OpenLinksActivity for why an activity and not a receiver). -->
+        <activity
+            android:name=".receive.OpenLinksActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Tabsend.Transparent"
+            android:excludeFromRecents="true"
+            android:noHistory="true" />
+
+        <!-- zxing's scan screen ships landscape-locked; pairing happens holding the
+             phone upright, so pin it to portrait instead. -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="portrait"
+            tools:replace="screenOrientation" />
+
+        <!--
+          Firebase Messaging must not set itself up [2026-10-02, SECURITY_REVIEW G3]. With
+          automatic set-up on (its default), the library registers this install with Google
+          the moment Firebase starts and refreshes that weekly, whatever the user chose.
+          The app starts Firebase only to enrol, and asks for the token itself.
+        -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+
+        <!--
+          Google push [P-11]. Present in every build; it only ever receives anything when
+          this build carries Firebase values, the phone has Play Services, and the user has
+          instant delivery on without refusing Google. The payload is a content-free marker
+          and is never read: a wake triggers the same idempotent drain the WebSocket does.
+        -->
+        <service
+            android:name=".push.WakeMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Instant delivery: foreground service holding the relay
+             WebSocket so links arrive the moment they're sent (no Google, no
+             distributor app). -->
+        <service
+            android:name=".receive.StreamService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a WebSocket open to the user's own self-hosted relay so sent tabs arrive instantly. Used when Google push is unavailable or the user turned it off; the app then has no other way to receive tabs in the background." />
+        </service>
+
+        <!-- ~5-min poll chain tick [0015] (AlarmManager → heartbeat + drain). -->
+        <receiver
+            android:name=".work.PollReceiver"
+            android:exported="false" />
+
+        <!-- Drain the queue on boot — correctness never depends on a push arriving. -->
+        <receiver
+            android:name=".work.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- WorkManager on demand, not at process start. Its default initializer
+             is a ContentProvider, so it opens its Room database on the main
+             thread before Application.onCreate on EVERY cold start — including
+             the one the share sheet triggers, where that lands in front of the
+             chooser's first frame while the sharing app sits frozen behind it.
+             TabsendApp implements Configuration.Provider, so the first
+             getInstance() initialises it instead (off the critical path). -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
+    </application>
+
+</manifest>

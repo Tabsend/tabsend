@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tonal surface panel (docs/APP_UI.md "Phones: native-leaning"): the `panel`
+     colour, radius 16, no outline and no shadow. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/ts_panel" />
+    <corners android:radius="16dp" />
+</shape>

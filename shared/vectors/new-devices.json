@@ -1,0 +1,3025 @@
+{
+  "//": "Cases for the 'new device joined' rule (PLANS.md P-10). Run by shared/src/newdevices.test.ts, android NewDevicesTest.kt and iOS NewDevicesTests.swift. A list entry carries only the fields the rule reads; each test fills in the rest of the Endpoint, with e2ePubkey 'pk' unless the entry gives one. 'now' is passed to the rule. A 'prev' without 'keys' is a record written before 2026-10-13: it learns the keys and announces nothing for them. 'currentKeyCreatedAt', when given, is passed to the rule as the createdAt of this device's current group key. 'rotateFor' is the ids the owed rotation is for: the key that pays it must name them all. 'removed' is the ids this device removed. 'remove' runs removeDevice (id, now and currentKeyCreatedAt as for 'watch'); 'rotationDeparted' is the ids a key minted for the watch's debt names. 'removedKeys' is the keys of devices this device removed: a device carrying one under a new id is left out of key handoff until its notice is answered. An id a key record cannot carry (empty, over 64 characters) and a repeated id are not owed. 'review' is the first look: the other devices in the first list, answered once. 'vanished' is devices announced as new, never answered, then gone without this device removing them. 'seed' (a watch case) is the device list a build from before the rule cached; it is the baseline when there is no record yet and it contains this device. 'confirmReview' and 'dismissVanished' are the two answers.",
+  "watch": [
+    {
+      "name": "first list is the baseline and announces nothing",
+      "selfId": "me",
+      "prev": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a device that was not there last time is announced and stays unconfirmed",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": []
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        }
+      },
+      "joined": [
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "an unconfirmed device is announced only once, and picks up a rename",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "x",
+          "label": "Work laptop",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Work laptop",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "x": "pk"
+        }
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a device that leaves while its notice is pending is kept as 'joined, then disappeared' and leaves a rotation owed",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"],
+        "vanished": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "name": "a list without this device is ignored, so the next good list announces nothing old",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": []
+      },
+      "list": [],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": []
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a list without this device and no history stores nothing",
+      "selfId": "me",
+      "prev": null,
+      "list": [
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "watch": null,
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a new identity (re-paired, new relay) starts a fresh baseline",
+      "selfId": "me2",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": []
+      },
+      "list": [
+        {
+          "id": "me2",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-08T09:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        },
+        {
+          "id": "b",
+          "label": "iPhone",
+          "createdAt": "2026-09-02T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me2",
+        "known": ["me2", "a", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me2": "pk",
+          "a": "pk",
+          "b": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          },
+          {
+            "id": "b",
+            "label": "iPhone",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a device that re-pairs after removal gets a new id and is announced",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": []
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a2",
+          "label": "Pixel 8",
+          "createdAt": "2026-10-08T15:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a2"],
+        "unconfirmed": [
+          {
+            "id": "a2",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-08T15:00:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a2": "pk"
+        }
+      },
+      "joined": [
+        {
+          "id": "a2",
+          "label": "Pixel 8",
+          "createdAt": "2026-10-08T15:00:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "two devices at once are both announced, in list order, after older unconfirmed ones",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        },
+        {
+          "id": "y",
+          "label": "Console",
+          "createdAt": "2026-10-08T16:00:00Z"
+        },
+        {
+          "id": "z",
+          "label": "Edge · Windows",
+          "createdAt": "2026-10-08T16:01:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "x", "y", "z"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "y",
+            "label": "Console",
+            "createdAt": "2026-10-08T16:00:00Z"
+          },
+          {
+            "id": "z",
+            "label": "Edge · Windows",
+            "createdAt": "2026-10-08T16:01:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "x": "pk",
+          "y": "pk",
+          "z": "pk"
+        }
+      },
+      "joined": [
+        {
+          "id": "y",
+          "label": "Console",
+          "createdAt": "2026-10-08T16:00:00Z"
+        },
+        {
+          "id": "z",
+          "label": "Edge · Windows",
+          "createdAt": "2026-10-08T16:01:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a known device whose published key changed is announced as new, and owes a rotation",
+      "selfId": "me",
+      "now": "2026-10-13T12:00:00.000Z",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk-a"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "pk-evil"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk-evil"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["a"]
+      },
+      "joined": [
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "name": "an unchanged key on a known device announces nothing",
+      "selfId": "me",
+      "now": "2026-10-13T12:00:00.000Z",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk-a"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "pk-a"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk-a"
+        }
+      },
+      "joined": []
+    },
+    {
+      "name": "an owed rotation survives later lists that lose nobody",
+      "selfId": "me",
+      "now": "2026-10-13T12:00:00.000Z",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["z"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["z"]
+      },
+      "joined": [],
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z"
+    },
+    {
+      "name": "a second departure moves the owed rotation to now, against the key current now",
+      "selfId": "me",
+      "now": "2026-10-13T12:00:00.000Z",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "b": "pk"
+        },
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["z"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["z", "b"]
+      },
+      "joined": [],
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z"
+    },
+    {
+      "name": "a device shown once and then hidden leaves a rotation owed",
+      "selfId": "me",
+      "now": "2026-10-13T12:00:00.000Z",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-13T11:59:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"],
+        "vanished": [
+          {
+            "id": "x",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-13T11:59:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "name": "a departure with no key yet owes a rotation against no key",
+      "selfId": "me",
+      "now": "2026-10-13T12:00:00.000Z",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFor": ["a"]
+      },
+      "joined": []
+    },
+    {
+      "name": "a device this one removed stays out of the baseline if the relay lists it again, and is announced",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"],
+        "removedKeys": ["pk"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"],
+        "removedKeys": ["pk"]
+      },
+      "joined": [
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a removal the relay honours changes nothing more and the record is kept",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"],
+        "removedKeys": ["pk"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"],
+        "removedKeys": ["pk"]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "the owed ids keep only the newest 32",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "n"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "n": "pk"
+        },
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": [
+          "d01",
+          "d02",
+          "d03",
+          "d04",
+          "d05",
+          "d06",
+          "d07",
+          "d08",
+          "d09",
+          "d10",
+          "d11",
+          "d12",
+          "d13",
+          "d14",
+          "d15",
+          "d16",
+          "d17",
+          "d18",
+          "d19",
+          "d20",
+          "d21",
+          "d22",
+          "d23",
+          "d24",
+          "d25",
+          "d26",
+          "d27",
+          "d28",
+          "d29",
+          "d30",
+          "d31",
+          "d32"
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": [
+          "d02",
+          "d03",
+          "d04",
+          "d05",
+          "d06",
+          "d07",
+          "d08",
+          "d09",
+          "d10",
+          "d11",
+          "d12",
+          "d13",
+          "d14",
+          "d15",
+          "d16",
+          "d17",
+          "d18",
+          "d19",
+          "d20",
+          "d21",
+          "d22",
+          "d23",
+          "d24",
+          "d25",
+          "d26",
+          "d27",
+          "d28",
+          "d29",
+          "d30",
+          "d31",
+          "d32",
+          "n"
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z"
+    },
+    {
+      "name": "an id that is owed again moves to the newest end instead of being listed twice",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "x": "pk"
+        },
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x", "y"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["y", "x"]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z"
+    },
+    {
+      "name": "a removed device that comes back and leaves again owes nothing new",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        },
+        "removed": ["x"],
+        "removedKeys": ["pk"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "removed": ["x"],
+        "removedKeys": ["pk"]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z"
+    },
+    {
+      "name": "over the cap the oldest ids go first, but never a removed one",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "n"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "n": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": [
+          "x",
+          "d01",
+          "d02",
+          "d03",
+          "d04",
+          "d05",
+          "d06",
+          "d07",
+          "d08",
+          "d09",
+          "d10",
+          "d11",
+          "d12",
+          "d13",
+          "d14",
+          "d15",
+          "d16",
+          "d17",
+          "d18",
+          "d19",
+          "d20",
+          "d21",
+          "d22",
+          "d23",
+          "d24",
+          "d25",
+          "d26",
+          "d27",
+          "d28",
+          "d29",
+          "d30",
+          "d31"
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": [
+          "x",
+          "d02",
+          "d03",
+          "d04",
+          "d05",
+          "d06",
+          "d07",
+          "d08",
+          "d09",
+          "d10",
+          "d11",
+          "d12",
+          "d13",
+          "d14",
+          "d15",
+          "d16",
+          "d17",
+          "d18",
+          "d19",
+          "d20",
+          "d21",
+          "d22",
+          "d23",
+          "d24",
+          "d25",
+          "d26",
+          "d27",
+          "d28",
+          "d29",
+          "d30",
+          "d31",
+          "n"
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z"
+    },
+    {
+      "name": "a repeated id is owed once and an id a key record cannot carry is not owed",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": [
+          "me",
+          "dup",
+          "dup",
+          "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL",
+          "ok"
+        ],
+        "unconfirmed": []
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["dup", "ok"]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z"
+    },
+    {
+      "name": "a group of one has nobody to check",
+      "selfId": "me",
+      "prev": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        }
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a list a build from before the rule cached is the baseline, so what appeared since is announced",
+      "selfId": "me",
+      "prev": null,
+      "seed": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ]
+      },
+      "joined": [
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a cached list that does not contain this device (another pairing) is not used",
+      "selfId": "me",
+      "prev": null,
+      "seed": [
+        {
+          "id": "other",
+          "label": "other",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "old",
+          "label": "Old tablet",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a cached list is not used once there is a record",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": []
+      },
+      "seed": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        }
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "the first look follows the list: a rename shows, and a device hidden from the card is reported as disappeared",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk-a",
+          "b": "pk-b"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          },
+          {
+            "id": "b",
+            "label": "iPhone",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8 Pro",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "pk-a"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk-a"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8 Pro",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["b"],
+        "vanished": [
+          {
+            "id": "b",
+            "label": "iPhone",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z"
+    },
+    {
+      "name": "a device in the first look whose key is swapped is announced as new and leaves the first look",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "pk-evil"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk-evil"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["a"]
+      },
+      "joined": [
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "name": "a device that vanished and comes back is a pending notice again, not both",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "vanished": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "x": "pk"
+        }
+      },
+      "joined": [
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a vanished notice stays until dismissed, through lists that change nothing",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "vanished": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "vanished": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a pending device this one removed, then listed again, then gone again is not shown as vanished",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "x": "pk"
+        },
+        "removed": ["x"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "removed": ["x"]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "only the newest 20 vanished notices are kept",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "x": "pk"
+        },
+        "vanished": [
+          {
+            "id": "v01",
+            "label": "Device 1",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v02",
+            "label": "Device 2",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v03",
+            "label": "Device 3",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v04",
+            "label": "Device 4",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v05",
+            "label": "Device 5",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v06",
+            "label": "Device 6",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v07",
+            "label": "Device 7",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v08",
+            "label": "Device 8",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v09",
+            "label": "Device 9",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v10",
+            "label": "Device 10",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v11",
+            "label": "Device 11",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v12",
+            "label": "Device 12",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v13",
+            "label": "Device 13",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v14",
+            "label": "Device 14",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v15",
+            "label": "Device 15",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v16",
+            "label": "Device 16",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v17",
+            "label": "Device 17",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v18",
+            "label": "Device 18",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v19",
+            "label": "Device 19",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v20",
+            "label": "Device 20",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "vanished": [
+          {
+            "id": "v02",
+            "label": "Device 2",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v03",
+            "label": "Device 3",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v04",
+            "label": "Device 4",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v05",
+            "label": "Device 5",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v06",
+            "label": "Device 6",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v07",
+            "label": "Device 7",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v08",
+            "label": "Device 8",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v09",
+            "label": "Device 9",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v10",
+            "label": "Device 10",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v11",
+            "label": "Device 11",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v12",
+            "label": "Device 12",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v13",
+            "label": "Device 13",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v14",
+            "label": "Device 14",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v15",
+            "label": "Device 15",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v16",
+            "label": "Device 16",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v17",
+            "label": "Device 17",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v18",
+            "label": "Device 18",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v19",
+            "label": "Device 19",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "v20",
+            "label": "Device 20",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "the only device on the card hidden: the card goes and the notice stays",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "h"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "h": "pk-h"
+        },
+        "review": [
+          {
+            "id": "h",
+            "label": "Chrome · Mac",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "vanished": [
+          {
+            "id": "h",
+            "label": "Chrome · Mac",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["h"]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "name": "a device on a cached baseline that the fresh list leaves out is reported as disappeared",
+      "selfId": "me",
+      "prev": null,
+      "seed": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "pk-a"
+        },
+        {
+          "id": "h",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-02T10:00:00Z",
+          "e2ePubkey": "pk-h"
+        }
+      ],
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "Pixel 8",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "pk-a"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk-a"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ],
+        "vanished": [
+          {
+            "id": "h",
+            "label": "Chrome · Mac",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFor": ["h"]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a browser that re-paired (new id, same key, old id gone) is not reported as disappeared",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "x": "pk-fox"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "y",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-13T11:00:00Z",
+          "e2ePubkey": "pk-fox"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "y"],
+        "unconfirmed": [
+          {
+            "id": "y",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-13T11:00:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "y": "pk-fox"
+        },
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "joined": [
+        {
+          "id": "y",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-13T11:00:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "an id listed twice counts once on the first look",
+      "selfId": "me",
+      "prev": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "d",
+          "label": "Pixel 8",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "d",
+          "label": "Pixel 8",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "d"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "d": "pk"
+        },
+        "review": [
+          {
+            "id": "d",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-01T10:00:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "an id listed twice is announced once",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "x": "pk"
+        }
+      },
+      "joined": [
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-08T14:02:00Z"
+        }
+      ],
+      "now": "2026-10-13T12:00:00.000Z"
+    }
+  ],
+  "confirm": [
+    {
+      "name": "confirming drops only that device",
+      "id": "x",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "x", "y"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "y",
+            "label": "Console",
+            "createdAt": "2026-10-08T16:00:00Z"
+          }
+        ]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "x", "y"],
+        "unconfirmed": [
+          {
+            "id": "y",
+            "label": "Console",
+            "createdAt": "2026-10-08T16:00:00Z"
+          }
+        ]
+      }
+    }
+  ],
+  "rotationDue": [
+    {
+      "name": "nothing owed",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": []
+      },
+      "newest": "2026-10-01T00:00:00.000Z",
+      "due": false
+    },
+    {
+      "name": "owed, and the newest key is still the one that was current",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z"
+      },
+      "newest": "2026-10-01T00:00:00.000Z",
+      "due": true
+    },
+    {
+      "name": "another device already rotated",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z"
+      },
+      "newest": "2026-10-01T00:00:00.001Z",
+      "due": false
+    },
+    {
+      "name": "another device rotated, with a clock behind this one",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z"
+      },
+      "newest": "2026-10-12T07:59:00.000Z",
+      "due": false
+    },
+    {
+      "name": "a key dated ahead of the clock does not count as a rotation",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-13T07:00:00.000Z"
+      },
+      "newest": "2026-10-13T07:00:00.000Z",
+      "due": true
+    },
+    {
+      "name": "owed with no key then, and a key now: replace it once",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z"
+      },
+      "newest": "2026-10-12T09:00:00.000Z",
+      "due": true
+    },
+    {
+      "name": "owed but the ring is empty (the first-key election handles that)",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z"
+      },
+      "newest": null,
+      "due": false
+    },
+    {
+      "name": "a newer key that names the debt pays it",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "newest": "2026-10-12T09:00:00.000Z",
+      "newestDeparted": ["x"],
+      "due": false
+    },
+    {
+      "name": "a newer key that names nobody does not pay it",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "newest": "2026-10-12T09:00:00.000Z",
+      "due": true
+    },
+    {
+      "name": "a newer key that names someone else does not pay it",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "newest": "2026-10-12T09:00:00.000Z",
+      "newestDeparted": ["y"],
+      "due": true
+    },
+    {
+      "name": "a newer key that names only part of the debt does not pay it",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x", "y"]
+      },
+      "newest": "2026-10-12T09:00:00.000Z",
+      "newestDeparted": ["x"],
+      "due": true
+    },
+    {
+      "name": "a key that names more than the debt pays it",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "newest": "2026-10-12T09:00:00.000Z",
+      "newestDeparted": ["x", "y"],
+      "due": false
+    },
+    {
+      "name": "a key that names the debt but is not newer than the key then current does not pay it",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "newest": "2026-10-01T00:00:00.000Z",
+      "newestDeparted": ["x"],
+      "due": true
+    },
+    {
+      "name": "a debt with no ids is paid by any newer key",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z"
+      },
+      "newest": "2026-10-12T09:00:00.000Z",
+      "due": false
+    }
+  ],
+  "rotationDone": [
+    {
+      "name": "clears the rotation that was read, and the key it was against",
+      "owedAt": "2026-10-12T08:00:00.000Z",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": []
+      }
+    },
+    {
+      "name": "keeps a rotation owed by a later departure",
+      "owedAt": "2026-10-12T08:00:00.000Z",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["x", "y"]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["x", "y"]
+      }
+    }
+  ],
+  "knownTo": [
+    {
+      "name": "no watch trusts nobody",
+      "watch": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "a device the watch has not accepted is left out",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "gone",
+          "label": "gone",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": ["me", "a"]
+    },
+    {
+      "name": "a known id with a different key is left out",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk-a"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z",
+          "e2ePubkey": "pk-evil"
+        }
+      ],
+      "expect": ["me"]
+    },
+    {
+      "name": "a record from before keys were kept trusts by id",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": []
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z",
+          "e2ePubkey": "pk-other"
+        }
+      ],
+      "expect": ["me", "a"]
+    },
+    {
+      "name": "a device this one removed is left out even when the relay still lists it",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        },
+        "removed": ["x"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "x",
+          "label": "x",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": ["me", "a"]
+    },
+    {
+      "name": "a removed device's key under a new id is left out until its notice is answered",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "y"],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "y": "pk-x"
+        },
+        "removed": ["x"],
+        "removedKeys": ["pk-x"],
+        "unconfirmed": [
+          {
+            "id": "y",
+            "label": "y",
+            "createdAt": "2026-10-13T11:00:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "y",
+          "label": "y",
+          "createdAt": "2026-10-01T10:00:00Z",
+          "e2ePubkey": "pk-x"
+        }
+      ],
+      "expect": ["me", "a"]
+    },
+    {
+      "name": "a removed device's key under a new id is trusted once the user has said it is theirs (the extension keeps its key when it re-pairs)",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "y"],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "y": "pk-x"
+        },
+        "removed": ["x"],
+        "removedKeys": ["pk-x"],
+        "unconfirmed": []
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "y",
+          "label": "y",
+          "createdAt": "2026-10-01T10:00:00Z",
+          "e2ePubkey": "pk-x"
+        }
+      ],
+      "expect": ["me", "a", "y"]
+    }
+  ],
+  "remove": [
+    {
+      "name": "removing a device records it, drops its notice and owes a rotation at once",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        }
+      },
+      "id": "x",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["x"],
+        "removedKeys": ["pk"]
+      }
+    },
+    {
+      "name": "with no key yet, no key is named as the one to replace",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        },
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["z"]
+      },
+      "id": "a",
+      "now": "2026-10-13T12:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "x": "pk"
+        },
+        "removed": ["a"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFor": ["z", "a"],
+        "removedKeys": ["pk"]
+      }
+    },
+    {
+      "name": "a second removal joins the debt of the first",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "b": "pk"
+        },
+        "removed": ["a"],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["a"]
+      },
+      "id": "b",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "removed": ["a", "b"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["a", "b"],
+        "removedKeys": ["pk"]
+      }
+    },
+    {
+      "name": "this device is never removed this way",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        }
+      },
+      "id": "me",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "x": "pk"
+        }
+      }
+    },
+    {
+      "name": "removing an id again lists it once",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-12T08:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      },
+      "id": "x",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-12T09:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-12T09:00:00.000Z",
+        "rotateFor": ["x"]
+      }
+    },
+    {
+      "name": "a record from before keys were kept stays without keys",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": []
+      },
+      "id": "x",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      }
+    },
+    {
+      "name": "a device the watch never heard of is still recorded",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        }
+      },
+      "id": "ghost",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "removed": ["ghost"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["ghost"]
+      }
+    },
+    {
+      "name": "a key already on the list of removed keys is listed once",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "x": "pk-x"
+        },
+        "removedKeys": ["pk-x"]
+      },
+      "id": "x",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "removed": ["x"],
+        "removedKeys": ["pk-x"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      }
+    },
+    {
+      "name": "removing a device from the first look takes it off the card, and the card with it when it is empty",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ]
+      },
+      "id": "a",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "removed": ["a"],
+        "removedKeys": ["pk"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["a"]
+      }
+    },
+    {
+      "name": "removing one of two on the card leaves the other",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "b": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          },
+          {
+            "id": "b",
+            "label": "iPhone",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ]
+      },
+      "id": "a",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "b": "pk"
+        },
+        "review": [
+          {
+            "id": "b",
+            "label": "iPhone",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ],
+        "removed": ["a"],
+        "removedKeys": ["pk"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["a"]
+      }
+    },
+    {
+      "name": "removing a device takes its 'joined, then disappeared' notice off too",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "vanished": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ]
+      },
+      "id": "x",
+      "now": "2026-10-13T12:00:00.000Z",
+      "currentKeyCreatedAt": "2026-10-01T00:00:00.000Z",
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "removed": ["x"],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFrom": "2026-10-01T00:00:00.000Z",
+        "rotateFor": ["x"]
+      }
+    }
+  ],
+  "rotationDeparted": [
+    {
+      "name": "the owed ids, sorted",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "rotateOwedAt": "2026-10-13T12:00:00.000Z",
+        "rotateFor": ["b", "a", "c"]
+      },
+      "expect": ["a", "b", "c"]
+    },
+    {
+      "name": "nothing owed names nobody",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": []
+      },
+      "expect": []
+    },
+    {
+      "name": "no watch names nobody",
+      "watch": null,
+      "expect": []
+    }
+  ],
+  "confirmReview": [
+    {
+      "name": "answering the first look clears it and nothing else",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Pixel 8",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ],
+        "vanished": [
+          {
+            "id": "v",
+            "label": "Old tablet",
+            "createdAt": "2026-10-01T10:00:00Z"
+          }
+        ]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "a": "pk"
+        },
+        "vanished": [
+          {
+            "id": "v",
+            "label": "Old tablet",
+            "createdAt": "2026-10-01T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "answering when there is nothing to answer changes nothing",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": []
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": []
+      }
+    }
+  ],
+  "dismissVanished": [
+    {
+      "name": "dismissing one leaves the others",
+      "id": "x",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "vanished": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-08T14:02:00Z"
+          },
+          {
+            "id": "y",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-09T10:00:00Z"
+          }
+        ]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "vanished": [
+          {
+            "id": "y",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-09T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dismissing the last one clears the list",
+      "id": "y",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "vanished": [
+          {
+            "id": "y",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-09T10:00:00Z"
+          }
+        ]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": []
+      }
+    },
+    {
+      "name": "dismissing one that is not there changes nothing",
+      "id": "zzz",
+      "watch": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "vanished": [
+          {
+            "id": "y",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-09T10:00:00Z"
+          }
+        ]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me"],
+        "unconfirmed": [],
+        "vanished": [
+          {
+            "id": "y",
+            "label": "Pixel 8",
+            "createdAt": "2026-10-09T10:00:00Z"
+          }
+        ]
+      }
+    }
+  ]
+}

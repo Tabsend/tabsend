@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "docs": "Base config every package extends. strict:true is a stack invariant. noEmit:true because packages are consumed from source (shared exports ./src) and bundlers/Vitest handle transpilation; this file is for typechecking only.",
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noEmit": true
+  }
+}
