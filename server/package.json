@@ -1,0 +1,31 @@
+{
+  "name": "@tabsend/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tabsend relay — durable queue, VAPID Web Push wake, v1 REST + WS API. Stores/forwards ciphertext only; performs no crypto.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "gen:vapid": "tsx src/scripts/gen-vapid.ts"
+  },
+  "dependencies": {
+    "@fastify/websocket": "^11.3.0",
+    "@tabsend/shared": "workspace:*",
+    "better-sqlite3": "^12.11.1",
+    "fastify": "^5.10.0",
+    "kysely": "^0.29.3",
+    "pg": "^8.13.1",
+    "selfsigned": "^5.5.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/pg": "^8.11.10",
+    "@types/web-push": "^3.6.4",
+    "tsx": "^4.23.1"
+  }
+}

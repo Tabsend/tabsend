@@ -1,0 +1,26 @@
+{
+  "_comment": "Cross-client vector for the ADR-0028 group history seal. Generated against libsodium-wrappers (crypto_secretbox_easy), the same library the extension uses, with a FIXED key and nonce so this pins the construction rather than sampling it. Any client must reproduce blob.ciphertext byte for byte from key+nonce+plaintext, and open it back. keyId is base64url-nopad(SHA-256(utf8(key))), the same fingerprint rule as an endpoint public key.",
+  "key": "AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dw=",
+  "keyId": "qawBaeVtXrnMB--5IAyYwvXyaGmgocshvBkS4rxpnW0",
+  "nonce": "BRAbJjE8R1JdaHN+iZSfqrXAy9bh7PcC",
+  "plaintext": "{\"payload\":{\"url\":\"https://example.com/a?b=c&d=e#frag\",\"title\":\"Example — a tab in flight ✈️\",\"sentAt\":\"2026-08-05T12:34:56.000Z\",\"batch\":{\"id\":\"b1\",\"count\":3}},\"sourceLabelAtSend\":\"Chrome · Work\",\"targetLabelAtSend\":\"Pixel · Phone\"}",
+  "record": {
+    "payload": {
+      "url": "https://example.com/a?b=c&d=e#frag",
+      "title": "Example — a tab in flight ✈️",
+      "sentAt": "2026-08-05T12:34:56.000Z",
+      "batch": {
+        "id": "b1",
+        "count": 3
+      }
+    },
+    "sourceLabelAtSend": "Chrome · Work",
+    "targetLabelAtSend": "Pixel · Phone"
+  },
+  "blob": {
+    "alg": "xsalsa20-poly1305/secretbox",
+    "keyId": "qawBaeVtXrnMB--5IAyYwvXyaGmgocshvBkS4rxpnW0",
+    "nonce": "BRAbJjE8R1JdaHN+iZSfqrXAy9bh7PcC",
+    "ciphertext": "ZppSDRUBBSLuvC7AbBG8mPjNQ7YX2q+surwa+meGDw11GjNE3B3Rp9ymbhYHu/T3hij2i5T2y882Ny+9KSGfgA/VTeRN1IXGRczTbJIkBHm/nzooovAwen54hWdzHgnBaC4MSZM4PNGSz4mzAvsFISilqKbfbRQiiTfCyA5A1F2AUmO6VrXHWx6MA4SDKWsDDZhEGyVbYTjRkwWDIF8cDEXV0JQ5CZxqpH3u4+a4Q7Ktk01bDDkIrR7xM983DyoDQcaCwHaLGKT0UiJDcxuEcFm0nsvDEnRpaBUzf6Li6G72ec5aAUoih6czVe97IdsM1WLWMfaAIbjQhdP6+4qy/RI="
+  }
+}

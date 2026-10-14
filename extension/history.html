@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tabsend history</title>
+    <link rel="icon" href="icons/tabsend-32.png" />
+    <link rel="icon" sizes="16x16" href="icons/tabsend-16.png" />
+    <link rel="icon" sizes="48x48" href="icons/tabsend-48.png" />
+    <link rel="stylesheet" href="/src/pages/ui.css" />
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        padding: 48px 16px 64px;
+      }
+      main { width: 100%; max-width: 600px; }
+      .page-title { margin-bottom: 8px; }
+      .desc { font-size: 14px; color: var(--muted); margin: 0 0 28px; }
+      .desc:empty { margin-bottom: 20px; }
+
+      /* One block per send: a flat white list card. A multi-tab send is one
+         card with a heading; a single send is one card with no heading, so it
+         reads as one tab and not as "1 tabs". */
+      .group {
+        border-radius: 14px;
+        margin-bottom: 12px;
+        background: var(--card);
+        overflow: hidden;
+      }
+      /* A send that expired unacked is the one outcome this page exists to
+         surface, so the whole block carries it, not just a word at the end of
+         a row that truncates. Tint + a danger rule + the words. */
+      .group.never-arrived {
+        background: linear-gradient(var(--danger-tint), var(--danger-tint)), var(--card);
+        box-shadow: inset 4px 0 0 var(--danger);
+      }
+      .group-head {
+        display: flex;
+        align-items: center;
+        gap: 6px 10px;
+        flex-wrap: wrap;
+        padding: 12px 16px;
+        border-bottom: 1.5px solid var(--line);
+      }
+      .group-count { font-size: 15px; font-weight: 700; }
+      .group-meta { font-size: 13px; color: var(--muted); flex: 1; }
+      .open-all, .again {
+        flex: none;
+        border: var(--outline);
+        background: var(--card);
+        border-radius: 9px;
+        padding: 5px 11px;
+        font: 600 13px/1.2 var(--font);
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .open-all:hover, .again:hover { background: var(--chip); }
+
+      ul { list-style: none; margin: 0; padding: 0; }
+      li + li { border-top: 1.5px solid var(--line); }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+      }
+      /* The direction glyph, in a chip tile. Mail imagery, never a bare arrow:
+         an arrow alone in a row's left gutter reads as a control for reordering
+         the list, and says nothing about what it means [ADR-0028 §9]. */
+      .dir {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        flex: none;
+        border-radius: 10px;
+        background: var(--chip);
+        color: var(--ink);
+      }
+      .dir svg { width: 18px; height: 18px; display: block; }
+      .tab {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+        margin: -6px 0 -6px -6px;
+        padding: 6px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        text-decoration: none;
+      }
+      button.tab { cursor: pointer; }
+      button.tab:hover { background: var(--accent-tint); }
+      .favicon {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        border-radius: 3px;
+      }
+      /* Reserve the icon's space even with no favicon, so titles stay aligned. */
+      .favicon-slot { width: 16px; height: 16px; flex: none; }
+      .tab-text { min-width: 0; flex: 1; }
+      .tab-title {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      /* A row we hold no key for is still a true record of a transfer, so it is
+         quieter rather than absent. */
+      .tab-title.unreadable { color: var(--muted); font-style: italic; font-weight: 400; }
+      .tab-sub {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .state {
+        flex: none;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--success);
+        background: var(--success-tint);
+        white-space: nowrap;
+      }
+      .state.waiting { color: var(--waiting); background: var(--waiting-tint); }
+      .state.never-arrived { color: var(--danger); background: var(--danger-tint); }
+      .again { color: var(--danger); border-color: var(--danger); }
+      .again:hover { background: var(--danger-tint); }
+      .again[disabled] { opacity: 0.6; cursor: default; }
+
+      #empty {
+        border-radius: 14px;
+        padding: 32px 24px;
+        text-align: center;
+        color: var(--muted);
+        background: var(--card);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      #empty strong { display: block; color: var(--ink); font-size: 17px; margin-bottom: 6px; }
+      #empty .aside { display: block; margin-top: 12px; font-size: 13px; }
+      footer { margin-top: 24px; font-size: 14px; }
+      footer a { font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="page-title">
+        <img src="icons/tabsend-48.png" alt="" />
+        <h1>History</h1>
+      </header>
+      <p class="desc" id="retention"></p>
+
+      <div id="empty" class="hidden">
+        <strong>Nothing here yet</strong>
+        Tabs your devices send each other are listed here, sent and received
+        together, newest first.
+        <span class="aside">
+          A relay older than this extension does not keep the shared list. Until
+          it is updated, only tabs this browser received show up here.
+        </span>
+      </div>
+
+      <div id="groups"></div>
+
+      <!-- Direction glyphs, cloned per row. Kept as markup rather than built in
+           JS so the icons sit beside the popup's, and so nothing on this page
+           ever assembles an element from a string. [ADR-0028 §9] -->
+      <template id="glyph-sent">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 2 11 13"></path>
+          <path d="M22 2 15 22l-4-9-9-4 20-7z"></path>
+        </svg>
+      </template>
+      <template id="glyph-received">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline>
+          <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path>
+        </svg>
+      </template>
+      <template id="glyph-other">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="17 1 21 5 17 9"></polyline>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+          <polyline points="7 23 3 19 7 15"></polyline>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+        </svg>
+      </template>
+
+      <footer>
+        <a href="options.html" id="settings-link">Tabsend settings</a>
+      </footer>
+    </main>
+    <script type="module" src="/src/pages/history.ts"></script>
+  </body>
+</html>

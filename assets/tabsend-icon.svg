@@ -1,0 +1,18 @@
+<svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tabsend">
+  <defs>
+    <linearGradient id="tsbg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4C8DFF"/>
+      <stop offset="1" stop-color="#2563EB"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="116" height="116" rx="30" fill="url(#tsbg)"/>
+  <g transform="translate(22,22) scale(3.5)" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+    <polyline points="15 3 21 3 21 9"/>
+    <line x1="10" y1="14" x2="21" y2="3"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="41" cy="54" r="2.7"/>
+    <circle cx="51" cy="54" r="2.7"/>
+  </g>
+</svg>

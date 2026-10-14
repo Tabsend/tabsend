@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Native-leaning Material 3 (docs/APP_UI.md "Phones: native-leaning"). The phone
+      tokens are mapped onto Material 3's colour roles, so stock components (top app
+      bar, switches, tonal buttons, the extended FAB, dialogs, bottom sheets) pick
+      them up without per-widget colours:
+
+        accent fill → primary (filled and text buttons, progress, links)
+        petrol      → secondary / tertiary (switch on, via ThemeOverlay.Tabsend.Petrol)
+        tonal       → secondary container (tonal buttons, the FAB, icon containers)
+        ground      → background / surface;  panel → surface container
+
+      Every colour comes from a ts_ token, which values-night/colors.xml redefines,
+      so one theme serves light and dark. No theme-wide font: text is Roboto at the
+      Material 3 type styles (so font scaling and non-Latin scripts behave), and
+      Archivo is applied only to screen titles and the wordmark, through their own
+      text appearances (styles.xml).
+
+      Base holds everything both window kinds share; the status bar is set only on
+      the opaque screens, so the translucent share sheet never paints a bar over
+      whichever app the user is sharing from.
+    -->
+    <style name="Base.Theme.Tabsend" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/ts_accent_fill</item>
+        <item name="colorOnPrimary">@color/ts_on_accent</item>
+        <item name="colorPrimaryContainer">@color/ts_tonal</item>
+        <item name="colorOnPrimaryContainer">@color/ts_on_tonal</item>
+        <item name="colorPrimaryInverse">@color/ts_inverse_primary</item>
+
+        <item name="colorSecondary">@color/ts_petrol</item>
+        <item name="colorOnSecondary">@color/ts_on_petrol</item>
+        <item name="colorSecondaryContainer">@color/ts_tonal</item>
+        <item name="colorOnSecondaryContainer">@color/ts_on_tonal</item>
+
+        <!-- Material's default tertiary is a purple; keep it in the petrol family. -->
+        <item name="colorTertiary">@color/ts_petrol</item>
+        <item name="colorOnTertiary">@color/ts_on_petrol</item>
+        <item name="colorTertiaryContainer">@color/ts_tonal</item>
+        <item name="colorOnTertiaryContainer">@color/ts_on_tonal</item>
+
+        <item name="android:colorBackground">@color/ts_phone_ground</item>
+        <item name="colorOnBackground">@color/ts_ink</item>
+        <item name="colorSurface">@color/ts_phone_ground</item>
+        <item name="colorOnSurface">@color/ts_ink</item>
+        <item name="colorSurfaceVariant">@color/ts_panel</item>
+        <item name="colorOnSurfaceVariant">@color/ts_phone_muted</item>
+        <item name="colorSurfaceContainerLowest">@color/ts_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/ts_container_low</item>
+        <item name="colorSurfaceContainer">@color/ts_panel</item>
+        <item name="colorSurfaceContainerHigh">@color/ts_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/ts_container_highest</item>
+        <item name="colorSurfaceInverse">@color/ts_inverse_surface</item>
+        <item name="colorOnSurfaceInverse">@color/ts_on_inverse_surface</item>
+
+        <item name="colorOutline">@color/ts_outline</item>
+        <item name="colorOutlineVariant">@color/ts_divider</item>
+        <item name="colorError">@color/ts_danger</item>
+        <item name="colorOnError">@color/ts_on_error</item>
+
+        <item name="android:windowBackground">@color/ts_phone_ground</item>
+        <item name="android:textColorPrimary">@color/ts_ink</item>
+        <item name="android:textColorSecondary">@color/ts_phone_muted</item>
+
+        <!-- Buttons built in code (History's "Send again" / "Open all") ask for this. -->
+        <item name="tabsendTonalButtonStyle">@style/Widget.Tabsend.Button.Tonal</item>
+    </style>
+
+    <style name="Theme.Tabsend" parent="Base.Theme.Tabsend">
+        <!-- The phone ground. MainActivity repaints it to the pairing screen's own
+             ground while that screen is showing. -->
+        <item name="android:statusBarColor">@color/ts_phone_ground</item>
+        <!-- Dark status-bar icons on the pale ground. values-night turns this off. -->
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+
+    <!-- Used by the share-sheet target and the link opener: it shows the device
+         picker (and, after a pick, the send snackbar) over the sharing app. -->
+    <style name="Theme.Tabsend.Transparent" parent="Base.Theme.Tabsend">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <!-- Switch on = petrol (docs/APP_UI.md "Controls"). MaterialSwitch draws its
+         checked track in colorPrimary and its thumb in colorOnPrimary, so the
+         switch style swaps those two roles for petrol through this overlay rather
+         than recolouring the switch by hand. parent="" because the dotted name
+         would otherwise make aapt look for a "ThemeOverlay.Tabsend" parent. -->
+    <style name="ThemeOverlay.Tabsend.Petrol" parent="">
+        <item name="colorPrimary">@color/ts_petrol</item>
+        <item name="colorOnPrimary">@color/ts_on_petrol</item>
+        <item name="colorPrimaryContainer">@color/ts_tonal</item>
+        <item name="colorOnPrimaryContainer">@color/ts_on_tonal</item>
+    </style>
+</resources>

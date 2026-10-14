@@ -1,0 +1,22 @@
+{
+  "name": "@tabsend/shared",
+  "version": "0.1.0",
+  "description": "Tabsend shared contracts \u2014 single source of truth for wire types across server, extension, Android, console, and helper.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "//": "Tooling-agnostic starter. Consumed by the TS/JS packages (extension, console) via their bundler; exports point at source so no build is required to import types. The builder may add a build step (tsc/tsup) and repoint types/exports at ./dist. A non-TS server must generate or mirror types from src/types.ts in CI \u2014 never hand-fork it."
+}

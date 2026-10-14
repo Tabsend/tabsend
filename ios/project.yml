@@ -1,0 +1,185 @@
+# XcodeGen project definition. Generate the Xcode project with:
+#   brew install xcodegen   (once)
+#   cd ios && xcodegen generate
+# Then open Tabsend.xcodeproj, pick your signing team on both targets, and run.
+name: Tabsend
+options:
+  bundleIdPrefix: io.tabsend
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.7.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    # Set your Apple Developer team once here (or in Xcode's Signing pane):
+    # DEVELOPMENT_TEAM: ABCDE12345
+
+packages:
+  TabsendKit:
+    path: TabsendKit
+
+targets:
+  Tabsend:
+    type: application
+    platform: iOS
+    sources:
+      - App/Sources
+      # Compiled into both targets: the app and the share extension both donate
+      # sharing suggestions, and Intents has no Linux port so it cannot live in
+      # TabsendKit (which is unit-tested there).
+      - App/Shared
+      # Regenerate with ios/tools/make-app-icon.sh after editing the brand mark.
+      - App/Assets.xcassets
+      # Archivo + Courier Prime (docs/APP_UI.md "Type"). Copied into BOTH bundles,
+      # since the share extension is its own process and reads its own bundle, and
+      # listed in each target's UIAppFonts below. Theme.swift also registers them at
+      # run time if that ever fails, and falls back to the system font after that.
+      - path: App/Fonts
+        buildPhase: resources
+    dependencies:
+      - package: TabsendKit
+      - target: TabsendShare
+        embed: true
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Tabsend
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIAppFonts:
+          - archivo_regular.ttf
+          - archivo_semibold.ttf
+          - archivo_bold.ttf
+          - archivo_extrabold.ttf
+          - courierprime-400.ttf
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSCameraUsageDescription: >-
+          Tabsend uses the camera only to scan pairing QR codes.
+        BGTaskSchedulerPermittedIdentifiers:
+          - io.tabsend.app.refresh
+        UIBackgroundModes:
+          # `fetch` is the opportunistic BGAppRefreshTask drain, which iOS grants when
+          # it feels like it. `remote-notification` is the wake-up forwarder's silent
+          # push [0032]: it carries no content and none is read, the arrival is the
+          # whole signal, and the handler runs the same drain the refresh task does.
+          - fetch
+          - remote-notification
+        # Uncomment and point at your own forwarder to use one other than the official
+        # instance (a self-hoster running `forwarder/` beside their relay). Left out
+        # entirely by default: there is NO official instance deployed yet, so there is
+        # no address to put here that could answer, and the app falls back to exactly
+        # its pre-forwarder behaviour when this is absent.
+        # TabsendForwarderURL: https://wake.example.org
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [tabsend]
+            CFBundleURLName: io.tabsend.pair
+        # https-only, except plain-http relays on the local network (mirrors
+        # Android's network_security_config: loopback/LAN development relays).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Required before INInteraction.donate() will accept an INSendMessageIntent
+        # — without it every donation comes back with "declare the intents that
+        # your app supports". This is a declaration, NOT the Siri capability: the
+        # com.apple.developer.siri entitlement is only demanded of apps that ship
+        # an Intents extension to HANDLE requests, and Tabsend handles none, so
+        # provisioning is unchanged. The share extension declares its own support
+        # separately (IntentsSupported, below) and donates on this one.
+        NSUserActivityTypes:
+          - INSendMessageIntent
+    entitlements:
+      path: App/Tabsend.entitlements
+      properties:
+        # The Push Notifications capability, needed for the silent wake [0032]. Only
+        # the APP gets it: the share extension is a sender surface and is never rung.
+        #
+        # `development` is what any locally-signed build needs, Debug or Release alike:
+        # what decides the environment is the profile the binary is signed with, not the
+        # configuration it was built in. An App Store or TestFlight export is signed with
+        # a distribution profile and gets `production` instead. `ApnsEnvironment.current`
+        # reads this value back out of the embedded profile at run time rather than
+        # guessing from the build configuration, so a Release build signed here with a
+        # development profile still reports the sandbox token Apple actually issued it.
+        aps-environment: development
+        com.apple.security.application-groups:
+          - group.io.tabsend.app
+        # First (only) group becomes the default Keychain access group, so the
+        # identity/token written by the app are readable in the share extension.
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)io.tabsend.shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.tabsend.app
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  TabsendShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - App/ShareExtension
+      - App/Shared
+      - path: App/Fonts
+        buildPhase: resources
+    dependencies:
+      - package: TabsendKit
+    info:
+      path: App/ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Tabsend
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UIAppFonts:
+          - archivo_regular.ttf
+          - archivo_semibold.ttf
+          - archivo_bold.ttf
+          - archivo_extrabold.ttf
+          - courierprime-400.ttf
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            # Lets a donated conversation launch THIS extension with the picked
+            # device attached, which arrives on extensionContext.intent.
+            IntentsSupported:
+              - INSendMessageIntent
+            # A predicate rather than the activation dictionary, because the
+            # dictionary form is conjunctive over EVERY attachment: an unlisted
+            # type defaults to a max count of zero ("If you don't support a
+            # particular data type, use 0 ... or remove the key"), so an app that
+            # shares a link with a preview image alongside it suppressed the whole
+            # extension. Tabsend then simply wasn't in the sheet, with nothing to
+            # explain why. This asks the weaker and truthful question instead: is
+            # there at least one attachment we can read, whatever else came with it.
+            #
+            # The two types listed are exactly the two ShareViewController.extractShared
+            # can load, so being offered and being able to send stay the same claim.
+            NSExtensionActivationRule: >-
+              SUBQUERY (
+              extensionItems,
+              $extensionItem,
+              SUBQUERY (
+              $extensionItem.attachments,
+              $attachment,
+              ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.url"
+              || ANY $attachment.registeredTypeIdentifiers UTI-CONFORMS-TO "public.plain-text"
+              ).@count >= 1
+              ).@count == 1
+    entitlements:
+      path: App/ShareExtension/TabsendShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.io.tabsend.app
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)io.tabsend.shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.tabsend.app.share

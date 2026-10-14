@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default style for a tonal MaterialButton created in code
+         (MaterialButton(context, null, R.attr.tabsendTonalButtonStyle)). Material
+         ships no theme attribute for its tonal button, only the style itself. -->
+    <attr name="tabsendTonalButtonStyle" format="reference" />
+</resources>

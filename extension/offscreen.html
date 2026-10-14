@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tabsend delivery socket</title>
+  </head>
+  <body>
+    <!--
+      Invisible offscreen document. It exists only to hold the fast-path
+      WebSocket to /v1/stream (the MV3 service worker can't keep a socket alive
+      across idle-termination). It has no UI; all delivery decisions run in the
+      service worker. See src/offscreen/index.ts.
+    -->
+    <script type="module" src="/src/offscreen/index.ts"></script>
+  </body>
+</html>

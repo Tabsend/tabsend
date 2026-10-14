@@ -1,0 +1,120 @@
+# Tabsend relay on your own LAN — one container, SQLite, self-signed HTTPS.
+#
+# This is the "mini PC in the corner" setup: no domain, no CA, no reverse proxy, no adb.
+# The relay generates a long-lived self-signed certificate on first boot and serves HTTPS
+# directly; the pairing QR carries that certificate's key fingerprint and the Android app
+# pins it (ADR-0019). Browsers cannot pin, so a second cleartext port serves the
+# extension — see HTTP_PORT below. If you have a domain, prefer
+# `docker-compose.domain.yml`: real certificates, nothing cleartext, nothing to install.
+#
+#   docker compose -f docker-compose.lan.yml up -d --build --wait
+#   docker compose -f docker-compose.lan.yml logs -f      # the pairing URL is in the log
+#
+# `--wait` is what makes the first command safe to script. Without it, `up -d` returns
+# as soon as the container is CREATED — a curl on the next line races a relay that is
+# still opening its listeners and fails with "connection refused". With it, the command
+# does not return until the image's healthcheck passes, so whatever runs next can talk
+# to the relay immediately. Add `--wait-timeout 120` if you want it to give up.
+#
+# LINUX ONLY, because of `network_mode: host` — see the note on it below.
+#
+# Two things are NOT automatic and will make a healthy relay look broken:
+#   1. The host firewall. Host networking publishes no ports, so Docker opens nothing.
+#      Fedora/RHEL: sudo firewall-cmd --permanent --add-port=8787/tcp --add-port=8786/tcp
+#                   && sudo firewall-cmd --reload
+#      Ubuntu:      sudo ufw allow 8787/tcp && sudo ufw allow 8786/tcp
+#   2. The advertised address. Boot logs which of the machine's addresses went into the
+#      pairing URL and which it passed over — read it before pairing anything.
+
+services:
+  relay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tabsend-relay
+    container_name: tabsend-relay
+    restart: unless-stopped
+
+    # Host networking, so the container sees the machine's REAL network interfaces
+    # rather than Docker's internal 172.x bridge address. The relay reads those
+    # interfaces to (a) bake the LAN IP into the certificate's SANs and (b) default
+    # PUBLIC_RELAY_URL — the address printed in the pairing QR — to the LAN address a
+    # phone can actually reach. Under bridge networking both would come out as an
+    # internal Docker IP that nothing off-machine can route to.
+    network_mode: host
+
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+
+      # Serve HTTPS with a self-signed cert generated on first boot. Phones pin its
+      # key from the pairing link, so no CA is involved.
+      TLS_SELF_SIGNED: "1"
+
+      # A SECOND, cleartext listener for browser extensions, which have no way to pin
+      # a certificate the way the Android app does and so cannot talk to a self-signed
+      # relay at all. Pair the extension against http://<LAN-IP>:8786 and the phone
+      # against the https address in the pairing QR; both are the same relay (same
+      # database, same live-socket registry), so delivery between them is instant.
+      #
+      # This port is UNENCRYPTED: anyone on the network can read a device token off it
+      # and impersonate that browser to the relay. Tab contents stay end-to-end
+      # encrypted regardless — the relay never holds plaintext — but the port belongs
+      # on a network you trust. Comment it out to turn it off; a relay on a real domain
+      # (docs/DEPLOY.md) does not need it at all.
+      #
+      # As a backstop it refuses clients outside private network ranges, so forwarding
+      # this port by accident cannot expose tokens to the internet. That is a seatbelt,
+      # not encryption. Set HTTP_ALLOW_PUBLIC=1 only if your network hands out globally
+      # routable addresses (common with IPv6) and the guard refuses machines you trust.
+      HTTP_PORT: 8786
+      # On the volume, NOT in the image: the cert must survive `up --build` and
+      # container recreation. Regenerating it invalidates the pin on every paired
+      # phone, forcing them all to re-pair.
+      TLS_DIR: /data/tls
+
+      # Extra names/IPs to put in the certificate, comma-separated. The relay adds
+      # localhost + every LAN IPv4 it can see at that moment, but ONLY at that moment —
+      # the cert is minted once and never rotated, because rotating it breaks the pin on
+      # every paired device. So name anything you might serve on later here: a hostname
+      # (TLS_EXTRA_SANS=minipc.local), or a VPN address whose interface might be down on
+      # first boot.
+      TLS_EXTRA_SANS: ${TLS_EXTRA_SANS:-}
+
+      # Empty = the relay picks the best of the machine's addresses and fills in
+      # https://<LAN-IP>:8787. It ranks a real NIC above a mesh VPN above the docker0 /
+      # br-* / virbr0 bridges (host networking means it sees all of them), and logs both
+      # the winner and the runners-up at boot. Set this when that guess is wrong — e.g.
+      # several real NICs, or a VLAN the phone can't reach. Compose reads it from `.env`.
+      PUBLIC_RELAY_URL: ${PUBLIC_RELAY_URL:-}
+      # Usually derived automatically as http://<same-host>:HTTP_PORT. Override only
+      # when the browser door is published under a different host or proxy path.
+      PUBLIC_BROWSER_RELAY_URL: ${PUBLIC_BROWSER_RELAY_URL:-}
+
+      DATABASE_URL: sqlite:/data/tabsend.db
+
+      # Directly exposed on the LAN, no proxy in front — so rate-limit on the real
+      # socket address rather than trusting an X-Forwarded-For header anyone can send.
+      TRUST_PROXY: "0"
+
+      # Web Push wake for BROWSERS. The extension subscribes through the
+      # browser's own push service, so this should work even here — the relay's
+      # certificate is not part of it (untested against a live browser; see
+      # docs/DEPLOY.md). Android never uses push at all (ADR-0015). First boot
+      # generates the keypair into the SQLite database on relay-data. Set BOTH
+      # variables only to preserve an externally managed/existing VAPID identity.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:you@example.com}
+
+      # Shorten while testing to watch expiry behaviour, e.g. MESSAGE_TTL_SECONDS=120.
+      MESSAGE_TTL_DAYS: ${MESSAGE_TTL_DAYS:-7}
+
+    volumes:
+      # Holds the SQLite database (including VAPID identity) AND the TLS keypair. Back
+      # it up together: losing the database loses pairings and push subscriptions;
+      # losing the TLS keypair breaks the pins.
+      - relay-data:/data
+
+volumes:
+  relay-data:

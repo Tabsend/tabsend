@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pairing illustration, middle: a dashed ink arrow from the browser tile to the
+     phone tile. Vector paths have no dash pattern, so each dash is its own segment. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="56dp"
+    android:height="24dp"
+    android:viewportWidth="56"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="@color/ts_ink"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M4,12 h5 M14,12 h5 M24,12 h5 M34,12 h5 M44,12 h6" />
+    <path
+        android:strokeColor="@color/ts_ink"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M45,5.5 L51.5,12 L45,18.5" />
+</vector>

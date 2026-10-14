@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Direct Share badge for a browser endpoint. The circle is drawn rather than left
+  to the surface: share sheets and launchers disagree about whether they mask a
+  shortcut icon, and a bare glyph on transparent looks broken wherever they don't.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="@color/tabsend_primary"
+        android:pathData="M0,24 a24,24 0 1 0 48,0 a24,24 0 1 0 -48,0 z" />
+    <path
+        android:strokeColor="@color/tabsend_on_primary"
+        android:strokeWidth="2.5"
+        android:strokeLineJoin="round"
+        android:pathData="M16,15 h16 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-16 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2 z" />
+    <path
+        android:strokeColor="@color/tabsend_on_primary"
+        android:strokeWidth="2.5"
+        android:pathData="M14,21 h20" />
+</vector>

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Send to…</title>
+    <link rel="icon" href="icons/tabsend-32.png" />
+    <link rel="icon" sizes="16x16" href="icons/tabsend-16.png" />
+    <link rel="icon" sizes="48x48" href="icons/tabsend-48.png" />
+    <link rel="stylesheet" href="/src/pages/ui.css" />
+    <style>
+      body {
+        /* A FLOOR, not a fixed width. Pinning this to 320px left a dead band
+           down the right side wherever the popup surface is wider than the
+           content — Dia renders the action popup as a window, not an anchored
+           bubble, so it gets whatever width the window has (reported
+           2026-07-27). The layout's max-content ask is ~284px, i.e. under this
+           floor, so an ordinary Chrome/Arc popup still sizes to exactly 320. */
+        min-width: 320px;
+        font-size: 14px;
+        line-height: 1.4;
+        /* The popup IS the panel: a flat white card, no offset shadow (there is
+           nothing around the extension window to cast it on). */
+        background: var(--card);
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 14px 14px 10px 16px;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      #pair-header {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 28px;
+        padding: 0 11px 0 9px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent-tint);
+        color: var(--accent);
+        font: 700 13px/1 var(--font);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      #pair-header .icon {
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 1;
+        margin-top: -1px;
+      }
+      #pair-header:hover { background: var(--accent-tint-strong); }
+      #pair-header:disabled { opacity: 0.6; cursor: default; }
+      #targets {
+        list-style: none;
+        margin: 0;
+        padding: 0 8px 6px;
+      }
+      #targets button {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        width: 100%;
+        min-height: 52px;
+        padding: 7px 8px;
+        border: 0;
+        border-radius: 8px;
+        background: none;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      #targets button:hover { background: var(--accent-tint); }
+      #targets button:focus-visible { background: var(--accent-tint); outline-offset: -2px; }
+      .row-text { flex: 1; min-width: 0; }
+      .row-name {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+      }
+      .label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .row-sub {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      /* The status words carry presence now (no dot): green only when the relay
+         says online right now; "status unknown" when the snapshot is too old to
+         claim anything (see policy.ts). */
+      .last-seen.online { color: var(--success); font-weight: 600; }
+      /* The clicked row, while the send is in flight. A disabled button only
+         dims, which on a slow relay reads as a missed click; this keeps the row
+         highlighted and its note ("sending…") legible instead of greyed out. */
+      #targets button.sending { background: var(--accent-tint); opacity: 1; }
+      #targets button.sending .last-seen { color: var(--accent); font-weight: 600; }
+      .check { color: var(--success); font-weight: 700; flex: none; padding-right: 4px; }
+      .check.error { color: var(--danger); }
+      /* Standing relay outage — not about any one send, so it sits above the
+         list rather than replacing it: the targets are still selectable and the
+         sends still queue, the strip just says why nothing is arriving. */
+      #relay-down, #multi { margin: 0 14px 8px; font-size: 12.5px; }
+      #new-devices { margin: 0 14px 8px; }
+      #new-devices .notice { font-size: 12.5px; }
+      /* Multi-tab selection (variant A): no extra controls, every row sends the
+         whole selection — this strip is the one thing that says so. Accent, not
+         amber: it announces what a click will do, it isn't a problem. */
+      #multi { color: var(--accent); font-weight: 600; }
+      #empty, #status {
+        padding: 6px 16px 16px;
+        color: var(--muted);
+      }
+      /* A failed send's reason: stays put (the popup stays open) as a danger strip. */
+      #status.error {
+        margin: 0 14px 8px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--danger-tint);
+        color: var(--danger);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      #empty strong { color: var(--ink); display: block; margin-bottom: 4px; font-size: 15px; }
+      /* Legible send confirmation — never a flash-and-vanish (dogfood pass-2 #6).
+         One line in the outcome's colour, the tab's title quiet beneath it. */
+      #confirm {
+        display: none;
+        padding: 8px 16px 18px;
+      }
+      #confirm.visible { display: block; }
+      #confirm .to {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--success);
+      }
+      #confirm .tick {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--success-tint);
+        font-size: 14px;
+        font-weight: 800;
+      }
+      /* Tone follows the send's real outcome — amber for "held, not yet sent",
+         red for "not happening without you". Never green unless it truly went. */
+      #confirm.pending .to { color: var(--waiting); }
+      #confirm.pending .tick { background: var(--waiting-tint); }
+      #confirm.error .to { color: var(--danger); }
+      #confirm.error .tick { background: var(--danger-tint); }
+      /* Which tab went — the thing "Sent to Arc" alone never told you. */
+      #confirm .sent-title {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 4px 0 0 32px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #confirm .note { font-size: 13px; color: var(--muted); margin: 8px 0 0 32px; line-height: 1.45; }
+      footer {
+        border-top: 1.5px solid var(--line);
+        padding: 8px 10px 8px 8px;
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .footer-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+      #settings-footer, #history-footer {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 30px;
+        padding: 0 8px;
+        border: 0;
+        border-radius: 8px;
+        background: none;
+        color: var(--accent);
+        font: 600 13px/1 var(--font);
+        cursor: pointer;
+      }
+      #settings-footer:hover, #history-footer:hover { background: var(--accent-tint); }
+      #settings-footer svg, #history-footer svg { width: 15px; height: 15px; flex: none; }
+      #self-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #pending {
+        padding: 8px 16px;
+        font-size: 12.5px;
+        color: var(--waiting);
+        background: var(--waiting-tint);
+      }
+      /* Tabs still on THIS browser — nameable, unlike the relay-side ⏳ counts. */
+      #held { padding: 10px 16px; border-top: 1.5px solid var(--line); }
+      .held-heading {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--waiting);
+        margin-bottom: 4px;
+      }
+      .held-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 2px 0;
+        font-size: 13px;
+      }
+      .held-title {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .held-to { flex: none; color: var(--muted); font-size: 12px; }
+      /* The way out of a wait. Quiet until pointed at: abandoning a tab is a
+         real loss, and a button competing with the tab's own name for attention
+         would invite the mis-click it cannot undo. */
+      .held-cancel {
+        flex: none;
+        border: 0;
+        border-radius: 4px;
+        background: none;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1;
+        padding: 0 3px;
+        cursor: pointer;
+      }
+      .held-cancel:hover, .held-cancel:focus-visible { color: var(--danger); }
+      #pairing-box {
+        border-top: 1.5px solid var(--line);
+        padding: 12px 14px;
+      }
+      #pairing-qr svg { width: 148px; height: 148px; }
+      #pairing-hint { font-size: 12px; color: var(--muted); text-align: center; }
+      #pairing-link { margin-top: 8px; font-size: 11px; }
+      #copy-link { margin: 8px auto 0; display: block; font-size: 13px; }
+      #copy-note { min-height: 17px; margin-top: 2px; text-align: center; }
+      #pairing-note { font-size: 13px; }
+      #pairing-local-only { font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Send to…</h1>
+      <button type="button" id="pair-header" aria-label="Pair a new browser">
+        <span class="icon" aria-hidden="true">+</span>
+        <span>New browser</span>
+      </button>
+    </header>
+    <div id="confirm"></div>
+    <div id="new-devices" class="hidden"></div>
+    <div id="relay-down" class="notice waiting hidden" role="status"></div>
+    <div id="multi" class="notice accent hidden" role="status"></div>
+    <div id="status" class="hidden">Loading…</div>
+    <div id="empty" class="hidden">
+      <strong>You're the only device here.</strong>
+      Pair another browser or your phone to start sending tabs.<br /><br />
+      <button type="button" class="linkish" id="open-firstrun">Set up Tabsend</button>
+    </div>
+    <ul id="targets"></ul>
+    <div id="pending" class="hidden"></div>
+    <div id="held" class="hidden"></div>
+    <div id="pairing-box">
+      <div id="pairing-ready">
+        <div id="pairing-qr"></div>
+        <div id="pairing-hint">Scan the QR with a phone, or copy the pairing link to a browser extension</div>
+        <input id="pairing-link" type="text" readonly aria-label="Pairing link" />
+        <button type="button" class="linkish" id="copy-link">Copy pairing link</button>
+        <div id="copy-note"></div>
+        <div id="pairing-local-only" role="status"></div>
+      </div>
+      <div id="pairing-note"></div>
+    </div>
+    <footer>
+      <span class="footer-actions">
+      <button type="button" id="settings-footer" title="Open Tabsend settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span>Settings</span>
+      </button>
+      <!-- The popup is a SENDER surface and stays one: this only opens the
+           history page, it never lists tabs here. -->
+      <button type="button" id="history-footer" title="Open Tabsend history">
+        <!-- A clock, not the old tray: the page behind this now holds sent tabs
+             too, and a tray would promise only half of it. -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 7 12 12 15.5 14"></polyline>
+        </svg>
+        <span>History</span>
+      </button>
+      </span>
+      <span id="self-label"></span>
+    </footer>
+    <script type="module" src="/src/pages/chooser.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark values for every ts_ token in values/colors.xml (docs/APP_UI.md). The
+     non-ts_ colours there keep their single value. -->
+<resources>
+    <!-- Generic tokens: the pairing screen. -->
+    <color name="ts_ground">#0A2C29</color>
+    <color name="ts_card">#0F3B36</color>
+    <color name="ts_chip">#14544C</color>
+    <!-- #EAF1EF at 14% alpha. -->
+    <color name="ts_line">#24EAF1EF</color>
+    <color name="ts_ink">#EAF1EF</color>
+    <color name="ts_muted">#A9C2BC</color>
+    <color name="ts_shadow">#041513</color>
+    <color name="ts_accent">#A9C4FF</color>
+    <color name="ts_accent_tint">#24A9C4FF</color>
+    <color name="ts_on_accent">#0A2C29</color>
+    <color name="ts_ochre">#E0A11B</color>
+    <color name="ts_on_ochre">#10201E</color>
+
+    <!-- State colours. -->
+    <color name="ts_success">#8FD27A</color>
+    <color name="ts_waiting">#E0A11B</color>
+    <color name="ts_waiting_text">#F0C463</color>
+    <color name="ts_danger">#F08A6E</color>
+    <color name="ts_waiting_glyph">#10201E</color>
+
+    <!-- Phone tokens, Android dark column. -->
+    <color name="ts_phone_ground">#0E1513</color>
+    <color name="ts_panel">#1A2422</color>
+    <color name="ts_petrol">#8FD3C4</color>
+    <color name="ts_on_petrol">#00382F</color>
+    <color name="ts_tonal">#2C4A44</color>
+    <color name="ts_on_tonal">#CFE3DE</color>
+    <color name="ts_accent_fill">#A9C4FF</color>
+    <color name="ts_phone_muted">#BFC9C6</color>
+
+    <color name="ts_container_lowest">#09100E</color>
+    <color name="ts_container_low">#151E1C</color>
+    <color name="ts_container_high">#242F2C</color>
+    <color name="ts_container_highest">#2F3A37</color>
+    <color name="ts_outline">#89938F</color>
+    <color name="ts_divider">#33403D</color>
+    <color name="ts_on_error">#0E1513</color>
+
+    <color name="ts_inverse_surface">#DDE5E2</color>
+    <color name="ts_on_inverse_surface">#1A2422</color>
+    <color name="ts_on_inverse_muted">#3E4D4A</color>
+    <color name="ts_inverse_primary">#2450A8</color>
+    <color name="ts_inverse_success">#2F7A22</color>
+    <color name="ts_inverse_danger">#A4361C</color>
+    <color name="ts_inverse_waiting">#7A5200</color>
+    <color name="ts_inverse_waiting_glyph">#FFFFFF</color>
+</resources>

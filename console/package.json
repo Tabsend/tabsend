@@ -1,0 +1,25 @@
+{
+  "name": "@tabsend/console",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tabsend web console — a kind:'console' endpoint: device management + the group's E2E history (ADR-0028, with ADR-0010 copies still read for older senders). Vite + TypeScript SPA.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts"
+  },
+  "dependencies": {
+    "@tabsend/shared": "workspace:*",
+    "libsodium-wrappers": "^0.7.15",
+    "qrcode-generator": "^2.0.4"
+  },
+  "devDependencies": {
+    "@types/libsodium-wrappers": "^0.7.14",
+    "vite": "^8.1.4"
+  }
+}

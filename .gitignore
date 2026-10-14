@@ -1,0 +1,43 @@
+# OS
+.DS_Store
+
+# deps / builds (packages add their own as needed)
+node_modules/
+dist/
+dist-firefox/
+coverage/
+*.log
+# web-ext build artifacts (Firefox packaging)
+web-ext-artifacts/
+# store-ready packages (scripts/pack.mjs)
+dist-packages/
+
+# local dev databases (server default DATABASE_URL → ./.data)
+.data/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+
+# project-local Postgres cluster (scripts/pg.sh; Chunk 4a dialect matrix)
+.pgdata/
+
+# e2e persistent browser profiles cached outside the repo by default; ignore any
+# that land here.
+.cache/
+
+# TS / tooling
+*.tsbuildinfo
+.pnpm-store/
+
+# editor
+.vscode/
+.idea/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+.claude/
+# Apple APNs signing keys (forwarder); never committable
+*.p8

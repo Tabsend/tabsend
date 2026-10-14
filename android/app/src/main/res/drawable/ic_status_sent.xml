@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Send snackbar status: sent (success disc with a check), drawn for the inverse
+     surface. Never the only signal: the snackbar says the words too. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <path
+        android:fillColor="@color/ts_inverse_success"
+        android:pathData="M0,14 a14,14 0 1 0 28,0 a14,14 0 1 0 -28,0 Z" />
+    <path
+        android:strokeColor="@color/ts_inverse_surface"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M8.5,14.5 L12.25,18 L19.5,10" />
+</vector>

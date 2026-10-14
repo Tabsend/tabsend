@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Send snackbar status: couldn't send (danger disc with an exclamation mark),
+     drawn for the inverse surface. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <path
+        android:fillColor="@color/ts_inverse_danger"
+        android:pathData="M0,14 a14,14 0 1 0 28,0 a14,14 0 1 0 -28,0 Z" />
+    <path
+        android:strokeColor="@color/ts_inverse_surface"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M14,8 V15.5" />
+    <path
+        android:strokeColor="@color/ts_inverse_surface"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M14,19.5 h0.01" />
+</vector>

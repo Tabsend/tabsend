@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Same as values/themes.xml, except light status-bar icons on the dark ground.
+         Everything else lives in Base.Theme.Tabsend, whose colours switch through
+         values-night/colors.xml. -->
+    <style name="Theme.Tabsend" parent="Base.Theme.Tabsend">
+        <item name="android:statusBarColor">@color/ts_phone_ground</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

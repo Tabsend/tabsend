@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tabsend_primary">#2F6FED</color>
+    <color name="tabsend_on_primary">#FFFFFF</color>
+    <color name="ic_launcher_background">#2F6FED</color>
+    <!-- The relay-move "different relay" verdict — not an error (nothing failed),
+         just a cost to weigh, so it gets amber rather than colorError's red. -->
+    <color name="relay_warning">#9A6700</color>
+    <!-- Pale amber tint behind the relay-outage line. Both this and the text
+         colour above are fixed rather than theme-attribute driven, so the pair
+         stays legible whether the phone is in light or dark mode. -->
+    <color name="relay_warning_bg">#FAEEDA</color>
+
+    <!-- ===== Generic petrol tint tokens (docs/APP_UI.md "Colour tokens"), light =====
+         Prefixed ts_ so no library resource of the same name is overridden by
+         accident. values-night/colors.xml redefines every ts_ colour here.
+         On the phone these belong to the first-run pairing screen only (the one
+         signature moment), so it matches the extension and the website. -->
+    <color name="ts_ground">#E9F0EE</color>
+    <color name="ts_card">#FFFFFF</color>
+    <color name="ts_chip">#D9E5E2</color>
+    <color name="ts_line">#CBDAD6</color>
+    <color name="ts_ink">#10201E</color>
+    <color name="ts_muted">#4F625E</color>
+    <color name="ts_shadow">#10201E</color>
+    <color name="ts_accent">#2450A8</color>
+    <!-- Selection tint: accent at ~12% alpha. -->
+    <color name="ts_accent_tint">#1F2450A8</color>
+    <color name="ts_on_accent">#FFFFFF</color>
+    <!-- The phone tile in the pairing illustration, and the glyph drawn on it. The
+         glyph is dark in both modes: light ink on #E0A11B would fall under 3:1. -->
+    <color name="ts_ochre">#E0A11B</color>
+    <color name="ts_on_ochre">#10201E</color>
+
+    <!-- ===== State colours (both layers) ===== -->
+    <color name="ts_success">#2F7A22</color>
+    <!-- Waiting: the fill (icons) and the text colour are different values. -->
+    <color name="ts_waiting">#E0A11B</color>
+    <color name="ts_waiting_text">#7A5200</color>
+    <color name="ts_danger">#A4361C</color>
+    <!-- The glyph drawn on the amber waiting disc. Dark in both modes. -->
+    <color name="ts_waiting_glyph">#10201E</color>
+
+    <!-- ===== Phone tokens, Android columns (docs/APP_UI.md "Phones: native-leaning") =====
+         Every screen but the pairing screen. Mapped onto the Material 3 colour
+         roles in themes.xml, so stock components pick them up. -->
+    <color name="ts_phone_ground">#F4F8F7</color>
+    <color name="ts_panel">#E3ECE9</color>
+    <color name="ts_petrol">#1F6F63</color>
+    <!-- Not in the table: the switch thumb over a petrol track (Material's onPrimary role). -->
+    <color name="ts_on_petrol">#FFFFFF</color>
+    <color name="ts_tonal">#CFE3DE</color>
+    <color name="ts_on_tonal">#0E3F38</color>
+    <color name="ts_accent_fill">#2450A8</color>
+    <color name="ts_phone_muted">#3E4D4A</color>
+
+    <!-- Derived for the Material 3 roles the table leaves open: the surface
+         container ladder around `panel`, outlines, and dividers inside panels. -->
+    <color name="ts_container_lowest">#FFFFFF</color>
+    <color name="ts_container_low">#EDF3F1</color>
+    <color name="ts_container_high">#DCE6E3</color>
+    <color name="ts_container_highest">#D5E1DD</color>
+    <color name="ts_outline">#6F7A77</color>
+    <color name="ts_divider">#C4D1CD</color>
+    <color name="ts_on_error">#FFFFFF</color>
+
+    <!-- Inverse surface: the send snackbar (Material 3 snackbars invert the theme).
+         Its status discs use the OTHER mode's state colours, which are the ones
+         that hold contrast on an inverted surface. -->
+    <color name="ts_inverse_surface">#253230</color>
+    <color name="ts_on_inverse_surface">#ECF3F0</color>
+    <color name="ts_on_inverse_muted">#C3CDCA</color>
+    <color name="ts_inverse_primary">#A9C4FF</color>
+    <color name="ts_inverse_success">#8FD27A</color>
+    <color name="ts_inverse_danger">#F08A6E</color>
+    <!-- Amber on the dark bar; in dark mode the bar is pale, where #E0A11B would
+         fall under 3:1, so the disc darkens to the waiting text colour there. -->
+    <color name="ts_inverse_waiting">#E0A11B</color>
+    <color name="ts_inverse_waiting_glyph">#10201E</color>
+</resources>

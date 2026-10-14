@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Paper plane: this phone SENT it [ADR-0028 §9]. Mail imagery rather than a
+     bare arrow, which says nothing about what it means and, sitting alone in a
+     row's left gutter, reads as a handle for reordering the list.
+
+     Line art in the same style as ic_notification, and drawn black because every
+     use tints it at runtime (HistoryActivity) to match the row's tone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M21,3 L3,10.5 L10,13.8 L13.2,21 Z" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M21,3 L10,13.8" />
+</vector>

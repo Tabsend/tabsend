@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "Tabsend FX Fallback (persistent BG)",
+  "version": "0.0.1",
+  "description": "Throwaway: event-page + WebSocket + alarms fallback for Firefox (no push). Measures lifecycle + wake latency. Not shipped.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "tabsend-fx-persistent@tabsend.local"
+    }
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ],
+    "persistent": true
+  },
+  "permissions": [
+    "http://localhost:8081/*",
+    "ws://localhost:8081/*",
+    "tabs",
+    "alarms"
+  ]
+}

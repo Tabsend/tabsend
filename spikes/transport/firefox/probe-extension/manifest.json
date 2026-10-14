@@ -1,0 +1,13 @@
+{
+  "manifest_version": 2,
+  "name": "Tabsend Firefox Push Probe",
+  "version": "0.0.1",
+  "description": "Throwaway: probes whether Firefox exposes the Web Push API to a WebExtension. Not shipped.",
+  "browser_specific_settings": {
+    "gecko": { "id": "tabsend-fx-probe@tabsend.local" }
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "permissions": ["http://localhost:8080/*", "tabs"]
+}

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pairing illustration, right: a phone on an ochre (#E0A11B) tile with an ink
+     outline and a hard offset shadow. The phone's own outline is `on-ochre`, dark
+     in both modes, because a light line on ochre would fall under 3:1. Decorative. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="72dp"
+    android:height="72dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
+    <path
+        android:fillColor="@color/ts_shadow"
+        android:pathData="M15.5,5.5 h44.5 a10,10 0 0 1 10,10 v44.5 a10,10 0 0 1 -10,10 h-44.5 a10,10 0 0 1 -10,-10 v-44.5 a10,10 0 0 1 10,-10 Z" />
+    <path
+        android:fillColor="@color/ts_ochre"
+        android:strokeColor="@color/ts_ink"
+        android:strokeWidth="1.5"
+        android:pathData="M11.75,1.75 h44.5 a10,10 0 0 1 10,10 v44.5 a10,10 0 0 1 -10,10 h-44.5 a10,10 0 0 1 -10,-10 v-44.5 a10,10 0 0 1 10,-10 Z" />
+    <!-- The phone. -->
+    <path
+        android:fillColor="@color/ts_card"
+        android:strokeColor="@color/ts_on_ochre"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M28.5,14 h11 a3.5,3.5 0 0 1 3.5,3.5 v33 a3.5,3.5 0 0 1 -3.5,3.5 h-11 a3.5,3.5 0 0 1 -3.5,-3.5 v-33 a3.5,3.5 0 0 1 3.5,-3.5 Z" />
+    <path
+        android:strokeColor="@color/ts_ink"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M31.5,48.5 h5" />
+</vector>

@@ -1,0 +1,23 @@
+{
+  "name": "@tabsend/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tabsend end-to-end rig — builds the extension, boots the relay, and proves a tab travels Chrome profile A → Chrome profile B with no duplicates. Run via `pnpm e2e` at the repo root (deliberately NOT part of `pnpm test`).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright install chromium && vitest run --exclude '**/*.push.e2e.ts'",
+    "e2e:push": "pkill -f 'tabsend-e2e-profile[s]' >/dev/null 2>&1 || true; vitest run src/travel.push.e2e.ts"
+  },
+  "dependencies": {
+    "@tabsend/shared": "workspace:*",
+    "libsodium-wrappers": "^0.7.15",
+    "playwright": "^1.58.2",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/libsodium-wrappers": "^0.7.14",
+    "@types/web-push": "^3.6.4"
+  }
+}

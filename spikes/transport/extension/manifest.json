@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Tabsend Spike A — push probe",
+  "version": "0.0.1",
+  "description": "Throwaway extension: subscribes to VAPID Web Push, measures wake latency. Not shipped.",
+  "minimum_chrome_version": "121",
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
+  "permissions": ["tabs", "alarms", "storage"],
+  "host_permissions": ["http://localhost:8080/*"]
+}

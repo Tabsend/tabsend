@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Set up Tabsend</title>
+    <link rel="icon" href="icons/tabsend-32.png" />
+    <link rel="icon" sizes="16x16" href="icons/tabsend-16.png" />
+    <link rel="icon" sizes="48x48" href="icons/tabsend-48.png" />
+    <link rel="stylesheet" href="/src/pages/ui.css" />
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        padding: 48px 16px 64px;
+      }
+      main { width: 100%; max-width: 480px; }
+      .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+      .page-header .page-title { margin-bottom: 6px; }
+      h2 { font-size: 20px; font-weight: 700; margin: 0 0 14px; }
+      .sub { color: var(--muted); margin: 0 0 28px; }
+      #settings-gear {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        flex: none;
+        padding: 0;
+        border: 0;
+        border-radius: 10px;
+        background: none;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      #settings-gear:hover { background: var(--chip); color: var(--ink); }
+      #settings-gear svg { width: 20px; height: 20px; }
+      .screen.hidden { display: none; }
+      label { display: block; font-size: 15px; font-weight: 600; margin: 18px 0 6px; }
+      .hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; line-height: 1.45; }
+      .hint code { font-size: 12px; word-break: break-all; }
+      .browser-name-note {
+        display: none;
+        margin: 8px 0 0;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--accent-tint);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .browser-name-note.visible { display: block; }
+      .screen .btn-primary { margin-top: 22px; }
+      .linkish.small { font-size: 13px; }
+      #code { text-transform: none; font-family: var(--mono); }
+      #error {
+        display: none;
+        margin: 0 0 20px;
+      }
+      #error.visible { display: block; }
+      /* An unfinished relay move, stated at the screen that finishes it. */
+      #switch-note { display: none; margin: 0 0 8px; }
+      #switch-note.visible { display: block; }
+      #switch-target { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.5; }
+      #switch-cost { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      #switch-cost:empty { display: none; }
+      #switch-note .btn-secondary { margin-top: 10px; }
+      #switch-link-note { display: none; }
+      #switch-link-note.visible { display: block; }
+
+      /* Existing-device chooser (join): chips, the picked one ringed in ink. */
+      #existing-devices { display: flex; flex-wrap: wrap; gap: 8px; }
+      .device-choice {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+        padding: 8px 14px;
+        border: 1.5px solid transparent;
+        border-radius: 999px;
+        background: var(--chip);
+        color: var(--ink);
+        font: 600 14px/1.2 var(--font);
+        cursor: pointer;
+      }
+      .device-choice:hover { border-color: var(--line); }
+      .device-choice.selected { background: var(--card); border-color: var(--ink); }
+
+      /*
+       * Manage devices. The device list is the screen's one list card (flat
+       * white, no outline); the advisory and the pairing block are not boxes.
+       * Colour stays in small accents — the ✓, the presence dot, the warning
+       * icon — so blue (actions), green (online) and amber (advisory) never
+       * compete for one surface.
+       */
+      #manage-title { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 800; }
+      #manage-title .check {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--success-tint);
+        color: var(--success);
+        font-size: 15px;
+      }
+      #self-label-line { margin-bottom: 20px; }
+      .card-block { border-radius: 14px; padding: 4px 16px; margin-bottom: 20px; background: var(--card); }
+      #device-list { list-style: none; margin: 0; padding: 0; }
+      #device-list li {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 0;
+        border-top: 1.5px solid var(--line);
+      }
+      .dev-main { flex: 1; min-width: 0; }
+      .dev-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .dev-sub { font-size: 13px; color: var(--muted); }
+      .dev-actions { display: flex; gap: 14px; flex: none; font-size: 14px; }
+      .relay-line {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 4px 10px;
+        margin: 0;
+        padding: 12px 0;
+        font-size: 14px;
+      }
+      .relay-line .rlabel { font-weight: 600; }
+      .relay-line code { word-break: break-all; }
+
+      /* Solo-group notice: a waiting-tint strip, icon + one finding + one action. */
+      #solo-notice { display: none; margin-bottom: 20px; padding: 12px 14px; background: var(--waiting-tint); border-radius: 10px; }
+      #solo-notice.visible { display: block; }
+      #new-devices { margin-bottom: 20px; }
+      #new-devices .notice { font-size: 14px; padding: 12px 14px; }
+      .probe-row { display: flex; align-items: flex-start; gap: 10px; }
+      #solo-notice svg { width: 18px; height: 18px; flex: none; margin-top: 1px; color: var(--waiting); }
+      #solo-body { margin: 0; font-size: 14px; line-height: 1.5; }
+      #solo-notice .btn-row { margin: 10px 0 0 28px; }
+      .pair-block { margin: 4px 0 28px; }
+      .pair-block .btn-primary { margin-top: 0; }
+      #pairing-box { margin-top: 18px; }
+
+      /* Rename dialog: a raised card (it IS the screen while it is open). */
+      #rename-dialog {
+        border: var(--outline);
+        border-radius: 14px;
+        box-shadow: 4px 4px 0 var(--shadow);
+        padding: 20px;
+        width: 340px;
+        max-width: calc(100vw - 32px);
+        color: var(--ink);
+        background: var(--card);
+      }
+      #rename-dialog::backdrop { background: rgba(4, 21, 19, 0.45); }
+      #rename-dialog h2 { font-size: 17px; margin: 0 0 12px; }
+      #rename-dialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+      #rename-dialog .btn-primary { box-shadow: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="page-header">
+        <div class="page-title">
+          <img src="icons/tabsend-48.png" alt="" />
+          <h1>Set up Tabsend</h1>
+        </div>
+        <button type="button" id="settings-gear" aria-label="Open Tabsend settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="sub">Send this browser's tabs to your other browsers and devices.</p>
+
+      <div id="error" class="notice danger" role="alert"></div>
+
+      <!-- Pairing links carry the one-time secret and relay address together. -->
+      <section id="screen-name" class="screen">
+        <!-- Arrived from settings with a relay already chosen. The browser is
+             still paired to its old relay at this point (choosing a different
+             one records the destination, it doesn't leave), so this states both
+             halves: where it is going, and what it keeps until it gets there. -->
+        <aside id="switch-note" class="notice accent">
+          <p id="switch-target"></p>
+          <p id="switch-cost"></p>
+          <button type="button" id="switch-keep" class="btn-secondary"></button>
+        </aside>
+
+        <label for="browser-name">Name this browser</label>
+        <input id="browser-name" type="text" autocomplete="off" />
+        <aside class="browser-name-note" id="browser-hint">
+          Some browsers (Dia, Comet, Arc) look exactly like Chrome from in here, so this is our
+          best guess. Keep it, or type the real name.
+        </aside>
+
+        <label for="pairing-link-input">Pairing link</label>
+        <input
+          id="pairing-link-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="https://relay.example/pair#c=…"
+        />
+        <p class="hint">
+          Paste the link from a paired device. It tells Tabsend which relay to use and carries
+          the one-time credentials securely.
+        </p>
+        <p class="hint" id="switch-link-note"></p>
+        <p class="hint">
+          Setting up your first browser? Use the pairing link the relay printed when it started.
+        </p>
+        <button type="button" id="join" class="btn-primary">Pair this browser</button>
+      </section>
+
+      <!-- Which device is this browser on? -->
+      <section id="screen-device" class="screen hidden">
+        <h2>Which device is this browser on?</h2>
+        <p class="hint" id="device-existing-hint" style="display: none">
+          Pick the device this browser runs on, or add a new one.
+        </p>
+        <div id="existing-devices"></div>
+        <label for="device-new">Add a new device</label>
+        <input id="device-new" type="text" autocomplete="off" />
+        <p class="hint">Examples: “MacBook Pro M1”, “Home PC”.</p>
+        <button type="button" id="device-confirm" class="btn-primary">Continue</button>
+      </section>
+
+      <!-- Manage devices (the flow ends here, not on a dead page) -->
+      <section id="screen-manage" class="screen hidden">
+        <h2 id="manage-title"><span class="check">✓</span> This browser is paired</h2>
+        <p id="self-label-line" class="sub"></p>
+        <p id="rename-note" class="hint" style="display: none; margin-bottom: 16px"></p>
+
+        <!-- "New device: X. Was this you?" (PLANS.md P-10), one per unanswered device. -->
+        <div id="new-devices" class="hidden"></div>
+
+        <!-- Which relay this browser is actually on, and every device in the
+             group. One card: the relay line has no ground to stand on outside
+             the device list it explains. -->
+        <div id="device-group" class="card-block">
+          <p class="relay-line">
+            <span class="rlabel">Relay</span>
+            <code id="manage-relay"></code>
+            <button type="button" class="linkish small" id="open-connection">Change…</button>
+          </p>
+          <ul id="device-list"></ul>
+        </div>
+
+        <!-- Alone in the group, and not because it was just created. Same
+             verdict-box shape as options.html's relay-probe result: icon, one
+             finding line, one action — no standing explanation to read first. -->
+        <div id="solo-notice" role="status">
+          <div class="probe-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 9v4" />
+              <path d="M12 17h.01" />
+              <path
+                d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+              />
+            </svg>
+            <p id="solo-body"></p>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="btn-secondary" id="solo-connection">Check the relay address</button>
+          </div>
+        </div>
+
+        <div class="pair-block">
+          <button type="button" id="pair-another" class="btn-primary">Pair another device</button>
+          <div id="pairing-box">
+            <div id="pairing-ready">
+              <div id="pairing-qr"></div>
+              <input id="pairing-link" type="text" readonly aria-label="Pairing link" />
+              <div class="pair-actions">
+                <button type="button" class="linkish" id="copy-link">Copy pairing link</button>
+                <span id="copy-note"></span>
+              </div>
+              <p class="pair-hint">Scan the QR with a phone, or copy the pairing link to a browser extension.</p>
+              <div id="pairing-local-only" role="status"></div>
+            </div>
+            <div id="pairing-note"></div>
+          </div>
+        </div>
+
+        <p class="sub">You can close this page now.</p>
+      </section>
+    </main>
+
+    <dialog id="rename-dialog">
+      <h2>Rename this device</h2>
+      <input id="rename-input" type="text" autocomplete="off" />
+      <div class="dialog-actions">
+        <button type="button" id="rename-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="rename-ok" class="btn-primary">OK</button>
+      </div>
+    </dialog>
+    <script type="module" src="/src/pages/firstrun.ts"></script>
+  </body>
+</html>

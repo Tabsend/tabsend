@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tabsend</string>
+
+    <!-- Notifications -->
+    <string name="channel_links_name">Incoming links</string>
+    <string name="channel_links_desc">Tabs sent to this device</string>
+    <!-- Multi-tab batch summary. The "from" variant is used when the sender
+         device is known; the plain one covers an unnamed sender. -->
+    <plurals name="batch_summary_title_from">
+        <item quantity="one">%1$d tab from %2$s</item>
+        <item quantity="other">%1$d tabs from %2$s</item>
+    </plurals>
+    <plurals name="batch_summary_title">
+        <item quantity="one">%1$d tab received</item>
+        <item quantity="other">%1$d tabs received</item>
+    </plurals>
+    <!-- Shown while a batch is still arriving across polls, so "Open all" being
+         short of the full batch isn't a surprise. -->
+    <string name="batch_summary_partial">%1$d of %2$d tabs arrived so far</string>
+    <string name="batch_open_all">Open all</string>
+    <!-- Two send channels rather than one "silence success" app setting: the OS
+         settings UI then lets the user mute confirmations while keeping failures,
+         per-tone, with no preference screen of ours. Failures are never gated. -->
+    <string name="channel_send_status_name">Send confirmations</string>
+    <string name="channel_send_status_desc">Tells you a tab reached your relay</string>
+    <string name="channel_send_problems_name">Send problems</string>
+    <string name="channel_send_problems_desc">Tells you when a tab is waiting or couldn\'t be sent</string>
+    <string name="channel_connection_name">Instant delivery</string>
+    <string name="channel_connection_desc">Keeps the connection to your relay open so links arrive immediately</string>
+    <string name="instant_notification_title">Instant delivery is on</string>
+    <string name="instant_notification_text">Connected to your relay, so links arrive immediately</string>
+
+    <!-- Instant delivery toggle -->
+    <string name="instant_switch">Instant delivery</string>
+    <string name="instant_switch_hint">Links arrive the moment they\'re sent. Off: they arrive when you open the app, or within a few minutes.</string>
+
+    <!-- P-11 option C: which way instant delivery is being honoured, and why. Each line
+         has to stand alone under the switch, so each one names the consequence the person
+         actually feels rather than the mechanism. -->
+    <string name="instant_via_google">No permanent notification, and barely any battery cost. Your relay asks the Tabsend wake-up service to ring this phone through Google, then this phone fetches the link from your relay. The service learns that a device received something, and when. Never what.</string>
+    <string name="instant_via_own_connection">Keeping a connection open itself, which needs the permanent notification below and a little more battery.</string>
+    <string name="instant_via_own_no_google">Keeping a connection open itself, because you asked for no Google. That needs the permanent notification below.</string>
+    <string name="instant_via_own_unavailable">Keeping a connection open itself, because this phone has no Google services. That needs the permanent notification below.</string>
+    <string name="instant_via_own_no_forwarder">Keeping a connection open itself, because your relay has no wake-up service set up. That needs the permanent notification below.</string>
+    <string name="instant_via_own_pending">Keeping a connection open itself for now. It will switch to Google\'s push service, and drop the notification, once it can reach it.</string>
+    <!-- Wakes stopped arriving (SECURITY_REVIEW G10). No "below": the notification is in
+         the shade, not on this screen. -->
+    <string name="instant_via_own_wakes_stopped">Keeping a connection open itself, because wake-ups through Google stopped reaching this phone. Android shows a permanent notification while it does that. This usually means your relay rings a different wake-up service from the one this app signed up with, or that service is down. Once that is fixed, tap Try Google push again.</string>
+    <string name="instant_avoid_google">Don\'t use Google</string>
+    <string name="instant_allow_google">Use Google push instead</string>
+    <string name="instant_retry_google">Try Google push again</string>
+    <string name="instant_retry_failed">Could not switch back to Google push yet, because the wake-up service or your relay did not answer. Tabsend keeps its own connection open meanwhile.</string>
+
+    <!-- Pairing / onboarding: the first-run pairing screen, the app's one
+         signature moment (docs/APP_UI.md "Phones: native-leaning"). -->
+    <string name="pairing_headline">Link this phone to your browsers</string>
+    <string name="pairing_body">On your computer, click the Tabsend button and choose New browser. Then scan the code it shows.</string>
+    <!-- The primary path: opens the QR scanner, which fills in the pairing link. -->
+    <string name="scan_code">Scan code</string>
+    <!-- Reveals the pairing-link field, the name field and the Pair button. -->
+    <string name="pairing_paste_instead">Paste a pairing link instead</string>
+    <string name="pairing_how">How pairing works</string>
+    <string name="pairing_how_body">A device that is already paired, usually your browser, asks your Tabsend relay for a one-time pairing code and shows it as a QR code and as a link. Scanning the code, or pasting the link, tells this phone where your relay is and hands it that code. The phone then joins your group of devices.\n\nThe code works once, and only for a limited time. Tabs you send are encrypted on the device that sends them and only your paired devices can read them; the relay passes them on without being able to open them.</string>
+    <string name="pairing_link_label">Pairing link</string>
+    <string name="pairing_link_hint">https://your-relay:8787/pair#c=…</string>
+    <string name="device_name_label">Name this device</string>
+    <string name="join_button">Pair this phone</string>
+    <!-- The join button relabels itself after a failed attempt so retrying is an
+         obvious next tap rather than something the user has to guess (the browser
+         extension shows an explicit "Try again" in the same spot). -->
+    <string name="join_retry_button">Try again</string>
+
+    <!-- Paired home -->
+    <string name="paired_title">This phone is linked</string>
+    <string name="add_device">Pair a device</string>
+    <string name="rename_device">Rename this device</string>
+    <string name="unpair">Unpair this phone</string>
+    <string name="devices_title">Your devices</string>
+    <!-- The held-tab list (INTERACTION_FLOWS §4b). Kept apart from any "waiting
+         for <device>" count, whose source is the relay's own outbox and so reads
+         zero during exactly the outage that fills this list. -->
+    <string name="held_tabs_hint">These are still on this phone. Each one sends itself as soon as your relay answers again.</string>
+    <!-- The way out of a wait. "Stop waiting" and not "Cancel": it is a pure local
+         delete, and an item already mid-POST can still land, so the label must not
+         promise a reach it has never had (INTERACTION_FLOWS §4f). -->
+    <string name="held_tab_cancel">Stop waiting</string>
+    <string name="notifications_off_hint">Notifications are off for Tabsend, so this list is the only place a waiting or failed send shows up. Turn them on in Android settings to be told when a tab doesn\'t land.</string>
+    <string name="refresh">Refresh</string>
+
+    <!-- Relay move (P-4, merged 2026-07-29 to mirror the extension's rewrite):
+         one field, a Check, one verdict, exactly one matching action. The old
+         two-button choice (Change relay address / Unpair) made the person pick
+         which case they were in before the app told them; relayId plus an
+         authenticated token probe (unchanged since ADR-0020) already answers
+         that, so it answers it instead of asking. -->
+    <string name="relay_move_button">Move to another relay…</string>
+    <string name="relay_move_title">Move to another relay</string>
+    <string name="relay_move_hint">Where is your relay now?</string>
+    <string name="relay_move_check">Check</string>
+    <string name="relay_move_checking">Checking…</string>
+    <string name="relay_move_empty">Enter the relay address.</string>
+    <string name="relay_move_same">Same relay. Your devices stay paired.</string>
+    <string name="relay_move_same_unverified">Probably the same relay. It\'s too old to confirm, but it accepted this phone\'s login.</string>
+    <string name="relay_move_different">Different relay. No record of your devices, so every one re-pairs.</string>
+    <string name="relay_move_unreachable">Couldn\'t reach %1$s. Check the address and that it\'s running.</string>
+    <string name="relay_move_refused">The relay refused the check: %1$s</string>
+    <string name="relay_move_switch">Switch to this address</string>
+    <string name="relay_move_start_fresh">Start fresh here</string>
+    <string name="relay_move_start_fresh_confirm_title">Start fresh on %1$s?</string>
+    <string name="relay_move_start_fresh_confirm_body">This phone leaves its current device group. Every device you want to keep has to pair again on the new relay.</string>
+    <string name="relay_move_done">Now using %1$s.</string>
+    <string name="relay_move_commit_failed">%1$s Nothing was changed.</string>
+
+    <!-- History (P-7, widened by ADR-0028). One timeline of what the whole group
+         sent and received, newest first. It began as "Tabs you received", a
+         backstop for a link whose notification was swiped away; it now also
+         answers "where did that tab go", including for a tab that never landed,
+         which nothing could answer before. -->
+    <string name="history_title">History</string>
+    <string name="history_open">See all history</string>
+    <string name="history_retention">Everything your devices sent and received, newest first. The last %1$d are kept on this phone for reading offline.</string>
+    <string name="history_empty">Nothing here yet. Tabs your devices send each other are listed here, so you can find one again after its notification is gone.</string>
+    <string name="history_open_all">Open all</string>
+    <!-- A row this phone received: the sender and the age. -->
+    <string name="history_row_from">%1$s · from %2$s · %3$s</string>
+    <!-- A row this phone sent: the destination and the age. -->
+    <string name="history_row_to">%1$s · to %2$s · %3$s</string>
+    <!-- A transfer between two OTHER devices. No preposition works when neither
+         end is this phone, so the row names both ends (ADR-0028 §9). -->
+    <string name="history_row_between">%1$s · %2$s → %3$s · %4$s</string>
+    <!-- Batch headings carry the same meta line without the site. -->
+    <string name="history_group_from">from %1$s · %2$s</string>
+    <string name="history_group_to">to %1$s · %2$s</string>
+    <string name="history_group_between">%1$s → %2$s · %3$s</string>
+    <!-- Delivery state, shown on a row that is not simply done. "Waiting" is the
+         ordinary case for a sleeping phone, so it is stated plainly rather than
+         as a warning. -->
+    <string name="history_waiting">Waiting for %1$s to pick it up</string>
+    <string name="history_never_arrived">Never arrived. %1$s did not pick it up before it expired.</string>
+    <string name="history_never_arrived_unknown">Never arrived. It expired before it was picked up.</string>
+    <string name="history_send_again">Send again</string>
+    <string name="history_send_again_gone">That device is no longer in your group.</string>
+    <!-- A row whose blob was sealed under a key this phone does not hold: still a
+         true record of a transfer, so it is listed rather than hidden. -->
+    <string name="history_locked">Tab this phone cannot open</string>
+    <string name="history_locked_detail">No key on this phone</string>
+    <!-- The same gap, where a device name should have been. -->
+    <string name="history_unknown_device">another device</string>
+    <!-- Spoken by a screen reader in place of the direction glyph. -->
+    <string name="history_direction_sent">Sent from this phone</string>
+    <string name="history_direction_received">Received on this phone</string>
+    <string name="history_direction_between">Between two other devices</string>
+
+    <!-- ===== Petrol tint refresh (docs/APP_UI.md) ===== -->
+
+    <!-- Home: section labels (shown uppercase by the style, written in sentence case). -->
+    <string name="section_received">Received</string>
+    <string name="section_delivery">Delivery</string>
+    <string name="section_this_phone">This phone</string>
+    <!-- The received card on the home screen: the newest few tabs this phone got. -->
+    <string name="received_empty">Nothing received yet. Tabs your other devices send to this phone show up here.</string>
+    <!-- A received row's detail line: the sender and the age. -->
+    <string name="received_row_from">from %1$s · %2$s</string>
+
+    <!-- Device rows (home screen and share chooser): "Kind · status". -->
+    <string name="device_detail">%1$s · %2$s</string>
+    <string name="device_kind_phone">Phone</string>
+    <string name="device_kind_browser">Browser</string>
+    <string name="device_kind_console">Console</string>
+    <string name="device_status_online">Online</string>
+    <string name="device_status_offline">Offline</string>
+    <!-- Presence can't be claimed: the list is painted from a cache too old to trust. -->
+    <string name="device_status_unknown">Status unknown</string>
+    <!-- Offline past the 30-day horizon; still a valid target. -->
+    <string name="device_status_inactive">Inactive</string>
+    <string name="device_this_phone">This phone</string>
+    <!-- The primary device's label (replaces the old star). -->
+    <string name="device_main">Main</string>
+    <string name="device_main_description">main device</string>
+
+    <!-- Share chooser -->
+    <string name="share_chooser_title">Send tab to</string>
+
+    <!-- Send feedback (docs/APP_UI.md "Send toast", in its Android form: a Material
+         snackbar). The moment after a pick: a status icon, the headline, and a
+         second line where there is one. -->
+    <string name="send_toast_sending">Sending to %1$s…</string>
+    <string name="send_toast_sent">Sent to %1$s</string>
+    <!-- The relay took it; the target was not online when the send was made. -->
+    <string name="send_toast_asleep">Waiting for %1$s</string>
+    <string name="send_toast_asleep_detail">Opens there when it wakes</string>
+    <!-- The relay has NOT taken it; it is held in this phone's outbound queue and
+         retries on its own. The muted line is the specific reason (SendFeedback). -->
+    <string name="send_toast_held">Saved on this phone, not sent yet</string>
+    <string name="send_toast_failed">Couldn\'t send to %1$s</string>
+    <!-- Read out for the snackbar's close (X) button. -->
+    <string name="send_toast_close">Close</string>
+    <!-- The snackbar action after a send: opens History. -->
+    <string name="send_toast_view">View</string>
+
+    <!-- History: day sections and per-row status words. -->
+    <string name="history_section_today">Today</string>
+    <string name="history_section_yesterday">Yesterday</string>
+    <string name="history_section_earlier">Earlier</string>
+    <string name="history_status_delivered">Delivered</string>
+    <string name="history_status_waiting">Waiting</string>
+    <string name="history_status_never_arrived">Didn\'t arrive</string>
+    <string name="history_status_opened">Opened</string>
+    <string name="history_status_new">New</string>
+
+    <!-- ===== New device joined (PLANS.md P-10). Same words on every client. ===== -->
+    <string name="channel_devices_name">New devices</string>
+    <string name="channel_devices_desc">Tells you when a device joins your Tabsend devices</string>
+    <string name="new_device_title">New device: %1$s</string>
+    <!-- %1$s is a relative time such as "5m ago" or "just now". -->
+    <string name="new_device_alert_body">Joined your Tabsend devices %1$s. Was this you? If not, remove it.</string>
+    <string name="new_device_alert_body_no_time">Joined your Tabsend devices. Was this you? If not, remove it.</string>
+    <plurals name="new_devices_alert_title">
+        <item quantity="one">%1$d new device joined</item>
+        <item quantity="other">%1$d new devices joined</item>
+    </plurals>
+    <!-- %1$s is the list of device names, e.g. "Pixel 8, iPhone and Console". -->
+    <string name="new_devices_alert_body">%1$s. Were these you? If not, remove them.</string>
+    <!-- Joins device names: %1$s is all but the last, already comma-separated. -->
+    <string name="new_devices_list_and">%1$s and %2$s</string>
+    <string name="new_device_banner_body">Joined %1$s. Was this you? If it isn\'t yours, remove it. It could read the links you send.</string>
+    <string name="new_device_banner_body_no_time">Was this you? If it isn\'t yours, remove it. It could read the links you send.</string>
+    <string name="new_device_confirm">Yes, it\'s mine</string>
+    <string name="new_device_remove">Remove it</string>
+    <string name="review_title">Check your devices</string>
+    <string name="review_body">Your group has these devices. A device you don\'t know could read the links you send, so remove it.</string>
+    <string name="review_remove">Remove</string>
+    <string name="review_remove_for">Remove %1$s</string>
+    <string name="review_confirm">All of these are mine</string>
+    <string name="vanished_title">%1$s joined, then disappeared</string>
+    <string name="vanished_body">It joined %1$s and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.</string>
+    <string name="vanished_body_no_time">It is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.</string>
+    <string name="vanished_dismiss">Dismiss</string>
+
+    <!-- Removing another device. Wording matches the extension and the console. -->
+    <string name="remove_device_title">Remove “%1$s” from the group?</string>
+    <string name="remove_device_body">“%1$s” will stop receiving tabs and disappear from every device’s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin.</string>
+    <string name="remove_device_action">Remove</string>
+    <string name="remove_device_done">Removed %1$s.</string>
+    <string name="remove_device_offline">Couldn\'t reach the relay to remove %1$s. Try again when you\'re online.</string>
+    <string name="remove_device_refused">The relay refused to remove %1$s: %2$s</string>
+    <string name="device_row_remove_hint">remove this device</string>
+</resources>

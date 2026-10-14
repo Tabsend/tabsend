@@ -1,0 +1,544 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Home (docs/APP_UI.md "Phones: native-leaning"). One activity, two screens, of
+  which exactly one is visible:
+
+  - joinCard: the first-run pairing screen, the app's one signature moment. The
+    generic ground / card / ink / shadow tokens, the Archivo wordmark and headline,
+    the outlined card with a hard offset shadow, and the one outlined, shadowed
+    button ("Scan code").
+  - pairedCard: everything after pairing, in plain Material 3. A top app bar with
+    the title, petrol subheaders, a tonal panel for the received list, plain
+    device rows, a petrol switch, and an extended FAB for "Pair a device". No
+    outlines, no offset shadows.
+
+  MainActivity toggles the two and repaints the status bar to match.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- ===================== PAIRING (not yet paired) ===================== -->
+    <ScrollView
+        android:id="@+id/joinCard"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/ts_ground"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textAppearance="@style/TextAppearance.Tabsend.Wordmark" />
+
+            <!-- The signature card: illustration, headline, one line of how-to. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:background="@drawable/bg_card_raised"
+                android:orientation="vertical"
+                android:paddingStart="20dp"
+                android:paddingTop="24dp"
+                android:paddingEnd="24dp"
+                android:paddingBottom="28dp">
+
+                <!-- Browser → phone. Decorative: the headline says the same thing. -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:importantForAccessibility="noHideDescendants"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="72dp"
+                        android:layout_height="72dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ill_browser_tile" />
+
+                    <ImageView
+                        android:layout_width="56dp"
+                        android:layout_height="24dp"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ill_dashed_arrow" />
+
+                    <ImageView
+                        android:layout_width="72dp"
+                        android:layout_height="72dp"
+                        android:importantForAccessibility="no"
+                        android:src="@drawable/ill_phone_tile" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:accessibilityHeading="true"
+                    android:text="@string/pairing_headline"
+                    android:textAppearance="@style/TextAppearance.Tabsend.PairingHeadline" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/pairing_body"
+                    android:textAppearance="@style/TextAppearance.Tabsend.PairingBody" />
+            </LinearLayout>
+
+            <!-- Pushes the actions to the bottom on a tall screen; collapses to
+                 nothing once the paste form is open and the page scrolls. -->
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:minHeight="24dp" />
+
+            <!-- The paste path, hidden until asked for ("Paste a pairing link
+                 instead") or until a scan / deep link has filled the link in.
+                 Same fields and Pair button as before; only their visibility moved. -->
+            <LinearLayout
+                android:id="@+id/pasteForm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/pairing_link_label"
+                    app:boxBackgroundColor="@color/ts_card"
+                    app:boxCornerRadiusBottomEnd="10dp"
+                    app:boxCornerRadiusBottomStart="10dp"
+                    app:boxCornerRadiusTopEnd="10dp"
+                    app:boxCornerRadiusTopStart="10dp"
+                    app:boxStrokeColor="@color/ts_ink"
+                    app:helperText="@string/pairing_link_hint"
+                    app:helperTextEnabled="true">
+
+                    <!-- A URL, so Courier Prime (the spec's face for URLs and hosts). -->
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/pairingLinkInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/courierprime_regular"
+                        android:inputType="textUri"
+                        android:textColor="@color/ts_ink"
+                        app:fontFamily="@font/courierprime_regular" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:hint="@string/device_name_label"
+                    app:boxBackgroundColor="@color/ts_card"
+                    app:boxCornerRadiusBottomEnd="10dp"
+                    app:boxCornerRadiusBottomStart="10dp"
+                    app:boxCornerRadiusTopEnd="10dp"
+                    app:boxCornerRadiusTopStart="10dp"
+                    app:boxStrokeColor="@color/ts_ink">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/deviceNameInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textCapWords"
+                        android:textColor="@color/ts_ink" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- A plain filled button in accent (colorPrimary is the accent fill,
+                     same values as the generic accent): the outlined, shadowed one
+                     is "Scan code". -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/joinButton"
+                    style="@style/Widget.Material3.Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:minHeight="52dp"
+                    android:text="@string/join_button"
+                    app:cornerRadius="12dp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/joinStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:accessibilityLiveRegion="polite"
+                android:textAppearance="@style/TextAppearance.Tabsend.PairingBody" />
+
+            <!-- The primary path: the in-app QR scanner, which fills in the link. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/scanQrButton"
+                style="@style/Widget.Tabsend.Button.Primary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/scan_code" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pasteLinkButton"
+                style="@style/Widget.Tabsend.Button.Tertiary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/pairing_paste_instead"
+                android:textColor="@color/ts_accent" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/howPairingButton"
+                style="@style/Widget.Tabsend.Button.Tertiary"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:text="@string/pairing_how"
+                android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                android:textColor="@color/ts_muted" />
+
+            <!-- Build identity: installs come from the CI artifact with no cable
+                 attached, so this line is the only way to tell which build is on
+                 the phone. The paired screen carries the same line (buildInfo). -->
+            <TextView
+                android:id="@+id/joinBuildInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="center_horizontal"
+                android:textAppearance="@style/TextAppearance.Tabsend.PairingDetail"
+                android:textIsSelectable="true" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ===================== PAIRED (device management) ===================== -->
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:id="@+id/pairedCard"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/ts_phone_ground"
+        android:visibility="gone">
+
+        <com.google.android.material.appbar.AppBarLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:liftOnScroll="true"
+            app:liftOnScrollTargetViewId="@+id/pairedScroll">
+
+            <com.google.android.material.appbar.MaterialToolbar
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                app:title="@string/app_name"
+                app:titleTextAppearance="@style/TextAppearance.Tabsend.ScreenTitle" />
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/pairedScroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="96dp"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingStart="16dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    android:id="@+id/pairedTitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/paired_title"
+                    android:textAppearance="@style/TextAppearance.Tabsend.Body" />
+
+                <TextView
+                    android:id="@+id/pairedInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+
+                <!-- ===== Relay outage, then the tabs stuck behind it =====
+                     Two separate blocks on purpose (wireframe option A). "The relay
+                     is down" and "we are still holding these tabs" are different
+                     facts, and the list has to read correctly on its own: the phone
+                     having been in a tunnel is not an outage, but the tabs are
+                     waiting just the same. Both hidden unless they have something
+                     to say. Gated behind a 30s grace so a container restart or a
+                     radio handover doesn't cry wolf. -->
+                <TextView
+                    android:id="@+id/relayOutage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/bg_warning"
+                    android:padding="12dp"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    android:textColor="@color/relay_warning"
+                    android:visibility="gone" />
+
+                <!-- ===== New devices (PLANS.md P-10) =====
+                     One amber card per device that joined since this phone last
+                     looked and has not been answered here. Filled in code
+                     (MainActivity.renderNewDevices); empty and invisible otherwise.
+                     Near the top on purpose: a device the user did not add could
+                     read the links they send. -->
+                <LinearLayout
+                    android:id="@+id/newDevicesList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:accessibilityLiveRegion="polite"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
+
+                <!-- ===== Received: a tonal panel ===== -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:accessibilityHeading="true"
+                    android:paddingBottom="8dp"
+                    android:text="@string/section_received"
+                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                <LinearLayout
+                    android:id="@+id/receivedCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_panel"
+                    android:orientation="vertical"
+                    android:paddingStart="16dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="16dp"
+                    android:paddingBottom="4dp">
+
+                    <LinearLayout
+                        android:id="@+id/receivedList"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <TextView
+                        android:id="@+id/receivedEmpty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="12dp"
+                        android:paddingBottom="8dp"
+                        android:text="@string/received_empty"
+                        android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                        android:visibility="gone" />
+
+                    <View
+                        style="@style/Widget.Tabsend.Hairline"
+                        android:layout_marginTop="4dp" />
+
+                    <!-- P-7 / ADR-0028: the way back to a tab whose notification is gone,
+                         and the only place a tab that never arrived is ever named. -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/historyButton"
+                        style="@style/Widget.Tabsend.Button.Tertiary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="-12dp"
+                        android:text="@string/history_open" />
+                </LinearLayout>
+
+                <!-- ===== Tabs held on this phone ===== -->
+                <TextView
+                    android:id="@+id/heldTabsHeading"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:accessibilityHeading="true"
+                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader"
+                    android:textColor="@color/ts_waiting_text"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/heldTabsHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/held_tabs_hint"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/heldTabsList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="vertical" />
+
+                <!-- With notifications denied this list is the ONLY place a failed or
+                     held send shows up, so it stops being optional. -->
+                <TextView
+                    android:id="@+id/notificationsOffHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/notifications_off_hint"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                    android:textColor="@color/ts_danger"
+                    android:visibility="gone" />
+
+                <!-- ===== Your devices: plain list rows ===== -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:accessibilityHeading="true"
+                    android:text="@string/devices_title"
+                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                <LinearLayout
+                    android:id="@+id/devicesList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="vertical" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/refreshButton"
+                    style="@style/Widget.Tabsend.Button.Tertiary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="-12dp"
+                    android:text="@string/refresh" />
+
+                <!-- ===== Delivery ===== -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:accessibilityHeading="true"
+                    android:text="@string/section_delivery"
+                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/instantSwitch"
+                    style="@style/Widget.Tabsend.Switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/instant_switch" />
+
+                <TextView
+                    android:id="@+id/instantHint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/instant_switch_hint"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+
+                <!-- P-11 option C: one switch above, and the app says which way it honoured
+                     it. Hidden when instant delivery is off, because there is no mechanism
+                     to report. -->
+                <TextView
+                    android:id="@+id/instantStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                    android:visibility="gone" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/instantMethodButton"
+                    style="@style/Widget.Tabsend.Button.Tonal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:visibility="gone" />
+
+                <!-- A second choice, shown only when wake-ups through Google stopped arriving:
+                     trying again is one answer, giving Google up is the other (G10). -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/instantSecondaryButton"
+                    style="@style/Widget.Tabsend.Button.Tonal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone" />
+
+                <!-- ===== This phone: settings-style rows ===== -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:accessibilityHeading="true"
+                    android:text="@string/section_this_phone"
+                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/renameButton"
+                    style="@style/Widget.Tabsend.Button.Row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/rename_device" />
+
+                <!-- P-4, merged 2026-07-29: one field, a Check, a verdict, then exactly
+                     one matching action (switch the address, or start fresh there). -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/relayMoveButton"
+                    style="@style/Widget.Tabsend.Button.Row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/relay_move_button" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/unpairButton"
+                    style="@style/Widget.Tabsend.Button.Danger"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="-12dp"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/unpair" />
+
+                <TextView
+                    android:id="@+id/pairedStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+
+                <!-- Build identity (see joinBuildInfo above). -->
+                <TextView
+                    android:id="@+id/buildInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                    android:textIsSelectable="true" />
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
+
+        <!-- "Pair a device" (APP_UI: an extended FAB, tonal, radius 16). Mints a
+             pairing link exactly as the old full-width button did. -->
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+            android:id="@+id/addDeviceButton"
+            style="@style/Widget.Tabsend.ExtendedFab"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="16dp"
+            android:text="@string/add_device"
+            app:icon="@drawable/ic_add" />
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+</FrameLayout>

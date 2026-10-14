@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Primary button (docs/APP_UI.md): accent fill, ink outline, hard offset
+     shadow. Pressed, the face moves 3dp down-right onto its shadow, so the press
+     reads as the button being pushed in. Disabled drops the shadow and the
+     accent. Used with app:backgroundTint="@null" (see Widget.Tabsend.Button.Primary),
+     otherwise MaterialButton tints the whole drawable flat. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false">
+        <layer-list>
+            <item
+                android:right="3dp"
+                android:bottom="3dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/ts_chip" />
+                    <stroke
+                        android:width="1.5dp"
+                        android:color="@color/ts_line" />
+                    <corners android:radius="12dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item android:state_pressed="true">
+        <layer-list>
+            <item
+                android:left="3dp"
+                android:top="3dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/ts_accent" />
+                    <stroke
+                        android:width="1.5dp"
+                        android:color="@color/ts_ink" />
+                    <corners android:radius="12dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+    <item>
+        <layer-list>
+            <item
+                android:left="3dp"
+                android:top="3dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/ts_shadow" />
+                    <corners android:radius="12dp" />
+                </shape>
+            </item>
+            <item
+                android:right="3dp"
+                android:bottom="3dp">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/ts_accent" />
+                    <stroke
+                        android:width="1.5dp"
+                        android:color="@color/ts_ink" />
+                    <corners android:radius="12dp" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</selector>

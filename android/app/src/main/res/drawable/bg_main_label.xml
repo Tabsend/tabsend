@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The small "Main" label on the primary device: accent text on an accent tint pill. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/ts_accent_tint" />
+    <corners android:radius="999dp" />
+</shape>

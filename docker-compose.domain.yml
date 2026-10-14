@@ -1,0 +1,96 @@
+# Tabsend relay on a domain you control — genuine HTTPS, nothing to install on clients.
+#
+# This is the recommended self-host shape once you have a domain (a subdomain of one you
+# already own is fine: relay.example.com). Caddy fetches a real Let's Encrypt certificate
+# via a DNS challenge, so:
+#   - every browser trusts the relay with no per-machine setup, on any machine;
+#   - the phone needs no certificate pin;
+#   - it is the same arrangement a hosted service would use, not a self-host detour.
+#
+# The DNS challenge proves domain ownership through your DNS provider's API, so it needs
+# NO inbound ports open and works even when the A record points at a private LAN address.
+#
+#   1. cp server/.env.example .env
+#   2. add to .env:  RELAY_DOMAIN=relay.example.com
+#                    ACME_EMAIL=you@example.com
+#                    CF_API_TOKEN=…            (see the Caddyfile note below)
+#   3. point relay.example.com at this machine (LAN IP for LAN-only, public IP to roam)
+#   4. docker compose -f docker-compose.domain.yml up -d --build --wait
+#
+# `--wait` holds the command until the containers report healthy instead of merely
+# created, so a probe on the next line does not race the relay's startup.
+#
+# NOTE ON THE DNS PLUGIN: stock Caddy has no DNS-challenge support compiled in, so the
+# caddy service below builds a Caddy image with the Cloudflare plugin. Using another DNS
+# provider means swapping that one plugin name (caddy-dns/route53, /digitalocean, …) and
+# the matching credential env var in Caddyfile.domain.
+
+services:
+  relay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tabsend-relay
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      # No TLS here: Caddy terminates it and proxies over the internal Docker network.
+      # That also means no self-signed cert and no pin — clients see ordinary HTTPS.
+      PUBLIC_RELAY_URL: https://${RELAY_DOMAIN:?set RELAY_DOMAIN in .env}
+      # Behind a proxy, so rate limits must key on the forwarded client IP.
+      TRUST_PROXY: "1"
+      DATABASE_URL: postgres://tabsend:${POSTGRES_PASSWORD:-change-me}@db:5432/tabsend
+      # First boot generates Web Push identity into Postgres. Set BOTH key variables
+      # only to preserve an externally managed/existing VAPID identity.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:you@example.com}
+    depends_on:
+      db:
+        condition: service_healthy
+    # Deliberately no `ports:` — the relay is reachable only through Caddy.
+    expose:
+      - "8787"
+
+  caddy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    restart: unless-stopped
+    environment:
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?set RELAY_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      # Cloudflare API token with DNS:Edit on the zone. Swap for your provider's.
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
+    volumes:
+      - ./Caddyfile.domain:/etc/caddy/Caddyfile:ro
+      # Holds the issued certificates and the ACME account key. Persist it, or a
+      # rebuild re-requests certificates and can hit Let's Encrypt rate limits.
+      - caddy-data:/data
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - relay
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tabsend
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: tabsend
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tabsend -d tabsend"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

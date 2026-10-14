@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Type and component styles (docs/APP_UI.md, "Phones: native-leaning").
+
+     Two layers. Every phone screen is Material 3: Roboto at the Material type
+     scale (each style below derives from a TextAppearance.Material3.* and never
+     sets a font), stock components tinted through the theme's colour roles.
+     Archivo appears in exactly two places, screen titles and the wordmark, and
+     the first-run pairing screen is the one signature moment (outlined card,
+     offset-shadow button, large Archivo headline).
+
+     Text sizes are in sp throughout, so the user's font scale applies. -->
+<resources>
+
+    <!-- ===== Archivo: titles and the wordmark only ===== -->
+
+    <!-- Top app bar title (MaterialToolbar app:titleTextAppearance). Title Large's
+         22sp, in Archivo ExtraBold. Both font attributes: the platform reads
+         android:fontFamily, AppCompat's text helper reads fontFamily. -->
+    <style name="TextAppearance.Tabsend.ScreenTitle" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:fontFamily">@font/archivo_extrabold</item>
+        <item name="fontFamily">@font/archivo_extrabold</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+
+    <!-- The wordmark at the top of the pairing screen. -->
+    <style name="TextAppearance.Tabsend.Wordmark" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textSize">24sp</item>
+        <item name="android:fontFamily">@font/archivo_extrabold</item>
+        <item name="fontFamily">@font/archivo_extrabold</item>
+        <item name="android:textColor">@color/ts_ink</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <!-- The pairing screen's headline: the large Archivo moment (APP_UI "Type":
+         screen title 28–34 / ExtraBold). -->
+    <style name="TextAppearance.Tabsend.PairingHeadline" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:textSize">30sp</item>
+        <item name="android:fontFamily">@font/archivo_extrabold</item>
+        <item name="fontFamily">@font/archivo_extrabold</item>
+        <item name="android:textColor">@color/ts_ink</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <!-- ===== Roboto, Material 3 type scale ===== -->
+
+    <!-- List subheader: 14sp medium (Title Small) in petrol, sentence case. -->
+    <style name="TextAppearance.Tabsend.Subheader" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textColor">@color/ts_petrol</item>
+    </style>
+
+    <!-- A list row's first line. -->
+    <style name="TextAppearance.Tabsend.RowTitle" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <!-- A list row's second line, and other secondary text. -->
+    <style name="TextAppearance.Tabsend.RowDetail" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <!-- Body text. -->
+    <style name="TextAppearance.Tabsend.Body" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <!-- A short status word ("Delivered", "Main"). The colour is set by whoever
+         uses it, because it carries the state. -->
+    <style name="TextAppearance.Tabsend.Status" parent="TextAppearance.Material3.LabelLarge" />
+
+    <!-- Title of the share sheet's device picker (a bottom sheet, not a screen). -->
+    <style name="TextAppearance.Tabsend.SheetTitle" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
+    <!-- Pairing screen body text, on the generic tokens. -->
+    <style name="TextAppearance.Tabsend.PairingBody" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textColor">@color/ts_ink</item>
+    </style>
+
+    <style name="TextAppearance.Tabsend.PairingDetail" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">@color/ts_muted</item>
+    </style>
+
+    <!-- ===== Components ===== -->
+
+    <!-- The pairing screen's "Scan code", and nothing else: the one outlined,
+         shadowed button in the app (APP_UI "The signature moment"). Accent fill,
+         ink outline, hard offset shadow. The custom background only survives with
+         backgroundTint cleared; the extra 3dp of end/bottom padding centres the
+         label on the face, not on face + shadow. -->
+    <style name="Widget.Tabsend.Button.Primary" parent="Widget.Material3.Button">
+        <item name="android:background">@drawable/bg_button_primary</item>
+        <item name="backgroundTint">@null</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:textAppearance">@style/TextAppearance.Material3.TitleMedium</item>
+        <item name="android:textColor">@color/ts_button_primary_text</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">56dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">23dp</item>
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">15dp</item>
+    </style>
+
+    <!-- Plain accent text button (colorPrimary). -->
+    <style name="Widget.Tabsend.Button.Tertiary" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">48dp</item>
+    </style>
+
+    <!-- Text button for a destructive action (Unpair). -->
+    <style name="Widget.Tabsend.Button.Danger" parent="Widget.Tabsend.Button.Tertiary">
+        <item name="android:textColor">@color/ts_danger</item>
+    </style>
+
+    <!-- Tonal button: tonal fill, on-tonal text, no outline (secondary container). -->
+    <style name="Widget.Tabsend.Button.Tonal" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:textAllCaps">false</item>
+    </style>
+
+    <!-- A settings-style row that opens something ("Rename this device"): a full
+         width, 56dp text button with its label at the start, in body type. -->
+    <style name="Widget.Tabsend.Button.Row" parent="Widget.Material3.Button.TextButton">
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:textAppearance">@style/TextAppearance.Material3.BodyLarge</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">56dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="cornerRadius">0dp</item>
+    </style>
+
+    <!-- "Pair a device": an extended FAB in the tonal colours, radius 16. -->
+    <style name="Widget.Tabsend.ExtendedFab" parent="Widget.Material3.ExtendedFloatingActionButton.Icon.Secondary">
+        <item name="backgroundTint">@color/ts_tonal</item>
+        <item name="android:textColor">@color/ts_on_tonal</item>
+        <item name="iconTint">@color/ts_on_tonal</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.Tabsend.Corner16</item>
+    </style>
+
+    <style name="ShapeAppearanceOverlay.Tabsend.Corner16" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">16dp</item>
+    </style>
+
+    <!-- The standard Material switch, on = petrol (see ThemeOverlay.Tabsend.Petrol). -->
+    <style name="Widget.Tabsend.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="materialThemeOverlay">@style/ThemeOverlay.Tabsend.Petrol</item>
+        <item name="android:textAppearance">@style/TextAppearance.Material3.BodyLarge</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:minHeight">56dp</item>
+    </style>
+
+    <!-- Divider between rows: 1dp, the outline-variant colour. parent="" because
+         the dotted name would otherwise send aapt looking for an implicit
+         "Widget.Tabsend" parent. -->
+    <style name="Widget.Tabsend.Hairline" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:background">@color/ts_divider</item>
+    </style>
+</resources>

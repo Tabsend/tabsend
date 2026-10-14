@@ -1,0 +1,95 @@
+{
+  "totalHeartbeats": 57,
+  "firstRel": "+0.4s",
+  "lastRel": "+163.0s",
+  "suspendGaps": [
+    {
+      "afterRel": "+15.9s",
+      "gapMs": 37429
+    },
+    {
+      "afterRel": "+99.0s",
+      "gapMs": 63979
+    }
+  ],
+  "events": [
+    {
+      "at": 1784251197719,
+      "rel": "+3.8s",
+      "kind": "ws_connect",
+      "detail": null
+    },
+    {
+      "at": 1784251197744,
+      "rel": "+3.9s",
+      "kind": "boot",
+      "detail": "bootAt=1784251197637"
+    },
+    {
+      "at": 1784251197749,
+      "rel": "+3.9s",
+      "kind": "hello",
+      "detail": "bootAt=1784251197637"
+    },
+    {
+      "at": 1784251197773,
+      "rel": "+3.9s",
+      "kind": "ws_open_client",
+      "detail": null
+    },
+    {
+      "at": 1784251277794,
+      "rel": "+83.9s",
+      "kind": "ws_connect",
+      "detail": null
+    },
+    {
+      "at": 1784251277795,
+      "rel": "+83.9s",
+      "kind": "boot",
+      "detail": "bootAt=1784251277791"
+    },
+    {
+      "at": 1784251277795,
+      "rel": "+83.9s",
+      "kind": "ws_connect",
+      "detail": null
+    },
+    {
+      "at": 1784251277795,
+      "rel": "+83.9s",
+      "kind": "alarm",
+      "detail": "reconnect"
+    },
+    {
+      "at": 1784251277795,
+      "rel": "+83.9s",
+      "kind": "reconnect_on_alarm",
+      "detail": null
+    },
+    {
+      "at": 1784251277797,
+      "rel": "+83.9s",
+      "kind": "hello",
+      "detail": "bootAt=1784251277791"
+    },
+    {
+      "at": 1784251277797,
+      "rel": "+83.9s",
+      "kind": "ws_open_client",
+      "detail": null
+    },
+    {
+      "at": 1784251277797,
+      "rel": "+83.9s",
+      "kind": "ws_open_client",
+      "detail": null
+    },
+    {
+      "at": 1784251292719,
+      "rel": "+98.8s",
+      "kind": "alarm",
+      "detail": "reconnect"
+    }
+  ]
+}
