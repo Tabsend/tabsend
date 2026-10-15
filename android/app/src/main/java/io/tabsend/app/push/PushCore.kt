@@ -33,8 +33,14 @@ enum class DeliveryReason {
     /** The user asked for no Google. */
     GOOGLE_REFUSED,
 
-    /** This phone has no Play Services, or this build has no Firebase values. */
+    /** This phone has no Play Services. */
     GOOGLE_UNAVAILABLE,
+
+    /**
+     * This build has no Firebase values, so Google push cannot be used on any phone. Kept
+     * apart from [GOOGLE_UNAVAILABLE] so the line does not blame the phone [SECURITY_REVIEW G1].
+     */
+    GOOGLE_NOT_BUILT,
 
     /** Google push could be used, but there is no wake-up service to ring this phone. */
     NO_FORWARDER,
@@ -253,8 +259,9 @@ class PushCore(
             }
         }
         val reason = when {
+            !google.configured -> DeliveryReason.GOOGLE_NOT_BUILT
             state.avoidGoogle -> DeliveryReason.GOOGLE_REFUSED
-            !google.configured || google.available() == false -> DeliveryReason.GOOGLE_UNAVAILABLE
+            google.available() == false -> DeliveryReason.GOOGLE_UNAVAILABLE
             forwarder == null || state.relayForwarderKnown == false -> DeliveryReason.NO_FORWARDER
             else -> DeliveryReason.GOOGLE_PENDING
         }

@@ -24,7 +24,7 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
         super.viewDidLoad()
         view.backgroundColor = .black
 
-        guard let device = AVCaptureDevice.default(for: .video),
+        guard let device = Self.scanCamera(),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input)
         else {
@@ -46,6 +46,27 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
         preview.frame = view.layer.bounds
         preview.videoGravity = .resizeAspectFill
         view.layer.addSublayer(preview)
+    }
+
+    /// The back camera that can focus on a code held close. On Pro iPhones the main
+    /// lens alone (what `default(for: .video)` returns) cannot focus nearer than about
+    /// 20 cm, so a code held closer stays blurry; the multi-lens cameras switch to the
+    /// ultra-wide for close-ups, as the Camera app does [2026-10-14].
+    private static func scanCamera() -> AVCaptureDevice? {
+        let device = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInTripleCamera, .builtInDualWideCamera, .builtInWideAngleCamera],
+            mediaType: .video,
+            position: .back
+        ).devices.first ?? AVCaptureDevice.default(for: .video)
+        if let device, device.isFocusModeSupported(.continuousAutoFocus),
+           (try? device.lockForConfiguration()) != nil {
+            device.focusMode = .continuousAutoFocus
+            if device.isAutoFocusRangeRestrictionSupported {
+                device.autoFocusRangeRestriction = .near
+            }
+            device.unlockForConfiguration()
+        }
+        return device
     }
 
     override func viewWillAppear(_ animated: Bool) {

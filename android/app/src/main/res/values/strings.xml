@@ -39,13 +39,17 @@
          has to stand alone under the switch, so each one names the consequence the person
          actually feels rather than the mechanism. -->
     <string name="instant_via_google">No permanent notification, and barely any battery cost. Your relay asks the Tabsend wake-up service to ring this phone through Google, then this phone fetches the link from your relay. The service learns that a device received something, and when. Never what.</string>
-    <string name="instant_via_own_connection">Keeping a connection open itself, which needs the permanent notification below and a little more battery.</string>
-    <string name="instant_via_own_no_google">Keeping a connection open itself, because you asked for no Google. That needs the permanent notification below.</string>
-    <string name="instant_via_own_unavailable">Keeping a connection open itself, because this phone has no Google services. That needs the permanent notification below.</string>
-    <string name="instant_via_own_no_forwarder">Keeping a connection open itself, because your relay has no wake-up service set up. That needs the permanent notification below.</string>
+    <!-- No "below" in any of these (SECURITY_REVIEW G1): the notification is in the shade,
+         not on this screen. -->
+    <string name="instant_via_own_connection">Keeping a connection open itself. Android shows a permanent notification while it does that, and it uses a little more battery.</string>
+    <string name="instant_via_own_no_google">Keeping a connection open itself, because you asked for no Google. Android shows a permanent notification while it does that.</string>
+    <string name="instant_via_own_unavailable">Keeping a connection open itself, because this phone has no Google services. Android shows a permanent notification while it does that.</string>
+    <!-- Every build without the Firebase values, which is every build so far (G1). The
+         phone is not at fault, so the line must not say it is. -->
+    <string name="instant_via_own_not_built">Keeping a connection open itself, because this version of the app does not use Google push. Android shows a permanent notification while it does that.</string>
+    <string name="instant_via_own_no_forwarder">Keeping a connection open itself, because your relay has no wake-up service set up. Android shows a permanent notification while it does that.</string>
     <string name="instant_via_own_pending">Keeping a connection open itself for now. It will switch to Google\'s push service, and drop the notification, once it can reach it.</string>
-    <!-- Wakes stopped arriving (SECURITY_REVIEW G10). No "below": the notification is in
-         the shade, not on this screen. -->
+    <!-- Wakes stopped arriving (SECURITY_REVIEW G10). -->
     <string name="instant_via_own_wakes_stopped">Keeping a connection open itself, because wake-ups through Google stopped reaching this phone. Android shows a permanent notification while it does that. This usually means your relay rings a different wake-up service from the one this app signed up with, or that service is down. Once that is fixed, tap Try Google push again.</string>
     <string name="instant_avoid_google">Don\'t use Google</string>
     <string name="instant_allow_google">Use Google push instead</string>
