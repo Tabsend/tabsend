@@ -310,6 +310,19 @@ class PushCoreTest {
         assertEquals(DeliveryReason.GOOGLE_UNAVAILABLE, settled.reason)
     }
 
+    // --- G1: a build without the Google values does not blame the phone ------------------
+
+    @Test
+    fun `a build without the Google values says so, not that the phone lacks Google`() = runBlocking {
+        google.configured = false
+        val settled = core().sync()
+        assertEquals(DeliveryReason.GOOGLE_NOT_BUILT, settled.reason)
+        assertEquals(DeliveryMode.OWN_CONNECTION, settled.mode)
+        // Choosing no Google changes nothing on a build that has none to offer.
+        state.avoidGoogle = true
+        assertEquals(DeliveryReason.GOOGLE_NOT_BUILT, core().delivery().reason)
+    }
+
     // --- G9: leaving (unpair or Start fresh) retires through the queue -------------------
 
     @Test

@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* best-effort */ }
 
-    // QR pairing scanner (zxing CaptureActivity; it asks for the camera itself).
+    // QR pairing scanner (zxing, via QrScanActivity; it asks for the camera itself).
     private val qrScanner = registerForActivityResult(ScanContract()) { result ->
         val contents = result.contents ?: return@registerForActivityResult // cancelled
         val link = Pairing.scannedLink(contents)
@@ -1057,6 +1057,7 @@ class MainActivity : AppCompatActivity() {
                 DeliveryReason.GOOGLE_ACTIVE -> R.string.instant_via_google
                 DeliveryReason.GOOGLE_REFUSED -> R.string.instant_via_own_no_google
                 DeliveryReason.GOOGLE_UNAVAILABLE -> R.string.instant_via_own_unavailable
+                DeliveryReason.GOOGLE_NOT_BUILT -> R.string.instant_via_own_not_built
                 DeliveryReason.NO_FORWARDER -> R.string.instant_via_own_no_forwarder
                 DeliveryReason.GOOGLE_PENDING -> R.string.instant_via_own_pending
                 DeliveryReason.GOOGLE_NOT_ARRIVING -> R.string.instant_via_own_wakes_stopped
@@ -1210,6 +1211,7 @@ class MainActivity : AppCompatActivity() {
                 setDesiredBarcodeFormats(ScanOptions.QR_CODE)
                 setPrompt("Point the camera at the pairing QR code")
                 setBeepEnabled(false)
+                setCaptureActivity(QrScanActivity::class.java)
             },
         )
     }

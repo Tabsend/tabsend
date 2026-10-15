@@ -2,7 +2,7 @@
 
 **Move one browser tab, on demand, to a specific other browser or device.** That's it. The tab will open on the target within about a second when it's awake, and queued to open when it wakes if it isn't.
 
-**Current release: v0.7.0.** Tabsend is pre-1.0 software intended for self-hosting and
+**Current release: v0.7.2** ([release notes](https://github.com/tabsend/tabsend/releases/tag/v0.7.2)). Tabsend is pre-1.0 software intended for self-hosting and
 dogfooding; the platform-specific evidence and limitations are recorded under [Status](#status).
 
 Every link is **end-to-end encrypted** (libsodium `crypto_box`, X25519 + XSalsa20-Poly1305).

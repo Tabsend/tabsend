@@ -1,6 +1,6 @@
 {
   "name": "tabsend",
-  "version": "0.7.0",
+  "version": "0.7.2",
   "private": true,
   "description": "Tabsend — move one browser tab, on demand, to a specific other browser endpoint. Monorepo root.",
   "license": "Apache-2.0",
