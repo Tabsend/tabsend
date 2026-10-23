@@ -21,6 +21,7 @@
     <color name="ts_success">#8FD27A</color>
     <color name="ts_waiting">#E0A11B</color>
     <color name="ts_waiting_text">#F0C463</color>
+    <color name="relay_warning_bg">#29E0A11B</color>
     <color name="ts_danger">#F08A6E</color>
     <color name="ts_waiting_glyph">#10201E</color>
 

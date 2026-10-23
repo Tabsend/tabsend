@@ -1,10 +1,12 @@
 import type { EndpointId, IsoTimestamp } from '@tabsend/shared'
+import { HOME_NETWORK_HINT } from '@tabsend/shared'
 import { describe, expect, it } from 'vitest'
 import { makeEndpoint } from './fixtures'
 import type { ConsoleSession, HistoryEntry } from './model'
 import { STALE_ENDPOINT_THRESHOLD_MS } from './time'
 import {
   batchHeading,
+  connectionTitle,
   deliveryBadge,
   groupHistory,
   hostOf,
@@ -179,5 +181,31 @@ describe('hostOf', () => {
   })
   it('returns the input for a non-URL', () => {
     expect(hostOf('not a url')).toBe('not a url')
+  })
+})
+
+// P-15 item 4: the console's only outage signal is the Offline badge, so its hover
+// text carries the same home-network line as the other clients' relay-down notice.
+describe('connectionTitle', () => {
+  it('names the relay it cannot reach', () => {
+    expect(connectionTitle('offline', 'https://app.tabsend.org')).toBe(
+      'Not connected to the relay at https://app.tabsend.org.',
+    )
+  })
+
+  it('says why a home-network relay is out of reach, and what to do', () => {
+    const title = connectionTitle('offline', 'http://192.168.1.20:8786')
+    expect(title).toContain('http://192.168.1.20:8786')
+    expect(title.endsWith(HOME_NETWORK_HINT)).toBe(true)
+    expect(title).not.toContain('—')
+  })
+
+  it('adds nothing for a Tailscale or same-machine relay, or while connected', () => {
+    expect(connectionTitle('offline', 'http://100.101.102.103:8787')).not.toContain(
+      HOME_NETWORK_HINT,
+    )
+    expect(connectionTitle('offline', 'http://localhost:5173')).not.toContain(HOME_NETWORK_HINT)
+    expect(connectionTitle('live', 'http://192.168.1.20:8786')).not.toContain(HOME_NETWORK_HINT)
+    expect(connectionTitle('polling', 'http://192.168.1.20:8786')).not.toContain(HOME_NETWORK_HINT)
   })
 })

@@ -28,6 +28,9 @@ final class AppModel: ObservableObject {
     /// source is the relay's own outbox, which is unreachable exactly when tabs
     /// start piling up here. During an outage it reads zero (INTERACTION_FLOWS §4b).
     @Published var heldTabs: [OutboundItem] = []
+    /// Where `heldTabs` stand against this phone's device watch (P-15 item 3):
+    /// which are waiting for a new device, and where they may go.
+    @Published private(set) var heldTargets = HeldTargets(watch: nil, list: [], selfId: nil)
     /// The standing relay-outage line, or nil while the relay is answering (or
     /// has only just gone quiet — there is a 30 s grace).
     @Published var relayOutage: String?
@@ -83,6 +86,8 @@ final class AppModel: ObservableObject {
         newDeviceNotices = NewDevices.unconfirmed(store: store)
         reviewDevices = NewDevices.review(store: store)
         vanishedDevices = NewDevices.vanished(store: store)
+        // An answer, a removal or a new list changes where a held tab may go.
+        refreshHeldTargets()
     }
 
     /// "All of these are mine". Clears the card on this phone only.
@@ -235,6 +240,7 @@ final class AppModel: ObservableObject {
     /// while the app isn't looking (the share extension is a separate process).
     func refreshSendState() {
         heldTabs = store.outboundQueue.sorted { lhs, rhs in lhs.createdAt > rhs.createdAt }
+        refreshHeldTargets()
         let now = Date()
         if let health = RelayHealthTracker.shared.current(),
            RelayHealth.isDown(health, now: now),
@@ -252,7 +258,8 @@ final class AppModel: ObservableObject {
         // saying the relay is unreachable. The flush does this too — here as well
         // because opening the app is the moment a stale notice is most obviously
         // wrong, and because a foreground drain may not run at all.
-        let held = heldTabs.map(\.id)
+        // A tab waiting for a new device has no true "Waiting to send" notice.
+        let held = SendNotifications.waitingIds(heldTabs)
         Task { await SendNotifications.reconcilePending(held: held) }
         Task { notificationsDenied = !(await Notifications.enabled()) }
     }
@@ -276,6 +283,46 @@ final class AppModel: ObservableObject {
             Sender.cancelHeld(id: id, store: store)
         }
         refreshSendState()
+    }
+
+    /// Re-read where the held tabs stand against this phone's device watch: which
+    /// devices it has accepted, which it removed itself, and where a tab whose
+    /// device is gone may go. From the store, the same reading the flush makes, so
+    /// the screen and the flush cannot disagree about a tab (P-15 item 3, L3).
+    /// Run with the send state and with the notices, the two moments either
+    /// half of it can change.
+    private func refreshHeldTargets() {
+        heldTargets = HeldTargets(store: store)
+    }
+
+    /// Whether a held tab waits for a device that has left the group (P-15 item 3):
+    /// one this phone's watch no longer accepts, or the relay refused.
+    func isTargetGone(_ item: OutboundItem) -> Bool {
+        heldTargets.isGone(item)
+    }
+
+    /// The line under a held tab whose device is gone. "Was removed" only when
+    /// this phone removed it; otherwise the relay is all this phone has to go on.
+    func goneLine(for item: OutboundItem) -> String {
+        GoneTargetCopy.removedLine(item.targetLabel, removedHere: heldTargets.removedHere(item))
+    }
+
+    /// The devices a held tab can be moved to (`NewDevices.heldTabChoices`): the
+    /// devices this phone has accepted, never itself, a console, or one still
+    /// waiting for an answer. The device the tab was for is among them once it is
+    /// accepted again.
+    func retargetChoices(for item: OutboundItem) -> [Endpoint] {
+        heldTargets.choices.sorted { $0.label.lowercased() < $1.label.lowercased() }
+    }
+
+    /// Send a held tab whose device is gone to another device instead. It is
+    /// sealed again for that device and queued in the old one's place; the drain
+    /// then sends it now, or when the relay is back. `Sender.retargetHeld` checks
+    /// the choice again against the store, so a stale menu cannot get past it.
+    func retargetHeld(_ item: OutboundItem, to target: Endpoint) {
+        Sender.retargetHeld(id: item.id, to: target, store: store)
+        refreshSendState()
+        Task { await drain() }
     }
 
     var api: ApiClient? {
@@ -506,7 +553,7 @@ final class AppModel: ObservableObject {
             // AFTER the flush so the notices left standing are exactly the tabs
             // still waiting.
             let report = await Sender.flushOutbound(store: store, api: api)
-            await SendNotifications.announceFlush(report, held: store.outboundQueue.map(\.id))
+            await SendNotifications.announceFlush(report, held: SendNotifications.waitingIds(store.outboundQueue))
         }
         let summary = await deliverer.drain()
         // The drain fetched the device list, so it ran the new-device rule too.

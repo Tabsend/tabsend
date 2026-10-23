@@ -249,5 +249,4 @@
     <string name="remove_device_done">Removed %1$s.</string>
     <string name="remove_device_offline">Couldn\'t reach the relay to remove %1$s. Try again when you\'re online.</string>
     <string name="remove_device_refused">The relay refused to remove %1$s: %2$s</string>
-    <string name="device_row_remove_hint">remove this device</string>
 </resources>

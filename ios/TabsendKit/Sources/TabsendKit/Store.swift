@@ -79,7 +79,7 @@ public struct SeenMessage: Codable, Sendable, Equatable {
 ///
 /// `HeldItem` is the slice `OutboundQueue` works in, so the rules that bound
 /// this queue can be tested without an envelope, a store or an App Group.
-public struct OutboundItem: Codable, Sendable, Equatable, HeldItem {
+public struct OutboundItem: Codable, Sendable, Equatable, TargetedItem {
     public var id: String
     public var targetEndpointId: String
     public var envelope: Envelope
@@ -94,12 +94,24 @@ public struct OutboundItem: Codable, Sendable, Equatable, HeldItem {
     /// then, and re-sealing at flush time under a key that had since rotated would
     /// silently date the row wrong.
     public var history: GroupSealed?
+    /// The target has left the group (PLANS.md P-15 item 3), so the flush stops
+    /// posting this tab and the app offers another device for it. Optional so a
+    /// queue written by an older build still decodes; nil reads as false. Sticky
+    /// when the relay set it; see `OutboundQueue.isTargetGone`.
+    public var targetGone: Bool?
+    /// `targetGone` was set because a device list no longer had the device, so it
+    /// clears once the device is accepted again (SECURITY_REVIEW L3). Nil beside
+    /// `targetGone` is the relay's own refusal, which is what a flag written
+    /// before this existed was, so an older queue needs nothing done to it.
+    public var goneFromList: Bool?
 
     public init(
         id: String, targetEndpointId: String, envelope: Envelope, createdAt: String,
         title: String? = nil, url: String? = nil, targetLabel: String? = nil,
-        history: GroupSealed? = nil
+        history: GroupSealed? = nil, targetGone: Bool? = nil, goneFromList: Bool? = nil
     ) {
+        self.targetGone = targetGone
+        self.goneFromList = goneFromList
         self.id = id
         self.targetEndpointId = targetEndpointId
         self.envelope = envelope

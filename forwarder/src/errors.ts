@@ -23,6 +23,12 @@ export type ForwarderErrorCode =
    * instead of believing it is set up.
    */
   | 'unsupported'
+  /**
+   * This forwarder holds as many phones as it is set to and takes no new ones
+   * [2026-10-20, SECURITY_REVIEW G16]. Only reachable from `/v1/register`, for a phone not
+   * already registered; about the deployment, never about a wake token.
+   */
+  | 'unavailable'
 
 const STATUS: Record<ForwarderErrorCode, number> = {
   invalid_request: 400,
@@ -30,6 +36,7 @@ const STATUS: Record<ForwarderErrorCode, number> = {
   rate_limited: 429,
   // 501, not 400: the request was well formed and the caller cannot fix it by changing it.
   unsupported: 501,
+  unavailable: 503,
   internal: 500,
 }
 

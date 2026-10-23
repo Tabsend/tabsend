@@ -360,6 +360,105 @@ describe('HttpFcmSender', () => {
     expect(Date.now() - started).toBeLessThan(1500)
   })
 
+  /**
+   * SECURITY_REVIEW G17: with Google stalled, rings piled up without limit (600 of them
+   * added 145 MB on a 1 GB machine). Past the ceiling a ring is dropped at once.
+   */
+  it('drops rings past the ceiling on rings in flight, at once', async () => {
+    const send = sender({ config: { timeoutMs: 1000, maxInFlight: 5 } })
+    google.answer = () => ({ status: 200, hang: true })
+
+    const started = Date.now()
+    const pending = Array.from({ length: 8 }, () => send.wake({ fcmToken: fakeFcmToken() }))
+    const dropped = await Promise.race([
+      Promise.all(pending.slice(5)),
+      new Promise<'waited'>((resolve) => setTimeout(() => resolve('waited'), 500)),
+    ])
+    expect(dropped).not.toBe('waited')
+    for (const outcome of dropped as WakeOutcome[]) {
+      expect(outcome).toMatchObject({
+        ok: false,
+        deviceGone: false,
+        reason: expect.stringMatching(/^Busy/),
+      })
+    }
+    expect(Date.now() - started).toBeLessThan(500)
+    await Promise.all(pending)
+    expect(google.sends.length).toBeLessThanOrEqual(5)
+
+    // Room again once those are over.
+    google.answer = () => ({ status: 200, body: { name: 'projects/p/messages/1' } })
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toEqual({ ok: true })
+  })
+
+  /** SECURITY_REVIEW G17: a 401 kept the cached access token in use for the rest of its hour. */
+  it('drops the access token after a 401 and uses a fresh one', async () => {
+    let exchanges = 0
+    const send = sender({
+      exchange: async () => {
+        exchanges += 1
+        return { accessToken: `ya29.token-${exchanges}`, expiresInSeconds: 3600 }
+      },
+    })
+    google.answer = () => ({ status: 401, body: fcmError(401, 'UNAUTHENTICATED') })
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toMatchObject({ ok: false, status: 401 })
+
+    google.answer = () => ({ status: 200, body: { name: 'projects/p/messages/1' } })
+    await vi.waitFor(() => expect(exchanges).toBe(2))
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toEqual({ ok: true })
+    expect(google.sends.at(-1)?.headers.authorization).toBe('Bearer ya29.token-2')
+  })
+
+  /** SECURITY_REVIEW G17: `Retry-After` was ignored, so a rate-limited sender kept sending. */
+  it('sends nothing for as long as Google asked after a 429 or 503', async () => {
+    let clock = Date.UTC(2026, 9, 20, 12, 0, 0)
+    const send = sender({ now: () => clock })
+
+    google.answer = () => ({
+      status: 429,
+      body: fcmError(429, 'RESOURCE_EXHAUSTED'),
+      headers: { 'retry-after': '120' },
+    })
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toMatchObject({ ok: false, status: 429 })
+    google.answer = () => ({ status: 200, body: { name: 'projects/p/messages/1' } })
+
+    clock += 119_000
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toMatchObject({
+      ok: false,
+      deviceGone: false,
+      reason: expect.stringMatching(/^Paused/),
+    })
+    expect(google.sends).toHaveLength(1)
+
+    clock += 1_000
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toEqual({ ok: true })
+
+    // A 503 with no Retry-After pauses for ten seconds.
+    google.answer = () => ({ status: 503, body: fcmError(503, 'UNAVAILABLE') })
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toMatchObject({ status: 503 })
+    google.answer = () => ({ status: 200, body: { name: 'projects/p/messages/1' } })
+    clock += 9_000
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toMatchObject({
+      reason: expect.stringMatching(/^Paused/),
+    })
+    clock += 1_000
+    expect(await send.wake({ fcmToken: fakeFcmToken() })).toEqual({ ok: true })
+  })
+
+  /** SECURITY_REVIEW G13: the register route asks this before letting an Android phone in. */
+  it('accepts registrations only while it can get an access token', async () => {
+    const refused = sender({
+      exchange: async () => {
+        throw new Error('Google refused the service-account assertion: invalid_grant')
+      },
+      schedule: () => () => undefined,
+    })
+    const working = sender()
+    // The start-up exchange decides it; recovery is `FcmTokenSource`'s own test.
+    await vi.waitFor(() => expect(refused.acceptsRegistrations()).toBe(false))
+    expect(working.acceptsRegistrations()).toBe(true)
+  })
+
   /** SECURITY_REVIEW G14: the first exchange is at boot, not on somebody's ring. */
   it('exchanges for an access token when it starts, not on the first ring', async () => {
     let exchanges = 0

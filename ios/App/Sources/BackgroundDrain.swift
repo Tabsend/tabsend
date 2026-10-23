@@ -99,7 +99,7 @@ enum BackgroundDrain {
         // and, just as importantly, gets to take down the notice that said it
         // was still waiting.
         let flush = await Sender.flushOutbound(store: store, api: api)
-        await SendNotifications.announceFlush(flush, held: store.outboundQueue.map(\.id))
+        await SendNotifications.announceFlush(flush, held: SendNotifications.waitingIds(store.outboundQueue))
         let deliverer = Deliverer(store: store) { payload, messageId in
             await Notifications.postLink(payload: payload, messageId: messageId)
         }

@@ -39,6 +39,7 @@ import io.tabsend.app.store.Store
 import io.tabsend.app.ui.DeviceRows
 import io.tabsend.app.ui.HistoryActivity
 import io.tabsend.app.ui.MainActivity
+import io.tabsend.app.ui.SystemBars
 import io.tabsend.app.wire.SendPayload
 import io.tabsend.app.work.Scheduling
 import kotlinx.coroutines.Dispatchers
@@ -358,6 +359,8 @@ class ShareActivity : AppCompatActivity() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         val b = ViewSendToastBinding.inflate(layoutInflater)
         setContentView(b.root)
+        // Keeps the bar above the navigation bar; the rest of the window stays clear.
+        SystemBars.pad(b.root)
         toastBinding = b
         b.toastRoot.setOnClickListener { finish() }
         b.toastClose.setOnClickListener { finish() }

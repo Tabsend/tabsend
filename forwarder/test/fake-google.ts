@@ -34,6 +34,8 @@ export interface FakeGoogleAnswer {
   delayMs?: number
   /** Reset the stream instead of answering. */
   reset?: boolean
+  /** Extra response headers, such as `retry-after`. */
+  headers?: Record<string, string>
 }
 
 export interface FakeGoogle {
@@ -107,7 +109,11 @@ export async function startFakeGoogle(
       }
       const respond = () => {
         if (stream.destroyed) return
-        stream.respond({ ':status': answer.status, 'content-type': 'application/json' })
+        stream.respond({
+          ':status': answer.status,
+          'content-type': 'application/json',
+          ...answer.headers,
+        })
         stream.end(answer.body === undefined ? '' : JSON.stringify(answer.body))
       }
       if (answer.delayMs) setTimeout(respond, answer.delayMs)
@@ -182,7 +188,7 @@ export function senderFor(
 ): HttpFcmSender {
   const { config, ...rest } = options
   return new HttpFcmSender(
-    { serviceAccountJson: serviceAccountJson(), timeoutMs: 2000, ...config },
+    { serviceAccountJson: serviceAccountJson(), timeoutMs: 2000, maxInFlight: 64, ...config },
     {
       exchange: async () => ({ accessToken: FAKE_ACCESS_TOKEN, expiresInSeconds: 3600 }),
       origin: google.origin,

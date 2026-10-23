@@ -1,10 +1,17 @@
 import { createPublicKey, generateKeyPairSync, verify } from 'node:crypto'
+import {
+  createServer as createHttpServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { inspect } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { loadConfig } from '../src/config'
 import { isDeviceGone, isWrongProject } from '../src/fcm'
 import {
   FcmTokenSource,
+  httpTokenExchange,
   loadServiceAccount,
   type Scheduler,
   signServiceAccountAssertion,
@@ -78,6 +85,25 @@ describe('Google credentials in loadConfig', () => {
     ).toThrow(/not both/)
   })
 
+  /**
+   * SECURITY_REVIEW G13: fractions and out-of-range numbers were accepted, and made every
+   * Google call fail (past about 24.8 days Node fires a timer at once).
+   */
+  it('accepts only a whole-number timeout in a sane range', () => {
+    const base = { ...APPLE_ENV, FCM_SERVICE_ACCOUNT_PATH: '/tmp/sa.json' }
+    for (const bad of ['1.5', '0', '99', '60001', '3000000000', '-5']) {
+      expect(() => loadConfig({ ...base, FCM_TIMEOUT_MS: bad })).toThrow(/FCM_TIMEOUT_MS/)
+    }
+    expect(loadConfig({ ...base, FCM_TIMEOUT_MS: '2500' }).fcm?.timeoutMs).toBe(2500)
+  })
+
+  it('reads the ceiling on rings in flight', () => {
+    const base = { ...APPLE_ENV, FCM_SERVICE_ACCOUNT_PATH: '/tmp/sa.json' }
+    expect(loadConfig(base).fcm?.maxInFlight).toBe(64)
+    expect(loadConfig({ ...base, FCM_MAX_IN_FLIGHT: '8' }).fcm?.maxInFlight).toBe(8)
+    expect(() => loadConfig({ ...base, FCM_MAX_IN_FLIGHT: '0' })).toThrow(/FCM_MAX_IN_FLIGHT/)
+  })
+
   it('treats FCM_DRY_RUN as a configured Google side', () => {
     const config = loadConfig({ FCM_DRY_RUN: '1', ...KEY })
     expect(config.fcmDryRun).toBe(true)
@@ -115,6 +141,23 @@ describe('loadServiceAccount', () => {
         }),
       ),
     ).toThrow(/newlines/)
+  })
+
+  /**
+   * SECURITY_REVIEW G13: an EC key started and signed assertions Google refuses, so every
+   * Android ring failed on a forwarder that had looked fine at boot.
+   */
+  it('refuses a key that is not RSA', () => {
+    const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    expect(() =>
+      loadServiceAccount(
+        JSON.stringify({
+          project_id: 'p',
+          client_email: 'e@example.com',
+          private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+        }),
+      ),
+    ).toThrow(/ec key.*only RSA/)
   })
 
   /** SECURITY_REVIEW G24: a key that will not parse must not land in a log with the error. */
@@ -210,7 +253,12 @@ describe('FcmTokenSource', () => {
     expect(exchanges).toBe(1)
   })
 
-  it('does not cache a failed exchange', async () => {
+  /**
+   * SECURITY_REVIEW G17: a failing exchange used to be retried by every ring, each signing
+   * and posting an assertion of its own, for as long as Google refused. Now a ring inside
+   * the back-off fails at once; the failure is still not cached past it.
+   */
+  it('backs off after a failed exchange, for rings too, and recovers after it', async () => {
     const account = loadServiceAccount(serviceAccountJson())
     let attempts = 0
     const exchange: TokenExchange = async () => {
@@ -218,11 +266,208 @@ describe('FcmTokenSource', () => {
       if (attempts === 1) throw new Error('Google refused the service-account assertion: nope')
       return { accessToken: 'recovered', expiresInSeconds: 3600 }
     }
-    const source = new FcmTokenSource(account, 5_000, exchange)
+    let clock = Date.UTC(2026, 9, 20, 12, 0, 0)
+    const source = new FcmTokenSource(account, 5_000, exchange, () => clock)
 
     await expect(source.current()).rejects.toThrow(/refused/)
-    // The rejected promise must not be handed to the next caller for the rest of the hour.
+    for (let i = 0; i < 10; i++) {
+      await expect(source.current()).rejects.toThrow(/last exchange failed.*nope/)
+    }
+    expect(attempts).toBe(1)
+
+    // Past the back-off, the next caller exchanges again: the failure is not cached.
+    clock += 30_000
     expect(await source.current()).toBe('recovered')
+    expect(attempts).toBe(2)
+  })
+
+  /** SECURITY_REVIEW G17: an empty access token used to be cached and sent for an hour. */
+  it('never caches an empty access token, or one with no lifetime', async () => {
+    const account = loadServiceAccount(serviceAccountJson())
+    for (const answer of [
+      { accessToken: '', expiresInSeconds: 3600 },
+      { accessToken: 'ya29.x', expiresInSeconds: 0 },
+      { accessToken: 'ya29.x', expiresInSeconds: 20 },
+      { accessToken: 'ya29.x', expiresInSeconds: Number.NaN },
+    ]) {
+      const source = new FcmTokenSource(account, 5_000, async () => answer)
+      await expect(source.current()).rejects.toThrow(/refused/)
+      expect(source.healthy).toBe(false)
+    }
+  })
+
+  /** SECURITY_REVIEW G17: a 401 on a send did not drop the token Google had stopped taking. */
+  it('drops a token Google refused, fetches a new one at once, and not more than twice a minute', async () => {
+    const account = loadServiceAccount(serviceAccountJson())
+    let exchanges = 0
+    const exchange: TokenExchange = async () => {
+      exchanges += 1
+      return { accessToken: `token-${exchanges}`, expiresInSeconds: 3600 }
+    }
+    let clock = Date.UTC(2026, 9, 20, 12, 0, 0)
+    const source = new FcmTokenSource(
+      account,
+      5_000,
+      exchange,
+      () => clock,
+      () => () => undefined,
+    )
+    source.start()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(await source.current()).toBe('token-1')
+
+    source.invalidate('token-1')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(exchanges).toBe(2)
+    expect(await source.current()).toBe('token-2')
+
+    // A late 401 for the token already replaced changes nothing.
+    source.invalidate('token-1')
+    // Nor does a second 401 inside thirty seconds: a 401 on every ring must not become an
+    // exchange on every ring.
+    clock += 10_000
+    source.invalidate('token-2')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(exchanges).toBe(2)
+    expect(await source.current()).toBe('token-2')
+
+    clock += 30_000
+    source.invalidate('token-2')
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(exchanges).toBe(3)
+    source.stop()
+  })
+
+  /** SECURITY_REVIEW G13: whether Android sign-ups are let in follows the last exchange. */
+  it('reports itself unhealthy while the last exchange failed, and healthy once one works', async () => {
+    const account = loadServiceAccount(serviceAccountJson())
+    let refuse = true
+    const exchange: TokenExchange = async () => {
+      if (refuse) throw new Error('Google refused the service-account assertion: invalid_grant')
+      return { accessToken: 'ok', expiresInSeconds: 3600 }
+    }
+    let clock = Date.UTC(2026, 9, 20, 12, 0, 0)
+    const source = new FcmTokenSource(account, 5_000, exchange, () => clock)
+
+    expect(source.healthy).toBe(true)
+    await expect(source.current()).rejects.toThrow()
+    expect(source.healthy).toBe(false)
+
+    refuse = false
+    clock += 30_000
+    expect(await source.current()).toBe('ok')
+    expect(source.healthy).toBe(true)
+  })
+})
+
+/**
+ * The real exchange against a local token endpoint [2026-10-20, SECURITY_REVIEW G17]: it
+ * followed redirects and read a reply of any size.
+ */
+describe('httpTokenExchange', () => {
+  async function endpoint(
+    handler: (req: IncomingMessage, res: ServerResponse) => void,
+  ): Promise<{ url: string; hits: string[]; close: () => Promise<void> }> {
+    const hits: string[] = []
+    const server = createHttpServer((req, res) => {
+      hits.push(req.url ?? '')
+      handler(req, res)
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()))
+    const { port } = server.address() as AddressInfo
+    return {
+      url: `http://127.0.0.1:${port}/token`,
+      hits,
+      close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    }
+  }
+
+  it('reads a token answer', async () => {
+    const google = await endpoint((_req, res) => {
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ access_token: 'ya29.ok', expires_in: 3599 }))
+    })
+    try {
+      expect(await httpTokenExchange(google.url)('assertion', 2_000)).toEqual({
+        accessToken: 'ya29.ok',
+        expiresInSeconds: 3599,
+      })
+    } finally {
+      await google.close()
+    }
+  })
+
+  it('follows no redirect', async () => {
+    const google = await endpoint((req, res) => {
+      if (req.url === '/token') {
+        res.statusCode = 307
+        res.setHeader('location', '/elsewhere')
+        res.end()
+        return
+      }
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ access_token: 'ya29.redirected', expires_in: 3600 }))
+    })
+    try {
+      await expect(httpTokenExchange(google.url)('assertion', 2_000)).rejects.toThrow()
+      expect(google.hits).toEqual(['/token'])
+    } finally {
+      await google.close()
+    }
+  })
+
+  it('reads only the start of an oversized answer', async () => {
+    const google = await endpoint((_req, res) => {
+      res.setHeader('content-type', 'application/json')
+      // A usable token, but only past the first 64 KiB.
+      res.end(
+        JSON.stringify({
+          pad: 'x'.repeat(2 * 1024 * 1024),
+          access_token: 'ya29.big',
+          expires_in: 3600,
+        }),
+      )
+    })
+    try {
+      await expect(httpTokenExchange(google.url)('assertion', 2_000)).rejects.toThrow(/refused/)
+    } finally {
+      await google.close()
+    }
+  })
+
+  /**
+   * The 2026-10-20 review of G17: a missing lifetime became an hour on this path, and one
+   * under the 30 s margin was cached and never used, so every ring exchanged again.
+   */
+  it('refuses an answer with no lifetime, or one too short to use', async () => {
+    for (const lifetime of [undefined, 20, 59]) {
+      const google = await endpoint((_req, res) => {
+        res.setHeader('content-type', 'application/json')
+        res.end(JSON.stringify({ access_token: 'ya29.short', expires_in: lifetime }))
+      })
+      try {
+        const account = loadServiceAccount(serviceAccountJson())
+        const source = new FcmTokenSource(account, 2_000, httpTokenExchange(google.url))
+        await expect(source.current()).rejects.toThrow(/lifetime/)
+        expect(source.healthy).toBe(false)
+      } finally {
+        await google.close()
+      }
+    }
+  })
+
+  it('refuses an answer with an empty token', async () => {
+    const google = await endpoint((_req, res) => {
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ access_token: '', expires_in: 3600 }))
+    })
+    try {
+      await expect(httpTokenExchange(google.url)('assertion', 2_000)).rejects.toThrow(
+        /no access token/,
+      )
+    } finally {
+      await google.close()
+    }
   })
 })
 

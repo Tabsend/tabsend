@@ -10,6 +10,7 @@ import { effect, signal } from '../lib/store'
 import { absoluteTime, relativeTime } from '../lib/time'
 import {
   batchHeading,
+  connectionTitle,
   deliveryBadge,
   groupHistory,
   type HistoryGroup,
@@ -56,7 +57,7 @@ export function mountApp(root: HTMLElement, controller: Controller): void {
     const right = el('div', { class: 'header-right' })
     if (session) {
       right.append(
-        connBadge(conn),
+        connBadge(conn, session.relayUrl !== '' ? session.relayUrl : window.location.origin),
         el('span', { class: 'self-label', title: 'This console' }, session.label),
       )
     }
@@ -107,20 +108,14 @@ export function mountApp(root: HTMLElement, controller: Controller): void {
 
 // --- connection badge --------------------------------------------------------
 
-function connBadge(conn: string): HTMLElement {
+function connBadge(conn: string, relayUrl: string): HTMLElement {
   const label = conn === 'live' ? 'Live' : conn === 'polling' ? 'Polling' : 'Offline'
   return el(
     'span',
-    { class: `conn conn-${conn}`, title: connTitle(conn) },
+    { class: `conn conn-${conn}`, title: connectionTitle(conn, relayUrl) },
     el('span', { class: 'dot' }),
     label,
   )
-}
-
-function connTitle(conn: string): string {
-  if (conn === 'live') return 'Real-time updates over the WebSocket fast path'
-  if (conn === 'polling') return 'WebSocket down — refreshing every 20s (nothing is lost)'
-  return 'Not connected to the relay'
 }
 
 // --- onboarding --------------------------------------------------------------

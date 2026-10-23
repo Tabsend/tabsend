@@ -71,11 +71,13 @@ jobs:
       - name: Run tests (SQLite — default dialect)
         run: pnpm test
 
-      - name: Run server tests (Postgres dialect)
+      # control/ (account.tabsend.org) is private; in the public repo the second filter
+      # matches nothing, which pnpm accepts.
+      - name: Run server and control-plane tests (Postgres dialect)
         env:
           TABSEND_TEST_PG: '1'
           TABSEND_TEST_PG_URL: postgres://postgres:postgres@localhost:5432/tabsend_test
-        run: pnpm --filter @tabsend/server test
+        run: pnpm --filter @tabsend/server --filter @tabsend/control test
 
   # Independent, additive job — does NOT touch the pnpm matrix above. Builds the
   # relay image and boots it exactly as a self-hoster would. Nothing in the pnpm

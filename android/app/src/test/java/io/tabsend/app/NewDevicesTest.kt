@@ -28,6 +28,7 @@ class NewDevicesTest {
         val label: String,
         val createdAt: String,
         val e2ePubkey: String = "pk",
+        val kind: String = "extension",
     )
 
     @Serializable
@@ -109,6 +110,15 @@ class NewDevicesTest {
     )
 
     @Serializable
+    private data class HeldTabChoicesCase(
+        val name: String,
+        val selfId: String,
+        val watch: NewDeviceWatch?,
+        val list: List<ListEntry>,
+        val expect: List<String>,
+    )
+
+    @Serializable
     private data class Vectors(
         val watch: List<WatchCase>,
         val confirm: List<ConfirmCase>,
@@ -119,6 +129,7 @@ class NewDevicesTest {
         val rotationDeparted: List<DepartedCase>,
         val rotationDone: List<RotationDoneCase>,
         val knownTo: List<KnownToCase>,
+        val heldTabChoices: List<HeldTabChoicesCase>,
     )
 
     private val vectors: Vectors by lazy {
@@ -136,11 +147,11 @@ class NewDevicesTest {
         error("shared/vectors/new-devices.json not found above ${File("").absolutePath}")
     }
 
-    /** The rule reads id, label, createdAt and e2ePubkey; everything else is a fixture. */
+    /** The rules read id, label, createdAt, e2ePubkey and kind; everything else is a fixture. */
     private fun ep(e: ListEntry) = Endpoint(
         id = e.id,
         groupId = "g",
-        kind = "extension",
+        kind = e.kind,
         browser = "chrome",
         platform = "macos",
         label = e.label,
@@ -228,6 +239,18 @@ class NewDevicesTest {
         assertTrue(vectors.knownTo.isNotEmpty())
         for (c in vectors.knownTo) {
             assertEquals(c.name, c.expect, NewDevices.endpointsKnownTo(c.watch, c.list.map(::ep)).map { it.id })
+        }
+    }
+
+    @Test
+    fun `every heldTabChoices case matches the shared vector`() {
+        assertTrue(vectors.heldTabChoices.isNotEmpty())
+        for (c in vectors.heldTabChoices) {
+            assertEquals(
+                c.name,
+                c.expect,
+                NewDevices.heldTabChoices(c.watch, c.list.map(::ep), c.selfId).map { it.id },
+            )
         }
     }
 
@@ -374,6 +397,58 @@ class NewDevicesTest {
         assertEquals(listOf("me", "a"), trusted.map { it.id })
         // Announced once, not on every fetch.
         assertTrue(NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep)).isEmpty())
+    }
+
+    // --- the device row's Remove (L7): the DELETE, then the watch ---------------
+
+    @Test
+    fun `Remove records the removal once the relay has accepted the DELETE`() {
+        val store = pairedStore()
+        store.groupKeys = listOf(io.tabsend.app.wire.GroupKeyRecord("k", "id-new", "2026-10-01T00:00:00.000Z"))
+        NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
+        val deleted = mutableListOf<String>()
+
+        NewDeviceWatcher.removeFromGroup(store, "evil", now = "2026-10-13T12:00:00.000Z") { deleted += it }
+
+        assertEquals(listOf("evil"), deleted)
+        val watch = store.newDeviceWatch!!
+        assertEquals(listOf("evil"), watch.removed)
+        assertEquals(listOf("evil"), watch.rotateFor)
+        assertEquals("2026-10-13T12:00:00.000Z", watch.rotateOwedAt)
+        assertEquals(listOf("me", "a"), store.cachedEndpoints.map { it.id })
+    }
+
+    @Test
+    fun `Remove records nothing when the relay refuses the DELETE`() {
+        val store = pairedStore()
+        NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
+        val watch = store.newDeviceWatch
+        val cache = store.cachedEndpoints
+
+        assertThrows(io.tabsend.app.net.ApiException::class.java) {
+            NewDeviceWatcher.removeFromGroup(store, "evil") {
+                throw io.tabsend.app.net.ApiException(500, "internal", "Try again")
+            }
+        }
+        assertThrows(java.io.IOException::class.java) {
+            NewDeviceWatcher.removeFromGroup(store, "evil") { throw java.io.IOException("no route") }
+        }
+
+        assertEquals(watch, store.newDeviceWatch)
+        assertEquals(cache, store.cachedEndpoints)
+    }
+
+    @Test
+    fun `Remove sends nothing for this phone`() {
+        val store = pairedStore()
+        NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
+        val watch = store.newDeviceWatch
+        val deleted = mutableListOf<String>()
+
+        NewDeviceWatcher.removeFromGroup(store, "me") { deleted += it }
+
+        assertTrue(deleted.isEmpty())
+        assertEquals(watch, store.newDeviceWatch)
     }
 
     @Test

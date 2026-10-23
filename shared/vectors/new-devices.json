@@ -1,5 +1,5 @@
 {
-  "//": "Cases for the 'new device joined' rule (PLANS.md P-10). Run by shared/src/newdevices.test.ts, android NewDevicesTest.kt and iOS NewDevicesTests.swift. A list entry carries only the fields the rule reads; each test fills in the rest of the Endpoint, with e2ePubkey 'pk' unless the entry gives one. 'now' is passed to the rule. A 'prev' without 'keys' is a record written before 2026-10-13: it learns the keys and announces nothing for them. 'currentKeyCreatedAt', when given, is passed to the rule as the createdAt of this device's current group key. 'rotateFor' is the ids the owed rotation is for: the key that pays it must name them all. 'removed' is the ids this device removed. 'remove' runs removeDevice (id, now and currentKeyCreatedAt as for 'watch'); 'rotationDeparted' is the ids a key minted for the watch's debt names. 'removedKeys' is the keys of devices this device removed: a device carrying one under a new id is left out of key handoff until its notice is answered. An id a key record cannot carry (empty, over 64 characters) and a repeated id are not owed. 'review' is the first look: the other devices in the first list, answered once. 'vanished' is devices announced as new, never answered, then gone without this device removing them. 'seed' (a watch case) is the device list a build from before the rule cached; it is the baseline when there is no record yet and it contains this device. 'confirmReview' and 'dismissVanished' are the two answers.",
+  "//": "Cases for the 'new device joined' rule (PLANS.md P-10). Run by shared/src/newdevices.test.ts, android NewDevicesTest.kt and iOS NewDevicesTests.swift. A list entry carries only the fields the rule reads; each test fills in the rest of the Endpoint, with e2ePubkey 'pk' unless the entry gives one. 'now' is passed to the rule. A 'prev' without 'keys' is a record written before 2026-10-13: it learns the keys and announces nothing for them. 'currentKeyCreatedAt', when given, is passed to the rule as the createdAt of this device's current group key. 'rotateFor' is the ids the owed rotation is for: the key that pays it must name them all. 'removed' is the ids this device removed. 'remove' runs removeDevice (id, now and currentKeyCreatedAt as for 'watch'); 'rotationDeparted' is the ids a key minted for the watch's debt names. 'removedKeys' is the keys of devices this device removed: a device carrying one under a new id is left out of key handoff until its notice is answered. An id a key record cannot carry (empty, over 64 characters) and a repeated id are not owed. 'review' is the first look: the other devices in the first list, answered once. 'vanished' is devices announced as new, never answered, then gone without this device removing them. 'seed' (a watch case) is the device list a build from before the rule cached; it is the baseline when there is no record yet and it contains this device. 'confirmReview' and 'dismissVanished' are the two answers. 'heldTabChoices' is the devices a held tab whose device is gone may be moved to: the accepted ones (knownTo), never selfId or a console (a list entry's 'kind', 'extension' unless given), and none with a pending notice or on the first-look card; ids in list order.",
   "watch": [
     {
       "name": "first list is the baseline and announces nothing",
@@ -3020,6 +3020,253 @@
           }
         ]
       }
+    }
+  ],
+  "heldTabChoices": [
+    {
+      "name": "no watch offers nothing",
+      "selfId": "me",
+      "watch": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "a watch from another pairing offers nothing",
+      "selfId": "me",
+      "watch": {
+        "selfId": "old",
+        "known": ["old", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "old": "pk",
+          "a": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "accepted devices are offered; never this device, a console, or one the watch has not accepted",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b", "c"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "b": "pk",
+          "c": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "c",
+          "label": "c",
+          "createdAt": "2026-10-01T10:00:00Z",
+          "kind": "console"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "stranger",
+          "label": "stranger",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": ["a", "b"]
+    },
+    {
+      "name": "a device this device removed is left out while the relay still lists it",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "removed": ["b"],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": ["a"]
+    },
+    {
+      "name": "a device with a pending \"new device\" notice is held back",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "n"],
+        "unconfirmed": [{ "id": "n", "label": "n", "createdAt": "2026-10-01T10:00:00Z" }],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "n": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "n",
+          "label": "n",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": ["a"]
+    },
+    {
+      "name": "a device on the unanswered first-look card is held back",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "review": [{ "id": "b", "label": "b", "createdAt": "2026-10-01T10:00:00Z" }],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": ["a"]
+    },
+    {
+      "name": "a known id listed with a key the watch did not record is left out",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "a": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "a",
+          "label": "a",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-10-01T10:00:00Z",
+          "e2ePubkey": "pk-swapped"
+        }
+      ],
+      "expect": ["a"]
+    },
+    {
+      "name": "the device the tab was for is offered again once it is accepted",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "phone"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "phone": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-10-01T10:00:00Z"
+        },
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-10-01T10:00:00Z"
+        }
+      ],
+      "expect": ["phone"]
     }
   ]
 }

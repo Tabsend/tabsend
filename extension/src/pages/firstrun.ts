@@ -4,6 +4,11 @@ import type { DevicesView, PendingSwitch, StateView } from '../lib/model'
 import { parsePairingInput } from '../lib/pairing'
 import { shouldWarnSoloGroup } from '../lib/policy'
 import { relaySwitchCopy, soloGroupCopy } from '../lib/strings'
+import {
+  askNewDeviceName,
+  removeIfConfirmed,
+  renderDeviceList as renderDeviceListRows,
+} from './device-list'
 import { renderDeviceNotices } from './newdevice-banner'
 import { wirePairingBox } from './pairing-box'
 import { rpcOk } from './rpc-client'
@@ -215,77 +220,9 @@ function renderSoloNotice(view: DevicesView): void {
 }
 
 function renderDeviceList(view: DevicesView): void {
-  const list = $('device-list')
-  list.replaceChildren()
-  for (const dev of view.devices) {
-    const li = document.createElement('li')
-
-    const dot = document.createElement('span')
-    dot.className = `dot ${!dev.presenceKnown ? 'unknown' : dev.online ? 'online' : 'offline'}`
-    li.append(dot)
-
-    const main = document.createElement('div')
-    main.className = 'dev-main'
-    const label = document.createElement('div')
-    label.className = 'dev-label'
-    label.textContent = dev.label
-    const sub = document.createElement('div')
-    sub.className = 'dev-sub'
-    sub.textContent = dev.isSelf ? `This browser · ${dev.presenceLabel}` : dev.presenceLabel
-    main.append(label, sub)
-    li.append(main)
-
-    const actions = document.createElement('div')
-    actions.className = 'dev-actions'
-    const rename = document.createElement('button')
-    rename.type = 'button'
-    rename.className = 'linkish'
-    rename.textContent = 'Rename'
-    rename.addEventListener('click', () => void promptRename(dev.endpointId, dev.label))
-    actions.append(rename)
-    // Never offer "Remove" for the endpoint we're running as (it would orphan
-    // this install); every other endpoint is removable.
-    if (!dev.isSelf) {
-      const remove = document.createElement('button')
-      remove.type = 'button'
-      remove.className = 'linkish'
-      remove.textContent = 'Remove'
-      remove.addEventListener('click', () => void confirmRemove(dev.endpointId, dev.label))
-      actions.append(remove)
-    }
-    li.append(actions)
-    list.append(li)
-  }
-}
-
-const renameDialog = $<HTMLDialogElement>('rename-dialog')
-const renameInput = $<HTMLInputElement>('rename-input')
-
-function askNewDeviceName(current: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    renameInput.value = current
-    renameDialog.showModal()
-    renameInput.focus()
-    renameInput.select()
-
-    const finish = (result: string | null) => {
-      $('rename-ok').removeEventListener('click', onOk)
-      $('rename-cancel').removeEventListener('click', onCancel)
-      renameDialog.removeEventListener('cancel', onCancel)
-      renameInput.removeEventListener('keydown', onKeydown)
-      renameDialog.close()
-      resolve(result)
-    }
-    const onOk = () => finish(renameInput.value)
-    const onCancel = () => finish(null)
-    const onKeydown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') onOk()
-    }
-
-    $('rename-ok').addEventListener('click', onOk)
-    $('rename-cancel').addEventListener('click', onCancel)
-    renameDialog.addEventListener('cancel', onCancel)
-    renameInput.addEventListener('keydown', onKeydown)
+  renderDeviceListRows($('device-list'), view.devices, {
+    rename: (dev) => void promptRename(dev.endpointId, dev.label),
+    remove: (dev) => void confirmRemove(dev.endpointId, dev.label),
   })
 }
 
@@ -302,10 +239,11 @@ async function promptRename(endpointId: string, current: string): Promise<void> 
 }
 
 async function confirmRemove(endpointId: string, label: string): Promise<void> {
-  if (!window.confirm(`Remove “${label}” from the group?`)) return
+  const request = removeIfConfirmed({ endpointId, label }, (question) => window.confirm(question))
+  if (!request) return
   clearError()
   try {
-    await rpcOk({ type: 'removeEndpoint', endpointId })
+    await rpcOk(request)
     await refreshManage()
   } catch (err) {
     showError(err instanceof Error ? err.message : String(err))

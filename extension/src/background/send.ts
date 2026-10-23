@@ -1,26 +1,40 @@
-import type {
-  EncryptedEnvelope,
-  Endpoint,
-  EndpointId,
-  GroupSealed,
-  IsoTimestamp,
-  MessageId,
-  SendItem,
-  SendPayload,
-  SendResponse,
+import {
+  type EncryptedEnvelope,
+  type Endpoint,
+  type EndpointId,
+  endpointsKnownTo,
+  type GroupSealed,
+  heldTabChoices,
+  type IsoTimestamp,
+  type MessageId,
+  type NewDeviceWatch,
+  type SendItem,
+  type SendPayload,
+  type SendResponse,
 } from '@tabsend/shared'
 import { ApiClientError, sendMessages } from '../lib/api'
 import { keyId, seal } from '../lib/crypto'
 import { ext } from '../lib/ext'
 import { classifySendFailure } from '../lib/health'
-import type { OutboundItem, SendResult } from '../lib/model'
-import { cancelOutbound, type OutboundPlan, planOutbound } from '../lib/outbound'
-import { getCachedEndpoints, getOutbound, getSettings, setOutbound } from '../lib/storage'
+import type { FeedbackOrigin, OutboundItem, SendResult } from '../lib/model'
+import {
+  applyDrain,
+  cancelOutbound,
+  heldForNewTarget,
+  markGoneTargets,
+  type OutboundPlan,
+  planOutbound,
+  retargetOutbound,
+} from '../lib/outbound'
+import { isOpenableWebUrl } from '../lib/policy'
+import { getCachedEndpoints, getOutbound, getSettings, updateOutbound } from '../lib/storage'
 import {
   droppedLine,
+  goneTargetCopy,
   heldTabLabel,
   isCapRejection,
   isRecoverableFailure,
+  pageFailureLine,
   recoveredLine,
   type SendBanner,
   type SendFailure,
@@ -28,11 +42,12 @@ import {
   sendFailureLine,
 } from '../lib/strings'
 import { fetchEndpoints } from './endpoints'
-import { feedbackBadge, showFeedback } from './feedback'
+import { activeOrigin, feedbackBadge, showFeedback } from './feedback'
 import { sealHistoryBlob } from './history'
+import { currentDeviceWatch } from './newdevices'
 import { recordSend } from './prefs'
 import { ensureRetryAlarm } from './scheduler'
-import { requireSession } from './session'
+import { currentSession, requireSession } from './session'
 
 /** Skip embedding a favicon that is a data: URL larger than this (keep the box small). */
 const MAX_DATA_FAVICON_BYTES = 8 * 1024
@@ -199,8 +214,17 @@ export async function buildConsoleCopies(
 
 /** Where the user should be told about this send, when it isn't the active tab. */
 export interface SendFeedbackOptions {
-  /** The tab the send came FROM — so a delayed outcome lands where it started. */
-  feedbackTabId?: number
+  /**
+   * The tab the send came FROM, and its address then, so a delayed outcome
+   * lands where it started or nowhere. Defaults to the tab in front when the
+   * send starts; `null` means there is no such tab, so the badge alone.
+   */
+  origin?: FeedbackOrigin | null
+  /**
+   * The page the first payload's title was taken from, when it is not the
+   * payload's own address (a link sent from the page it sits on).
+   */
+  titleFrom?: string
   /**
    * The caller is showing the outcome itself, so don't make it wait for ours.
    *
@@ -229,10 +253,33 @@ export async function sendToTarget(
   explicitPayload?: SendPayload | SendPayload[],
   opts: SendFeedbackOptions = {},
 ): Promise<SendResult> {
-  const result = await runSend(targetEndpointId, explicitPayload)
-  if (opts.reportAsync) void reportSend(result, opts.feedbackTabId).catch(() => undefined)
-  else await reportSend(result, opts.feedbackTabId)
+  // One payload per tab. A plain single send is the count === 1 case of the same
+  // pipeline — same sealing, same POST, same queueing — so it cannot drift.
+  const payloads =
+    explicitPayload === undefined
+      ? await captureSelectedTabs()
+      : Array.isArray(explicitPayload)
+        ? explicitPayload
+        : [explicitPayload]
+  const origin =
+    opts.origin === undefined
+      ? await activeOrigin().catch(() => undefined)
+      : (opts.origin ?? undefined)
+  const result = await runSend(targetEndpointId, payloads, origin)
+  const titleFrom = opts.titleFrom ?? payloads[0]?.url
+  const where: FeedbackPlace = {
+    ...(origin ? { origin } : {}),
+    ...(titleFrom ? { titleFrom } : {}),
+  }
+  if (opts.reportAsync) void reportSend(result, where).catch(() => undefined)
+  else await reportSend(result, where)
   return result
+}
+
+/** Where a send's banner may go, and whose title it may name (L8). */
+interface FeedbackPlace {
+  origin?: FeedbackOrigin
+  titleFrom?: string
 }
 
 /**
@@ -240,7 +287,7 @@ export async function sendToTarget(
  * anything NOT delivered always shows, because a silent failure is the one
  * outcome this product exists to avoid.
  */
-async function reportSend(result: SendResult, feedbackTabId?: number): Promise<void> {
+async function reportSend(result: SendResult, where: FeedbackPlace): Promise<void> {
   const banner = sendBanner(result)
   if (banner.tone === 'success') {
     const settings = await getSettings()
@@ -251,25 +298,17 @@ async function reportSend(result: SendResult, feedbackTabId?: number): Promise<v
       return
     }
   }
-  const opts = feedbackTabId === undefined ? {} : { tabId: feedbackTabId }
-  await showFeedback(banner, opts)
+  await showFeedback(banner, where)
 }
 
 async function runSend(
   targetEndpointId: string,
-  explicitPayload?: SendPayload | SendPayload[],
+  payloads: SendPayload[],
+  origin?: FeedbackOrigin,
 ): Promise<SendResult> {
   const session = await requireSession()
   const { identity } = session
 
-  // One payload per tab. A plain single send is the count === 1 case of the same
-  // pipeline — same sealing, same POST, same queueing — so it cannot drift.
-  const payloads =
-    explicitPayload === undefined
-      ? await captureSelectedTabs()
-      : Array.isArray(explicitPayload)
-        ? explicitPayload
-        : [explicitPayload]
   const first = payloads[0]
   if (!first) {
     return {
@@ -376,8 +415,16 @@ async function runSend(
       ...(history ? { groupHistory: history } : {}),
       // Keep the plaintext description on the REAL items only, so the "waiting
       // here" list can name what it's holding. History copies never surface.
+      // The target's name rides along too: once the device is removed the list
+      // no longer names it, and that is when the held row must (P-15 item 3).
       ...(payload
-        ? { url: payload.url, ...(payload.title ? { title: payload.title } : {}) }
+        ? {
+            url: payload.url,
+            ...(payload.title ? { title: payload.title } : {}),
+            targetLabel: target.label,
+            // Where a later outcome may be shown (L8). Real items only.
+            ...(origin ? { origin } : {}),
+          }
         : { history: true, ...(copySource ? { copyOf: copySource } : {}) }),
     })
   }
@@ -569,11 +616,13 @@ async function postItem(item: OutboundItem): Promise<SendResponse['rejected'][nu
  * clicked for. Taking that one would be the single worst thing to drop.
  */
 async function enqueueOutbound(items: OutboundItem[]): Promise<void> {
-  const queue = await getOutbound()
-  const known = new Set(queue.map((q) => q.id))
-  const plan = planOutbound([...queue, ...items.filter((item) => !known.has(item.id))], Date.now())
-  await setOutbound(plan.keep)
-  const given = givenUp(plan)
+  let plan: OutboundPlan<OutboundItem> | undefined
+  await updateOutbound((queue) => {
+    const known = new Set(queue.map((q) => q.id))
+    plan = planOutbound([...queue, ...items.filter((item) => !known.has(item.id))], Date.now())
+    return plan.keep
+  })
+  const given = plan ? givenUp(plan) : []
   if (given.length > 0) await announceDropped(given)
   await ensureRetryAlarm()
 }
@@ -592,7 +641,7 @@ async function enqueueOutbound(items: OutboundItem[]): Promise<void> {
  * being true, and the user withdrawing it themselves is not news to report back.
  */
 export async function cancelHeldTab(id: string): Promise<void> {
-  await setOutbound(cancelOutbound(await getOutbound(), id))
+  await updateOutbound((queue) => cancelOutbound(queue, id))
 }
 
 /**
@@ -645,15 +694,30 @@ function givenUp(
  * every drain and every heartbeat, for as long as the browser profile lives.
  */
 export async function processOutbound(): Promise<boolean> {
+  // Without a pairing there is nothing to post with and nothing to write back: a
+  // drain that outlives an unpair must not restore the tabs it wiped (L4).
+  const session = await currentSession()
+  if (!session) return false
+  const selfId = session.registration.endpointId
   const stored = await getOutbound()
   if (stored.length === 0) return false
   const plan = planOutbound(stored, Date.now())
-  const queue = plan.keep
-  // Only ever used to name the address in a diagnosis. A drain with no session
-  // has already failed every POST below, so there is nothing to name.
-  const relayUrl = await requireSession()
-    .then(({ registration }) => registration.relayUrl)
-    .catch(() => '')
+  // A tab whose device has left the group is not posted again: the relay would
+  // only refuse it, and the old drain then dropped the tab. It waits, flagged,
+  // for the user to pick another device in the popup (P-15 item 3). Its console
+  // copies wait with it, since they name the old device. A tab whose device is
+  // accepted again after a list left it out goes out in this pass.
+  const { acceptedIds, watch } = await acceptedGroup(selfId)
+  const queue = markGoneTargets(plan.keep, acceptedIds)
+  const waitForNewTarget = heldForNewTarget(queue)
+  /** Flagged in THIS pass, so announced once (the flag itself is stored). */
+  const newlyGone: OutboundItem[] = queue.filter(
+    (item, index) => item.targetGone && !plan.keep[index]?.targetGone,
+  )
+  /** Flagged when this pass began: already announced, even if lifted above. */
+  const announcedBefore = new Set(plan.keep.filter((item) => item.targetGone).map((i) => i.id))
+  // Only ever used to name the address in a diagnosis.
+  const relayUrl = session.registration.relayUrl
 
   const remaining: OutboundItem[] = []
   const recovered: OutboundItem[] = []
@@ -662,8 +726,29 @@ export async function processOutbound(): Promise<boolean> {
   // fighting over the same corner of the page would settle it by clobbering.
   const dropped: Array<{ item: OutboundItem; failure: SendFailure }> = givenUp(plan)
   for (const item of queue) {
+    if (waitForNewTarget.has(item.id)) {
+      remaining.push(item)
+      continue
+    }
     try {
       const rejection = await postItem(item)
+      // The relay says the device is gone. Keep the tab and flag it, rather than
+      // dropping it as a final refusal: the user can still send it elsewhere.
+      // Its console copies come after it in the queue, so they are held too.
+      if (rejection && !item.history && isTargetGoneRejection(rejection.reason)) {
+        // The relay's word, not a list's: it stays until the user moves the tab.
+        const { goneFromList: _fromList, ...rest } = item
+        const flagged = { ...rest, targetGone: true }
+        remaining.push(flagged)
+        // A tab given back to its device and refused again was announced when it
+        // was first flagged: one banner, not one per lift and refusal.
+        if (!announcedBefore.has(item.id)) newlyGone.push(flagged)
+        waitForNewTarget.add(item.id)
+        for (const copy of queue) {
+          if (copy.history && copy.copyOf === item.id) waitForNewTarget.add(copy.id)
+        }
+        continue
+      }
       // A cap refusal [0030] is the one per-item rejection that is not final:
       // the send window rolls over on its own and the queue caps drain as the
       // target reads its tabs, so the item STAYS and the next drain tries again.
@@ -699,10 +784,176 @@ export async function processOutbound(): Promise<boolean> {
     }
   }
 
-  await setOutbound(remaining)
+  // Applied by id to the queue as it is NOW, not written back as it was read. A
+  // re-target, a cancel or a new send made while this pass was posting stays as
+  // it left the queue, and nothing that left it meanwhile is put back (L4). A
+  // pass that finds itself under another pairing writes nothing at all.
+  if ((await currentSession())?.registration.endpointId !== selfId) return false
+  const seen = new Set(stored.map((item) => item.id))
+  const kept = new Map(remaining.map((item) => [item.id, item]))
+  await updateOutbound((latest) => applyDrain(latest, seen, kept))
   if (recovered.length > 0) await announceRecovered(recovered)
   if (dropped.length > 0) await announceDropped(dropped)
-  return remaining.length > 0
+  if (newlyGone.length > 0) await announceGoneTarget(newlyGone, watch)
+  // Tabs waiting for the user to pick a device need no retry alarm: nothing a
+  // drain does will move them.
+  return remaining.some((item) => !waitForNewTarget.has(item.id))
+}
+
+/**
+ * The relay's answer for a device that is not in the group. `not_in_group` is
+ * retired as an answer [0029] but an older relay may still say it, and it means
+ * the same thing here.
+ */
+function isTargetGoneRejection(reason: string): boolean {
+  return reason === 'unknown_target' || reason === 'not_in_group'
+}
+
+/**
+ * The group as this browser has accepted it (`endpointsKnownTo`), with the watch
+ * that judged it. Held tabs are measured against this, not against the relay's
+ * raw list: a device this browser removed is gone even while a relay keeps
+ * listing it (SECURITY_REVIEW L3). A watch from another pairing accepts nothing.
+ */
+async function acceptedGroup(
+  selfId: string,
+): Promise<{ acceptedIds: Set<string>; watch?: NewDeviceWatch; list: Endpoint[] }> {
+  const [list, stored] = await Promise.all([
+    getCachedEndpoints().catch(() => [] as Endpoint[]),
+    currentDeviceWatch().catch(() => undefined),
+  ])
+  const watch = stored?.selfId === selfId ? stored : undefined
+  return { acceptedIds: new Set(endpointsKnownTo(watch, list).map((e) => e.id)), watch, list }
+}
+
+/** "Your tab is waiting for a new device": said once, when the drain finds out. */
+async function announceGoneTarget(items: OutboundItem[], watch?: NewDeviceWatch): Promise<void> {
+  const first = items[0]
+  if (!first) return
+  const label =
+    first.targetLabel ??
+    (await getCachedEndpoints().catch(() => [] as Endpoint[])).find(
+      (e) => e.id === first.targetEndpointId,
+    )?.label
+  const removedHere = watch?.removed?.includes(first.targetEndpointId) ?? false
+  const banner = goneTargetCopy.banner(items.length, first.title, label, removedHere)
+  if (items.length > 1) banner.title = heldTabLabel(first)
+  await showLater(banner, items, goneTargetCopy.banner(items.length, undefined, label, removedHere))
+}
+
+/**
+ * The tab and page every one of these held tabs was sent from, if they share
+ * one. A later outcome goes up as a banner only there (L8); tabs from several
+ * places, or from before origins were kept, get the badge alone.
+ */
+function sharedOrigin(items: readonly OutboundItem[]): FeedbackOrigin | undefined {
+  const real = items.filter((item) => !item.history)
+  const origin = real[0]?.origin
+  if (!origin) return undefined
+  const same = real.every(
+    (item) => item.origin?.tabId === origin.tabId && item.origin.url === origin.url,
+  )
+  return same ? origin : undefined
+}
+
+/**
+ * Show a later outcome about held tabs: on the tab they came from while it
+ * still shows that page, else the badge alone. `untitled` is the same news
+ * without the tab's name, for when the named tab isn't that page (L8).
+ */
+async function showLater(
+  banner: SendBanner,
+  items: readonly OutboundItem[],
+  untitled: SendBanner,
+): Promise<void> {
+  const origin = sharedOrigin(items)
+  const titleFrom = items.find((item) => !item.history)?.url
+  await showFeedback(banner, {
+    ...(origin ? { origin } : {}),
+    ...(titleFrom ? { titleFrom } : {}),
+    untitled,
+  })
+}
+
+/**
+ * Send a held tab whose device is gone to another device instead
+ * (PLANS.md P-15 item 3). Returns false when there is nothing to move: the tab
+ * was cancelled or sent meanwhile, it has no stored web address, or the new
+ * target is not one of `heldTabChoices`. The relay decides when a held tab asks
+ * for a new device, so the choice is checked here against the devices this
+ * browser has accepted and answered for, never the relay's list alone (L3): not
+ * a device it removed, nor one whose "new device" notice is still unanswered.
+ *
+ * The old envelope is NEVER reused. It is sealed to the removed device's key,
+ * so the tab is sealed again from its plaintext (kept beside every held tab for
+ * the list) to the new device's key, and its group-history blob and console
+ * copies are made again to name the new device. Only then does the old item
+ * leave the queue, so a failure on the way leaves the tab where it was.
+ *
+ * The new item goes into the same queue, in the old one's place, and the drain
+ * delivers it as it would any held tab: now if the relay answers, later if not.
+ */
+export async function retargetHeldTab(id: string, targetEndpointId: string): Promise<boolean> {
+  const session = await requireSession()
+  const old = (await getOutbound()).find((item) => item.id === id && !item.history)
+  if (!old?.url || !isOpenableWebUrl(old.url)) return false
+  const { watch, list } = await acceptedGroup(session.registration.endpointId)
+  const target = heldTabChoices(watch, list, session.registration.endpointId).find(
+    (e) => e.id === targetEndpointId,
+  )
+  if (!target) return false
+  const consoles = list.filter((e) => e.kind === 'console')
+
+  const { identity } = session
+  const payload: SendPayload = {
+    url: old.url,
+    // The time the user first sent it, so the tab and its history row are dated
+    // honestly and the queue's age bound still counts from the first click.
+    sentAt: old.createdAt as IsoTimestamp,
+    ...(old.title ? { title: old.title } : {}),
+  }
+  const envelope = await sealFor(target, identity.keyId, identity.privateKey, payload)
+  const history = await sealHistoryBlob({
+    payload,
+    sourceLabelAtSend: session.registration.label,
+    targetLabelAtSend: target.label,
+  })
+  const newId = crypto.randomUUID() as MessageId
+  const real: OutboundItem = {
+    id: newId,
+    targetEndpointId: target.id,
+    envelope,
+    createdAt: old.createdAt,
+    attempts: old.attempts,
+    ...(history ? { groupHistory: history } : {}),
+    url: old.url,
+    ...(old.title ? { title: old.title } : {}),
+    targetLabel: target.label,
+    retargeted: true,
+  }
+  const copies: OutboundItem[] = (
+    await buildConsoleCopies(consoles, payload, target.id, identity.keyId, identity.privateKey)
+  ).map((copy) => ({
+    id: copy.id,
+    targetEndpointId: copy.targetEndpointId,
+    envelope: copy.envelope,
+    createdAt: old.createdAt,
+    attempts: 0,
+    history: true,
+    copyOf: newId,
+  }))
+
+  // Applied to the queue as it is now: sealing awaited, and the queue may have
+  // moved on meanwhile.
+  let moved = false
+  await updateOutbound((latest) => {
+    moved = latest.some((item) => item.id === id)
+    return moved ? retargetOutbound(latest, id, [real, ...copies]) : latest
+  })
+  if (!moved) return false
+  await recordSend(target.id)
+  await ensureRetryAlarm()
+  return true
 }
 
 /**
@@ -715,8 +966,10 @@ async function announceRecovered(items: OutboundItem[]): Promise<void> {
   const banner: SendBanner = {
     tone: 'success',
     headline: recoveredLine(items.length, first?.title),
-    detail: 'Your relay is reachable again.',
   }
+  // A tab the user moved to another device may have waited on the user, not on
+  // the relay, so "reachable again" is said only when something else went too.
+  if (items.some((item) => !item.retargeted)) banner.detail = 'Your relay is reachable again.'
   // With several, the headline counts them and the title line names the first —
   // enough to recognise the batch without turning a toast into a list.
   if (items.length > 1 && first) banner.title = heldTabLabel(first)
@@ -725,7 +978,7 @@ async function announceRecovered(items: OutboundItem[]): Promise<void> {
     feedbackBadge(banner)
     return
   }
-  await showFeedback(banner)
+  await showLater(banner, items, { ...banner, headline: recoveredLine(items.length) })
 }
 
 /**
@@ -755,5 +1008,11 @@ async function announceDropped(
     detail: sendFailureLine(first.failure, label),
   }
   if (items.length > 1) banner.title = heldTabLabel(first.item)
-  await showFeedback(banner)
+  const page = pageFailureLine(first.failure, label)
+  if (page !== banner.detail) banner.pageDetail = page
+  await showLater(
+    banner,
+    items.map(({ item }) => item),
+    { ...banner, headline: droppedLine(items.length) },
+  )
 }

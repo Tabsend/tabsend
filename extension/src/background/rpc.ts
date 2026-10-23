@@ -37,7 +37,13 @@ import { ensureOffscreen, pushConfigToOffscreen } from './offscreen'
 import { setPrimary } from './prefs'
 import { ensurePushSubscription } from './push'
 import { pollPending } from './receive'
-import { cancelHeldTab, processOutbound, selectedTabCount, sendToTarget } from './send'
+import {
+  cancelHeldTab,
+  processOutbound,
+  retargetHeldTab,
+  selectedTabCount,
+  sendToTarget,
+} from './send'
 import { currentSession } from './session'
 import { updateSettings } from './settings'
 
@@ -232,6 +238,14 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
         // straight away, so this needs to answer nothing but "done".
         await cancelHeldTab(req.id)
         return { ok: true }
+      }
+      case 'retargetHeld': {
+        // The tab is re-sealed for the new device and queued in the old one's
+        // place. The drain then sends it, off the popup's path: with the relay
+        // out of reach that is a wait, and the popup should not sit through it.
+        const moved = await retargetHeldTab(req.id, req.targetEndpointId)
+        if (moved) void processOutbound().catch(() => undefined)
+        return { ok: true, moved }
       }
     }
   } catch (err) {

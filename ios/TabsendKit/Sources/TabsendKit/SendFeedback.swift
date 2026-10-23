@@ -370,6 +370,11 @@ extension Feedback {
     /// The standing relay-outage line, for a surface the user opens LATER. Not
     /// tied to any one send: it answers "why did nothing arrive?" for someone who
     /// has already walked away from the sheet they shared from.
+    ///
+    /// A relay on a home-network address gets one more sentence (PLANS.md P-15
+    /// item 4): away from home or on mobile data, that address cannot answer, and
+    /// the bare outage line read as a refresh bug. Same rule and words as the
+    /// extension, Android and the console.
     public static func relayDownLine(relayUrl: String, sinceMinutes: Int) -> String {
         let ago: String
         if sinceMinutes < 1 {
@@ -379,7 +384,8 @@ extension Feedback {
         } else {
             ago = "\(Int((Double(sinceMinutes) / 60).rounded()))h ago"
         }
-        return "Can't reach your relay at \(relayUrl). It last answered \(ago), and sends are "
+        let line = "Can't reach your relay at \(relayUrl). It last answered \(ago), and sends are "
             + "being held until it's back."
+        return HomeNetwork.isHomeNetworkRelay(relayUrl) ? "\(line) \(HomeNetwork.hint)" : line
     }
 }

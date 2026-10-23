@@ -15,11 +15,14 @@ That is a known property, not a vulnerability.**
 
 **Do not open a public GitHub issue for a security problem.**
 
-Use a **GitHub private security advisory**: go to the
-[Security tab](https://github.com/tabsend/tabsend/security/advisories) of the repository and
-choose "Report a vulnerability". This keeps the whole thread private, gives you a place to
-attach a proof of concept, and lets a fix and an advisory be published together. It needs a
-GitHub account; there is no email route for now.
+Two private routes, either is fine:
+
+1. **GitHub private security advisory** *(preferred)* — go to the
+   [Security tab](https://github.com/Tabsend/tabsend/security/advisories) of the repository and
+   choose "Report a vulnerability". This keeps the whole thread private, gives you a place to
+   attach a proof of concept, and lets a fix and an advisory be published together.
+2. **Email** — <info@zinniadrive.com>, with `Tabsend security` in the subject line so it doesn't
+   get lost.
 
 There is **no PGP key** and no bug bounty. This is a one-person, pre-1.0 project with no
 budget. Credit in the release notes and the advisory is offered gladly if you want it.
@@ -48,12 +51,13 @@ than promising something that won't happen.
 
 ### Which versions get fixes
 
-Tabsend is pre-1.0. As of the v0.6.0 release record, browser-store and production mobile
-distribution are not evidenced. Only the current `main` branch and the most recent release
+Tabsend is pre-1.0. As of the v0.7.2 release record, browser-store and production mobile
+distribution are not evidenced. The public repository snapshot exists, but this repository
+is the private source of truth. Only the current `main` branch and the most recent release
 get security fixes. There is no backport policy and no long-term support branch.
 
 The current repository security review is [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md),
-which reconciles the historical v0.5 review with v0.6.0. It is a code-and-release review, not
+which reconciles the historical v0.5 review through v0.7.2 and the hosted groundwork. It is a code-and-release review, not
 an independent penetration test or cryptographic audit.
 
 ---
@@ -194,8 +198,9 @@ This is the big one. The relay stores, and its operator can read
 What it does **not** see is the URL, the page title, the favicon, or anything else inside the
 envelope. "The relay operator can build a graph of which of your devices talk to which, and
 when" is a true statement about Tabsend and an accepted trade-off (ADR-0005). It is not a
-vulnerability report. **On a self-hosted relay — the only deployment shipped today — that
-operator is you.**
+vulnerability report. **On a self-hosted relay, that operator is you.** A hosted relay is
+also deployed for controlled testing, but its control plane, wake forwarder, and paid-service
+operations are not yet complete.
 
 ### Consequences of the account-less design
 

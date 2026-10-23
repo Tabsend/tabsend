@@ -199,3 +199,134 @@ function createdAtMs(item: HeldItem, nowMs: number): number {
 export function heldTabsOnly<T extends HeldItem>(queue: T[]): T[] {
   return queue.filter((item) => !item.history)
 }
+
+/*
+ * A held tab whose device has left the group (PLANS.md P-15 item 3).
+ *
+ * Before this, a tab held for a device that was then removed sat in "Waiting on
+ * this browser" for as long as the relay was out of reach, and the first drain
+ * that did reach it was answered `unknown_target` and dropped the tab with an
+ * error: the user had to find the page again and resend it by hand. Now such a
+ * tab is FLAGGED instead. The drain stops posting it, the list says the device
+ * is no longer in the group, and the user picks another device for it (or
+ * discards it).
+ *
+ * "In the group" means accepted by this device's watch (`endpointsKnownTo`), not
+ * merely listed: a device this one removed is gone even while a relay keeps it
+ * on the list (SECURITY_REVIEW L3).
+ *
+ * Hand-mirrored by `logic/OutboundQueue.kt` and `TabsendKit/OutboundQueue.swift`.
+ */
+
+/** The slice of a held item the "is its device gone?" rule needs. */
+export interface TargetedItem extends HeldItem {
+  targetEndpointId: string
+  /**
+   * Set once the device is known to be gone. Set by the relay's refusal it is
+   * sticky; set by a list (`goneFromList`) it clears once the device is accepted
+   * again.
+   */
+  targetGone?: boolean
+  /**
+   * The flag came from a device list that no longer had the device, not from the
+   * relay refusing the tab. A list can be wrong for a moment, or wrong on purpose
+   * (L3), so a device that comes back takes its tab back.
+   */
+  goneFromList?: boolean
+}
+
+/**
+ * Whether this held tab is waiting for a device that is no longer in the group.
+ *
+ * `acceptedIds` is the group as this device last accepted it. The relay's refusal
+ * outweighs any list: the list a drain reads can be older than the refusal, and
+ * trusting it would post the tab to a device the relay has already said is gone.
+ * An empty list proves nothing (a fresh install, a cache that has not loaded), so
+ * it changes nothing either way. History copies are never flagged themselves;
+ * they follow the tab they copy (`heldForNewTarget`).
+ */
+export function isTargetGone(item: TargetedItem, acceptedIds: ReadonlySet<string>): boolean {
+  if (item.history) return false
+  if (item.targetGone && !item.goneFromList) return true
+  if (acceptedIds.size === 0) return item.targetGone === true
+  return !acceptedIds.has(item.targetEndpointId)
+}
+
+/**
+ * Flag every held tab whose device has left the group, and lift a list's flag
+ * from a tab whose device is accepted again. Pure: items that are unchanged come
+ * back as the same objects.
+ */
+export function markGoneTargets<T extends TargetedItem>(
+  queue: T[],
+  acceptedIds: ReadonlySet<string>,
+): T[] {
+  return queue.map((item) => {
+    const gone = isTargetGone(item, acceptedIds)
+    if (gone && !item.targetGone) return { ...item, targetGone: true, goneFromList: true }
+    if (!gone && item.targetGone) {
+      const { targetGone: _gone, goneFromList: _fromList, ...rest } = item
+      return rest as T
+    }
+    return item
+  })
+}
+
+/**
+ * Apply a drain's outcome to the queue as it is now (SECURITY_REVIEW L4). `seen`
+ * is every id the drain read; `kept` the ones it keeps, as it leaves them. An id
+ * it read and did not keep leaves; one it never read (a send made meanwhile)
+ * stays as it is; and one that left meanwhile (cancelled, moved to another
+ * device, wiped by an unpair) is not put back. Writing back the whole queue the
+ * drain read did all three wrong: it lost new sends, restored a moved tab beside
+ * its replacement, and brought back tabs an unpair had wiped.
+ */
+export function applyDrain<T extends HeldItem>(
+  latest: T[],
+  seen: ReadonlySet<string>,
+  kept: ReadonlyMap<string, T>,
+): T[] {
+  return latest.flatMap((item) => {
+    if (!seen.has(item.id)) return [item]
+    const next = kept.get(item.id)
+    return next ? [next] : []
+  })
+}
+
+/**
+ * The ids a drain must NOT post: every flagged tab, and every console history
+ * copy of one. A copy names the old device inside its ciphertext, so sending it
+ * would give the console a history row for a send that never happened.
+ */
+export function heldForNewTarget<T extends TargetedItem>(queue: T[]): Set<string> {
+  const held = new Set(queue.filter((item) => !item.history && item.targetGone).map((i) => i.id))
+  for (const item of queue) {
+    if (item.history && item.copyOf !== undefined && held.has(item.copyOf)) held.add(item.id)
+  }
+  return held
+}
+
+/**
+ * Point a held tab at another device: the old item and its console copies leave
+ * the queue, and `replacement` (the tab sealed afresh for the new device, then
+ * its new copies) takes their place, so it keeps its turn in the drain.
+ *
+ * Pure, and it seals nothing: the caller builds `replacement` from the tab's
+ * plaintext, because an envelope sealed to one device's key must never be sent
+ * to another. An id that is no longer queued (cancelled, or drained meanwhile)
+ * leaves the queue unchanged.
+ */
+export function retargetOutbound<T extends HeldItem>(
+  queue: T[],
+  id: string,
+  replacement: T[],
+): T[] {
+  const at = queue.findIndex((item) => item.id === id)
+  if (at < 0) return queue
+  const out: T[] = []
+  queue.forEach((item, index) => {
+    if (index === at) out.push(...replacement)
+    else if (!(item.history && item.copyOf === id)) out.push(item)
+  })
+  return out
+}

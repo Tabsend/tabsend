@@ -151,10 +151,41 @@ public enum SendNotifications {
                 failure: report.firstDroppedFailure
             )
         }
+        if report.newlyGone > 0 {
+            await postGoneTarget(
+                count: report.newlyGone,
+                firstTitle: report.firstGoneTitle,
+                targetLabel: report.firstGoneTargetLabel,
+                removedHere: report.firstGoneRemovedHere
+            )
+        }
         // Unconditional, and after the report: this also runs when the flush moved
         // nothing, which is what clears notices stranded by an emptied queue or by
         // a share extension that was killed before it could settle.
         await reconcilePending(held: held)
+    }
+
+    /// A held tab's device is no longer in the group (PLANS.md P-15 item 3). The
+    /// tab is still here, but it will not send itself any more, so the person
+    /// who was told it would is told once, and shown where to pick a new device.
+    /// `removedHere`: this phone removed that device itself (`GoneTargetCopy`).
+    @discardableResult
+    public static func postGoneTarget(
+        count: Int, firstTitle: String?, targetLabel: String?, removedHere: Bool
+    ) async -> Bool {
+        await post(
+            GoneTargetCopy.banner(
+                count: count, firstTitle: firstTitle, targetLabel: targetLabel,
+                removedHere: removedHere
+            ),
+            identifier: goneTargetIdentifier
+        )
+    }
+
+    /// The tabs whose "Waiting to send" notice is still true: everything queued
+    /// except a tab waiting for a new device, which no relay answer will move.
+    public static func waitingIds(_ queue: [OutboundItem]) -> [String] {
+        queue.filter { $0.targetGone != true }.map(\.id)
     }
 
     /// Take down the "Waiting to send" notices whose tabs are no longer waiting.
@@ -184,7 +215,7 @@ public enum SendNotifications {
     public static func clearAll() async {
         await reconcilePending(held: [])
         UNUserNotificationCenter.current().removeDeliveredNotifications(
-            withIdentifiers: [recoveredIdentifier, droppedIdentifier]
+            withIdentifiers: [recoveredIdentifier, droppedIdentifier, goneTargetIdentifier]
         )
     }
 
@@ -221,4 +252,5 @@ public enum SendNotifications {
     /// One identifier, so a second wake replaces the notice rather than stacking a
     /// second one about the same standing situation.
     private static let neverArrivedIdentifier = "send.neverArrived"
+    private static let goneTargetIdentifier = "send.goneTarget"
 }

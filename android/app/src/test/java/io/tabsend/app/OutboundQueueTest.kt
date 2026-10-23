@@ -2,8 +2,11 @@ package io.tabsend.app
 
 import io.tabsend.app.logic.HeldItem
 import io.tabsend.app.logic.OutboundQueue
+import io.tabsend.app.logic.TargetedItem
 import io.tabsend.app.logic.isoOf
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -160,5 +163,95 @@ class OutboundQueueTest {
     fun `cancelling something already gone is a no-op`() {
         val queue = listOf(item("a"), item("b"))
         assertEquals(listOf("a", "b"), OutboundQueue.cancel(queue, "gone").map { it.id })
+    }
+
+    // --- a held tab whose device is gone (PLANS.md P-15 item 3) -------------
+    // Mirrored by extension/src/lib/outbound.test.ts and OutboundQueueTests.swift.
+
+    private data class Sent(
+        override val id: String,
+        override val targetEndpointId: String,
+        override val targetGone: Boolean = false,
+        override val goneFromList: Boolean = false,
+        override val createdAt: String = isoOf(1_776_000_000_000L),
+    ) : TargetedItem
+
+    private val group = setOf("self", "phone", "laptop")
+    private val setFromList: (Sent, Boolean) -> Sent = { it, gone -> it.copy(targetGone = gone, goneFromList = gone) }
+
+    // The four branches of isTargetGone, each on its own.
+
+    @Test
+    fun `a relay's flag is gone whatever the list says`() {
+        val relayFlag = Sent("a", "phone", targetGone = true)
+        assertTrue(OutboundQueue.isTargetGone(relayFlag, group))
+        assertTrue(OutboundQueue.isTargetGone(relayFlag, emptySet()))
+    }
+
+    @Test
+    fun `an empty list proves nothing, so it keeps whatever flag there is`() {
+        assertFalse(OutboundQueue.isTargetGone(Sent("a", "removed"), emptySet()))
+        assertTrue(OutboundQueue.isTargetGone(Sent("a", "phone", targetGone = true, goneFromList = true), emptySet()))
+    }
+
+    @Test
+    fun `otherwise a tab is gone exactly when its device is not accepted`() {
+        assertFalse(OutboundQueue.isTargetGone(Sent("a", "phone"), group))
+        assertTrue(OutboundQueue.isTargetGone(Sent("a", "removed"), group))
+    }
+
+    @Test
+    fun `a list's flag is judged again by the next list`() {
+        val listFlag = Sent("a", "phone", targetGone = true, goneFromList = true)
+        assertFalse(OutboundQueue.isTargetGone(listFlag, group))
+        assertTrue(OutboundQueue.isTargetGone(listFlag, setOf("self", "laptop")))
+    }
+
+    // markGoneTargets: what it writes.
+
+    @Test
+    fun `a tab whose device is in the group is left alone`() {
+        val queue = listOf(Sent("a", "phone"))
+        assertSame(queue[0], OutboundQueue.markGoneTargets(queue, group, setFromList)[0])
+    }
+
+    @Test
+    fun `a tab whose device left the group is flagged, as the list's flag`() {
+        val marked = OutboundQueue.markGoneTargets(listOf(Sent("a", "removed"), Sent("b", "phone")), group, setFromList)
+        assertEquals(listOf(true, false), marked.map { it.targetGone })
+        assertEquals(listOf(true, false), marked.map { it.goneFromList })
+    }
+
+    @Test
+    fun `a list's flag lifts once the device is accepted again`() {
+        val queue = listOf(Sent("a", "phone", targetGone = true, goneFromList = true))
+        val marked = OutboundQueue.markGoneTargets(queue, group, setFromList)
+        assertEquals(Sent("a", "phone"), marked[0])
+    }
+
+    @Test
+    fun `a list's flag stays while the device is still not accepted`() {
+        val queue = listOf(Sent("a", "removed", targetGone = true, goneFromList = true))
+        assertSame(queue[0], OutboundQueue.markGoneTargets(queue, group, setFromList)[0])
+    }
+
+    @Test
+    fun `a relay's flag is never lifted by a list that shows the device`() {
+        val queue = listOf(Sent("a", "phone", targetGone = true))
+        assertSame(queue[0], OutboundQueue.markGoneTargets(queue, group, setFromList)[0])
+    }
+
+    @Test
+    fun `retargeting replaces the tab in its place and it stays queued`() {
+        val queue = listOf(Sent("a", "removed", targetGone = true), Sent("b", "phone"))
+        val moved = OutboundQueue.retarget(queue, "a", Sent("a2", "laptop"))
+        assertEquals(listOf("a2>laptop", "b>phone"), moved.map { "${it.id}>${it.targetEndpointId}" })
+        assertFalse(moved.any { OutboundQueue.isTargetGone(it, group) })
+    }
+
+    @Test
+    fun `retargeting a tab that already left the queue changes nothing`() {
+        val queue = listOf(Sent("b", "phone"))
+        assertEquals(queue, OutboundQueue.retarget(queue, "gone", Sent("x", "laptop")))
     }
 }

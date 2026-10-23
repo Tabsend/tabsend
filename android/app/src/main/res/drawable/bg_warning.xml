@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Tint behind the relay-outage line. Amber, not colorError's red: nothing has
-     failed permanently and no tab is lost, there is just something the user has
-     to go and fix. Same reasoning as @color/relay_warning on the relay-move
-     "different relay" verdict. -->
+<!-- Amber panel for the relay-outage line and the device-check cards. Same shape as
+     the tonal panels (radius 16, docs/APP_UI.md) but tinted amber and framed in a
+     1dp amber line, so it reads as a notice and not as another list panel. Amber,
+     not colorError's red: nothing has failed permanently and no tab is lost, there
+     is just something the user has to go and fix. Same reasoning as
+     @color/relay_warning on the relay-move "different relay" verdict. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/relay_warning_bg" />
-    <corners android:radius="8dp" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/relay_warning_stroke" />
+    <corners android:radius="16dp" />
 </shape>

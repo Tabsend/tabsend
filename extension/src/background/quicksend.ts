@@ -1,6 +1,6 @@
 import type { Endpoint, SendPayload } from '@tabsend/shared'
 import { ext } from '../lib/ext'
-import type { PendingUndo } from '../lib/model'
+import type { FeedbackOrigin, PendingUndo } from '../lib/model'
 import {
   getCachedEndpoints,
   getPendingUndo,
@@ -10,7 +10,7 @@ import {
 } from '../lib/storage'
 import { sendingBanner } from '../lib/strings'
 import { fetchEndpoints, targetEndpoints } from './endpoints'
-import { showFeedback } from './feedback'
+import { activeOrigin, showFeedback } from './feedback'
 import { captureSelectedTabs, sendToTarget } from './send'
 import { currentSession } from './session'
 
@@ -104,43 +104,42 @@ export async function quickSend(): Promise<void> {
   // as every other surface, so a multi-tab selection quick-sends as one batch.
   const payloads = await captureSelectedTabs()
   const first = payloads[0]
+  // The tab we're standing on now, and its page — the outcome banner (up to 4s
+  // later, possibly after a worker restart) must come back HERE, not to
+  // whatever is active then, and only while this page is still showing (L8).
+  const origin = await activeOrigin()
   if (!first) {
-    await showFeedback({
-      tone: 'error',
-      headline: "Couldn't send",
-      detail: "There's nothing sendable in this tab.",
-    })
+    await showFeedback(
+      {
+        tone: 'error',
+        headline: "Couldn't send",
+        detail: "There's nothing sendable in this tab.",
+      },
+      origin ? { origin } : {},
+    )
     return
   }
 
-  // The tab we're standing on now — the outcome banner (up to 4s later, possibly
-  // after a worker restart) must come back HERE, not to whatever is active then.
-  const tabId = await activeTabId()
-  const undoId = await armUndoableSend(target, payloads, tabId)
+  const undoId = await armUndoableSend(target, payloads, origin)
 
   const settings = await getSettings()
   if (settings.showSuccessToast) {
     // "Sending", not "Sent". Nothing has left the machine yet — that is the
     // entire point of the undo window, and the old copy claimed otherwise, which
     // is why a relay outage during the window went completely unremarked.
-    const opts = tabId === undefined ? {} : { tabId }
     await showFeedback(sendingBanner(target.label, first.title, first.favicon, payloads.length), {
-      ...opts,
+      ...(origin ? { origin } : {}),
+      titleFrom: first.url,
       undoId,
       durationMs: UNDO_WINDOW_MS,
     })
   }
 }
 
-async function activeTabId(): Promise<number | undefined> {
-  const [tab] = await ext.tabs.query({ active: true, lastFocusedWindow: true })
-  return tab?.id
-}
-
 async function armUndoableSend(
   target: Endpoint,
   payloads: SendPayload[],
-  tabId?: number,
+  origin?: FeedbackOrigin,
 ): Promise<string> {
   // Never stack: dispatch any still-armed send immediately before arming a new one.
   await flushUndo(true)
@@ -150,7 +149,7 @@ async function armUndoableSend(
     targetLabel: target.label,
     payloads,
     dispatchAt: Date.now() + UNDO_WINDOW_MS,
-    ...(tabId === undefined ? {} : { tabId }),
+    ...(origin ? { origin } : {}),
   }
   await setPendingUndo(undo)
   // Fast path: dispatch when the window elapses. The poll alarm + boot flush are
@@ -178,15 +177,24 @@ export async function flushUndo(force = false): Promise<void> {
   flushing = true
   try {
     await setPendingUndo(null) // claim
-    const opts = pending.tabId === undefined ? {} : { feedbackTabId: pending.tabId }
-    await sendToTarget(pending.targetEndpointId, pending.payloads, opts)
+    // No origin: no tab to show it on, so the badge alone — never the active tab.
+    await sendToTarget(pending.targetEndpointId, pending.payloads, {
+      origin: pending.origin ?? null,
+    })
   } finally {
     flushing = false
   }
 }
 
-/** Undo the armed send (from the toast's Undo button). A pure local delete. */
-export async function undoSend(id: string): Promise<void> {
+/**
+ * Undo the armed send (from the toast's Undo button). A pure local delete.
+ * Honoured only for the send that banner belongs to, and only from the tab it
+ * was drawn on (`senderTabId`, from the message's sender): a page elsewhere
+ * can't cancel it (L8).
+ */
+export async function undoSend(id: string, senderTabId: number | undefined): Promise<void> {
   const pending = await getPendingUndo()
-  if (pending && pending.id === id) await setPendingUndo(null)
+  if (!pending || pending.id !== id) return
+  if (senderTabId === undefined || pending.origin?.tabId !== senderTabId) return
+  await setPendingUndo(null)
 }

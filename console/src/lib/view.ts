@@ -1,4 +1,4 @@
-import type { Endpoint } from '@tabsend/shared'
+import { type Endpoint, HOME_NETWORK_HINT, isHomeNetworkRelay } from '@tabsend/shared'
 import { type DeliveryState, deliveryState } from './history'
 import type { ConsoleSession, DeviceRow, HistoryEntry } from './model'
 import { isStaleEndpoint, relativeTime } from './time'
@@ -6,6 +6,24 @@ import { isStaleEndpoint, relativeTime } from './time'
 /**
  * Pure view projections shared by the UI and the tests. No DOM here.
  */
+
+/**
+ * The hover text on the header's connection badge. The console has no outage
+ * line of its own; "Offline" and this text are what it says when the relay does
+ * not answer. A relay on a home-network address gets the same extra sentence as
+ * the relay-down line on the extension and the phones (PLANS.md P-15 item 4),
+ * because away from home that address cannot answer.
+ *
+ * `relayUrl` is the address actually in use: the session's, or this page's own
+ * origin when the console is served by the relay.
+ */
+export function connectionTitle(conn: string, relayUrl: string): string {
+  if (conn === 'live') return 'Real-time updates over the WebSocket fast path'
+  if (conn === 'polling')
+    return 'Live updates are off. Refreshing every 20 seconds, so nothing is lost.'
+  const line = `Not connected to the relay at ${relayUrl}.`
+  return isHomeNetworkRelay(relayUrl) ? `${line} ${HOME_NETWORK_HINT}` : line
+}
 
 /** Build the device-management rows: presence, stale marking, self/console flags. */
 export function toDeviceRows(

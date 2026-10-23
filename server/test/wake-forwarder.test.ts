@@ -65,7 +65,7 @@ const accepted = () => new Response(null, { status: 202 })
  * loop, so the relay's own catch — the `push wake failed` warn line, the failure
  * accounting it deliberately does not do — has run before anything is asserted.
  */
-function fakeForwarder(reply: () => Response = accepted) {
+function fakeForwarder(reply: (url: string) => Response = accepted) {
   const calls: WakeCall[] = []
   const impl: typeof fetch = async (input, init) => {
     const headers = new Headers(init?.headers)
@@ -75,7 +75,7 @@ function fakeForwarder(reply: () => Response = accepted) {
       authorization: headers.get('authorization'),
       body: typeof init?.body === 'string' ? init.body : '',
     })
-    return reply()
+    return reply(String(input))
   }
   const tick = () => new Promise((resolve) => setTimeout(resolve, 5))
   async function settled(n = 1, timeoutMs = 5_000): Promise<void> {
@@ -549,6 +549,180 @@ describe('a wake is best effort and never fails a send', () => {
     for (const line of lines) {
       expect(line).not.toContain(WAKE_TOKEN)
     }
+  })
+})
+
+/**
+ * A deleted device's doorbell is retired [2026-10-20, PLANS P-17]. The forwarder drops a
+ * phone's record when the phone unpairs, re-registers, or Apple or Google say the app is
+ * gone; a phone removed by another device, or deleted with its group, does none of
+ * those and is never rung again, so its record stayed at the forwarder for good.
+ */
+describe('deleting a device revokes its wake token', () => {
+  const PROVISIONING = 'test-provisioning-credential'
+  const OTHER_WAKE_TOKEN = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB'
+  /** The forwarder's one revoke answer is 200; its one wake answer is 202. */
+  const forwarderReply = (url: string) =>
+    new Response(null, { status: url.endsWith('/v1/revoke') ? 200 : 202 })
+
+  it('POSTs /v1/revoke with the token in the header when another device removes a phone', async () => {
+    const forwarder = fakeForwarder(forwarderReply)
+    server = await startTestServer({ wakeForwarderUrl: FORWARDER_URL, wakeFetch: forwarder.impl })
+    const { source, phone } = await pairSenderAndPhone()
+
+    const removed = await http.del<{ ok: boolean }>(
+      server.baseUrl,
+      `/v1/endpoints/${phone.endpointId}`,
+      source.token,
+    )
+    expect(removed.status).toBe(200)
+
+    await forwarder.settled(1)
+    expect(forwarder.calls).toEqual([
+      {
+        url: `${FORWARDER_URL}/v1/revoke`,
+        method: 'POST',
+        authorization: `Bearer ${WAKE_TOKEN}`,
+        body: '{}',
+      },
+    ])
+  })
+
+  it('revokes it when the phone removes itself as well', async () => {
+    const forwarder = fakeForwarder(forwarderReply)
+    server = await startTestServer({ wakeForwarderUrl: FORWARDER_URL, wakeFetch: forwarder.impl })
+    const { phone } = await pairSenderAndPhone()
+
+    const removed = await http.del(server.baseUrl, `/v1/endpoints/${phone.endpointId}`, phone.token)
+    expect(removed.status).toBe(200)
+
+    await forwarder.settled(1)
+    expect(forwarder.calls.map((call) => call.url)).toEqual([`${FORWARDER_URL}/v1/revoke`])
+  })
+
+  it('calls nothing for a device that is not on the forwarder', async () => {
+    const forwarder = fakeForwarder(forwarderReply)
+    server = await startTestServer({ wakeForwarderUrl: FORWARDER_URL, wakeFetch: forwarder.impl })
+    const source = await register(server.baseUrl, { e2ePubkey: 'source-key' })
+    const browser = await register(server.baseUrl, {
+      pairingCode: await mintCode(source.token),
+      e2ePubkey: 'browser-key',
+    })
+
+    const removed = await http.del(
+      server.baseUrl,
+      `/v1/endpoints/${browser.endpointId}`,
+      source.token,
+    )
+    expect(removed.status).toBe(200)
+    await delay(50)
+    expect(forwarder.calls).toEqual([])
+  })
+
+  it("revokes every phone's token when the group is deleted, and shows none of them", async () => {
+    const logs: unknown[] = []
+    const forwarder = fakeForwarder(forwarderReply)
+    server = await startTestServer({
+      groupCreation: 'provisioned',
+      provisioningToken: PROVISIONING,
+      wakeForwarderUrl: FORWARDER_URL,
+      wakeFetch: forwarder.impl,
+      captureLogs: logs,
+    })
+    const created = await http.post<{ groupId: string }>(
+      server.baseUrl,
+      '/admin/provisioning/groups',
+      undefined,
+      PROVISIONING,
+    )
+    const groupId = created.body.groupId
+    const first = await http.post<{ link: string }>(
+      server.baseUrl,
+      `/admin/provisioning/groups/${groupId}/pairing`,
+      undefined,
+      PROVISIONING,
+    )
+    const browser = await register(server.baseUrl, {
+      pairingCode: pairingCodeFromLink(first.body.link),
+    })
+    for (const wakeToken of [WAKE_TOKEN, OTHER_WAKE_TOKEN]) {
+      await register(server.baseUrl, {
+        pairingCode: await mintCode(browser.token),
+        kind: 'mobile',
+        platform: 'ios',
+        pushSubscription: { transport: 'forwarder', wakeToken },
+      })
+    }
+
+    const deleted = await http.del<unknown>(
+      server.baseUrl,
+      `/admin/provisioning/groups/${groupId}`,
+      PROVISIONING,
+    )
+    expect(deleted.status).toBe(200)
+
+    await forwarder.settled(2)
+    expect(forwarder.calls.map((call) => [call.url, call.authorization]).sort()).toEqual(
+      [
+        [`${FORWARDER_URL}/v1/revoke`, `Bearer ${OTHER_WAKE_TOKEN}`],
+        [`${FORWARDER_URL}/v1/revoke`, `Bearer ${WAKE_TOKEN}`],
+      ].sort(),
+    )
+    // The tokens ride to the forwarder and nowhere else: not the control plane's answer,
+    // not its audit line, not any other log line.
+    for (const text of [JSON.stringify(deleted.body), ...logs.map((l) => JSON.stringify(l))]) {
+      expect(text).not.toContain(WAKE_TOKEN)
+      expect(text).not.toContain(OTHER_WAKE_TOKEN)
+    }
+  })
+
+  it('removes the device anyway when the forwarder refuses, and logs it without the token', async () => {
+    const logs: unknown[] = []
+    const forwarder = fakeForwarder(() => new Response(null, { status: 500 }))
+    server = await startTestServer({
+      wakeForwarderUrl: FORWARDER_URL,
+      wakeFetch: forwarder.impl,
+      captureLogs: logs,
+    })
+    const { source, phone } = await pairSenderAndPhone()
+
+    const removed = await http.del(
+      server.baseUrl,
+      `/v1/endpoints/${phone.endpointId}`,
+      source.token,
+    )
+    expect(removed.status).toBe(200)
+    await forwarder.settled(1)
+
+    const gone = await http.get<ApiError>(server.baseUrl, '/v1/endpoints', phone.token)
+    expect(gone.body.error.code).toBe('endpoint_removed')
+    const lines = logs.map((entry) => JSON.stringify(entry))
+    expect(lines.some((line) => line.includes('wake token revoke failed'))).toBe(true)
+    for (const line of lines) expect(line).not.toContain(WAKE_TOKEN)
+  })
+
+  it('does not make the removal WAIT for the forwarder, however long it hangs', async () => {
+    let release: (() => void) | undefined
+    const hang = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const impl: typeof fetch = async () => {
+      await hang
+      return new Response(null, { status: 200 })
+    }
+    server = await startTestServer({ wakeForwarderUrl: FORWARDER_URL, wakeFetch: impl })
+    const { source, phone } = await pairSenderAndPhone()
+
+    const startedAt = Date.now()
+    const removed = await http.del(
+      server.baseUrl,
+      `/v1/endpoints/${phone.endpointId}`,
+      source.token,
+    )
+    expect(removed.status).toBe(200)
+    expect(Date.now() - startedAt).toBeLessThan(1_000)
+
+    release?.()
   })
 })
 

@@ -133,4 +133,115 @@ final class OutboundQueueTests: XCTestCase {
         let queue = [item("a"), item("b")]
         XCTAssertEqual(OutboundQueue.cancel(queue, id: "gone").map(\.id), ["a", "b"])
     }
+
+    // MARK: a held tab whose device was removed (PLANS.md P-15 item 3)
+    // Mirrored by extension/src/lib/outbound.test.ts and OutboundQueueTest.kt.
+
+    private struct Sent: TargetedItem, Equatable {
+        var id: String
+        var targetEndpointId: String
+        var targetGone: Bool?
+        var goneFromList: Bool?
+        var createdAt: String = "2026-10-15T00:00:00.000Z"
+    }
+
+    /// The devices this phone's watch has accepted (`HeldTargets.acceptedIds`).
+    private let group: Set<String> = ["self", "phone", "laptop"]
+
+    func testATabWhoseDeviceIsInTheGroupIsLeftAlone() {
+        let queue = [Sent(id: "a", targetEndpointId: "phone")]
+        XCTAssertFalse(OutboundQueue.isTargetGone(queue[0], acceptedIds: group))
+        XCTAssertEqual(OutboundQueue.markGoneTargets(queue, acceptedIds: group), queue)
+    }
+
+    // isTargetGone, one test per branch.
+
+    /// The relay refused it: no list outweighs that, not even one that still
+    /// shows the device, because that list may be older than the refusal.
+    func testARelaysFlagSticksEvenWhileTheDeviceIsAccepted() {
+        XCTAssertTrue(OutboundQueue.isTargetGone(
+            Sent(id: "a", targetEndpointId: "phone", targetGone: true), acceptedIds: group
+        ))
+        XCTAssertTrue(OutboundQueue.isTargetGone(
+            Sent(id: "a", targetEndpointId: "phone", targetGone: true, goneFromList: false),
+            acceptedIds: group
+        ))
+    }
+
+    /// An empty list proves nothing either way: it flags nothing, and it lifts
+    /// nothing either.
+    func testAnEmptyListChangesNothingEitherWay() {
+        XCTAssertFalse(OutboundQueue.isTargetGone(Sent(id: "a", targetEndpointId: "removed"), acceptedIds: []))
+        XCTAssertTrue(OutboundQueue.isTargetGone(
+            Sent(id: "a", targetEndpointId: "phone", targetGone: true, goneFromList: true), acceptedIds: []
+        ))
+    }
+
+    /// A list's flag is judged again by every list (L3): the device may be back.
+    func testAListsFlagIsJudgedAgainstTheAcceptedDevices() {
+        let flagged = Sent(id: "a", targetEndpointId: "phone", targetGone: true, goneFromList: true)
+        XCTAssertFalse(OutboundQueue.isTargetGone(flagged, acceptedIds: group))
+        XCTAssertTrue(OutboundQueue.isTargetGone(flagged, acceptedIds: ["self", "laptop"]))
+    }
+
+    func testATabWhoseDeviceIsNotAcceptedIsGone() {
+        XCTAssertTrue(OutboundQueue.isTargetGone(Sent(id: "a", targetEndpointId: "removed"), acceptedIds: group))
+    }
+
+    // markGoneTargets
+
+    func testATabWhoseDeviceLeftTheGroupIsFlaggedAsTheListsFlag() {
+        let marked = OutboundQueue.markGoneTargets(
+            [Sent(id: "a", targetEndpointId: "removed"), Sent(id: "b", targetEndpointId: "phone")],
+            acceptedIds: group
+        )
+        XCTAssertEqual(marked, [
+            Sent(id: "a", targetEndpointId: "removed", targetGone: true, goneFromList: true),
+            Sent(id: "b", targetEndpointId: "phone"),
+        ])
+    }
+
+    /// A relay can leave a device off one list (L3). Once the device is accepted
+    /// again, the tab is its own again, with no flag left on it.
+    func testAListsFlagIsLiftedOnceTheDeviceIsAcceptedAgain() {
+        let marked = OutboundQueue.markGoneTargets(
+            [Sent(id: "a", targetEndpointId: "phone", targetGone: true, goneFromList: true)],
+            acceptedIds: group
+        )
+        XCTAssertEqual(marked, [Sent(id: "a", targetEndpointId: "phone")])
+    }
+
+    func testARelaysFlagIsNeverLifted() {
+        let queue = [
+            Sent(id: "a", targetEndpointId: "phone", targetGone: true),
+            Sent(id: "b", targetEndpointId: "laptop", targetGone: true, goneFromList: false),
+        ]
+        XCTAssertEqual(OutboundQueue.markGoneTargets(queue, acceptedIds: group), queue)
+    }
+
+    func testAnEmptyListLeavesEveryFlagAsItWas() {
+        let queue = [
+            Sent(id: "a", targetEndpointId: "phone", targetGone: true, goneFromList: true),
+            Sent(id: "b", targetEndpointId: "removed"),
+        ]
+        XCTAssertEqual(OutboundQueue.markGoneTargets(queue, acceptedIds: []), queue)
+    }
+
+    func testRetargetingReplacesTheTabInItsPlaceAndItStaysQueued() {
+        let queue = [
+            Sent(id: "a", targetEndpointId: "removed", targetGone: true),
+            Sent(id: "b", targetEndpointId: "phone"),
+        ]
+        let moved = OutboundQueue.retarget(queue, id: "a", replacement: Sent(id: "a2", targetEndpointId: "laptop"))
+        XCTAssertEqual(moved.map { "\($0.id)>\($0.targetEndpointId)" }, ["a2>laptop", "b>phone"])
+        XCTAssertFalse(moved.contains { OutboundQueue.isTargetGone($0, acceptedIds: group) })
+    }
+
+    func testRetargetingATabThatAlreadyLeftTheQueueChangesNothing() {
+        let queue = [Sent(id: "b", targetEndpointId: "phone")]
+        XCTAssertEqual(
+            OutboundQueue.retarget(queue, id: "gone", replacement: Sent(id: "x", targetEndpointId: "laptop")),
+            queue
+        )
+    }
 }

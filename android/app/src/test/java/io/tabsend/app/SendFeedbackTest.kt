@@ -5,6 +5,7 @@ import io.tabsend.app.logic.ALL_GROUP_LIMITS
 import io.tabsend.app.logic.ALL_REJECTION_REASONS
 import io.tabsend.app.logic.Feedback
 import io.tabsend.app.logic.GaveUpReason
+import io.tabsend.app.logic.HomeNetwork
 import io.tabsend.app.logic.OUTAGE_GRACE_MS
 import io.tabsend.app.logic.OutboundQueue
 import io.tabsend.app.logic.RelayHealth
@@ -381,6 +382,30 @@ class SendFeedbackTest {
         assertTrue(line.contains("12m ago"))
         assertTrue(Feedback.relayDownLine("http://x", 125).contains("2h ago"))
         assertTrue(Feedback.relayDownLine("http://x", 0).contains("just now"))
+    }
+
+    // P-15 item 4: away from home, a home-network relay is silent for a reason the
+    // bare outage line did not give, and it read as a refresh bug.
+    @Test
+    fun `relay down line says why a home-network relay is out of reach`() {
+        val line = Feedback.relayDownLine("http://192.168.1.20:8786", 19)
+        assertTrue(line.contains("19m ago"))
+        assertTrue(line.endsWith(HomeNetwork.HINT))
+        assertFalse(line.contains("—"))
+        assertTrue(Feedback.relayDownLine("http://minipc.local:8786", 5).endsWith(HomeNetwork.HINT))
+    }
+
+    @Test
+    fun `relay down line adds nothing for a public, hosted, Tailscale or same-device relay`() {
+        for (url in listOf(
+            "https://app.tabsend.org",
+            "https://relay.example.com",
+            "http://100.101.102.103:8787",
+            "http://localhost:8787",
+            "http://127.0.0.1:8787",
+        )) {
+            assertFalse(url, Feedback.relayDownLine(url, 19).contains(HomeNetwork.HINT))
+        }
     }
 
     // --- relay health -------------------------------------------------------

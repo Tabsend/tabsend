@@ -113,6 +113,19 @@ it.
 Put it behind a reverse proxy that terminates TLS, and set `TRUST_PROXY=1` there or every
 caller shares one rate-limit bucket.
 
+**At start-up the forwarder checks its Apple credential** by ringing an invented device
+(64 zeros) once, and logs one line, which never carries a token:
+
+- `apns credential check: ok`: Apple answered `BadDeviceToken`, which in practice means it
+  took the credential and refused only the made-up device. Apple does not document the
+  order of its checks, so a real ring is still the proof.
+- `apns credential check: refused (<Apple's reason>). <the fix>`: for example
+  `InvalidProviderToken`, a wrong `APNS_KEY_ID`, `APNS_TEAM_ID` or a revoked key.
+- `apns credential check: inconclusive (<what happened>). …`: no answer, or one that
+  says nothing about the credential.
+
+It changes no route's answer and is not on `/healthz`.
+
 **Rotating the Apple key** is: put the new `.p8` where the config points, restart. No
 device re-registers and no relay is reconfigured, because wake tokens are this service's
 own and have nothing to do with Apple's.
@@ -138,17 +151,20 @@ pretending to work.
 | `APNS_TEAM_ID` | — | Required. Your 10-character Apple team id. |
 | `APNS_TOPIC` | `io.tabsend.app` | The app bundle id. |
 | `APNS_DEFAULT_ENVIRONMENT` | `production` | Used when a registration does not name one. |
-| `APNS_TIMEOUT_MS` | `5000` | Ceiling on one call to Apple. |
+| `APNS_TIMEOUT_MS` | `5000` | Ceiling on one call to Apple. A whole number from 100 to 60000. |
+| `APNS_MAX_IN_FLIGHT` | `64` | iPhone rings allowed to wait on Apple at once. Past it a ring is dropped, and the phone collects when it next opens. |
 | `APNS_DRY_RUN` | off | Start with no Apple key and ring nobody. Local development only. |
 | `TRUST_PROXY` | off | Read `X-Forwarded-For` for the per-caller rate limit. Set it behind a proxy. |
 | `MAX_BODY_BYTES` | `4096` | Bodies here are one short string. |
 | `FCM_SERVICE_ACCOUNT_PATH` | — | Firebase service-account JSON, for ringing Android phones. Without it (or `FCM_SERVICE_ACCOUNT_JSON`, or `FCM_DRY_RUN=1`) this forwarder refuses Android registrations with `501`; iPhones are unaffected. NOT `google-services.json` — that is the client config inside the app and carries no credential. |
 | `FCM_SERVICE_ACCOUNT_JSON` | — | The same credential inline. Exactly one of the two. |
-| `FCM_TIMEOUT_MS` | `5000` | Per-request ceiling on the Google call. |
+| `FCM_TIMEOUT_MS` | `5000` | Per-request ceiling on the Google call. A whole number from 100 to 60000. |
+| `FCM_MAX_IN_FLIGHT` | `64` | Android rings allowed to wait on Google at once. Past it a ring is dropped, and the phone picks up when it next checks in. |
 | `FCM_DRY_RUN` | off | Accept Android wakes and ring nobody. Local development only. |
 | `WAKE_RATE_LIMIT_MAX` / `WAKE_RATE_LIMIT_WINDOW_SECONDS` | `6` / `60` | Rings allowed per phone. |
 | `CALLER_RATE_LIMIT_MAX` / `CALLER_RATE_LIMIT_WINDOW_SECONDS` | `120` / `60` | Rings allowed per calling relay. |
-| `REGISTER_RATE_LIMIT_MAX` / `REGISTER_RATE_LIMIT_WINDOW_SECONDS` | `10` / `600` | Registrations per address. |
+| `REGISTER_RATE_LIMIT_MAX` / `REGISTER_RATE_LIMIT_WINDOW_SECONDS` | `10` / `600` | Registrations per address. An IPv6 address counts by its /64. |
+| `MAX_DEVICES` | `200000` | Phones this forwarder holds at most. Past it new phones are refused with `503`; a phone already signed up can always sign up again. About 1.2 KB of disk a phone at the longest token, so the default is under 250 MB. Once an hour, a table at 95% of it has its oldest never-rung phones removed down to 90%: that clears a flood of fake sign-ups, and touches real phones only while one is filling the table. |
 | `LOG_LEVEL` | `info` | Log verbosity. |
 
 ## API in one screen
@@ -158,7 +174,7 @@ Full details, and the reasoning behind each choice, are in
 
 | Route | Caller | Auth | Answer |
 |---|---|---|---|
-| `POST /v1/register` | the iOS or Android app | none | `{ "apnsToken": … }` or `{ "fcmToken": … }`, exactly one. Returns `{ "wakeToken": "…" }`. Registering the same phone again replaces its old token. |
+| `POST /v1/register` | the iOS or Android app | none | `{ "apnsToken": … }` or `{ "fcmToken": … }`, exactly one. Returns `{ "wakeToken": "…" }`. Registering the same phone again replaces its old token. `501` when this forwarder cannot ring that kind of phone (no credential, or Google refusing it right now); `503` when it holds `MAX_DEVICES` phones. |
 | `POST /v1/wake` | any relay | wake token in `Authorization: Bearer` | `202 { "status": "accepted" }`, always. Which provider is rung is this service's business; no caller is told. |
 | `POST /v1/revoke` | the iOS or Android app | wake token in `Authorization: Bearer` | `200 { "status": "ok" }`, always. |
 | `GET /healthz` | anyone | none | `{ "status": "ok", … }`. |

@@ -175,6 +175,42 @@ export interface OutboundItem {
    */
   title?: string
   url?: string
+  /**
+   * The target's name when the send was made. Kept because the device list
+   * stops naming a device once it is removed, which is exactly when the held
+   * list most needs to say which device it was (PLANS.md P-15 item 3).
+   */
+  targetLabel?: string
+  /**
+   * The target has left the group, so this tab waits for the user to pick
+   * another device and the drain no longer posts it (lib/outbound.ts).
+   */
+  targetGone?: boolean
+  /** The flag came from a device list, and lifts once the device is accepted again. */
+  goneFromList?: boolean
+  /**
+   * Moved here from a removed device by the user. The drain then announces it
+   * as sent without "Your relay is reachable again", which may not be true.
+   */
+  retargeted?: boolean
+  /**
+   * The tab this send came from, and the page it showed then. A later outcome
+   * (the relay came back, refused it, or lost the device) goes up as a banner
+   * only there, and only while that tab still shows that page; otherwise the
+   * badge says it alone (SECURITY_REVIEW L8). Real items only.
+   */
+  origin?: FeedbackOrigin
+}
+
+/**
+ * Where a send came from: the tab, and the address it showed when the user
+ * sent. The in-page banner may only go here, and the page checks the address
+ * itself before it draws anything, so a tab that has moved on to another page
+ * (or a tab id reused after a restart) never shows an earlier send's outcome.
+ */
+export interface FeedbackOrigin {
+  tabId: number
+  url: string
 }
 
 /**
@@ -196,9 +232,11 @@ export interface PendingUndo {
    * The tab the send was fired from. Persisted with the hold so the OUTCOME
    * banner lands back on that tab even when the service worker was torn down
    * inside the undo window — the delayed report is exactly the case where the
-   * "active tab" is no longer the tab the user sent.
+   * "active tab" is no longer the tab the user sent. With the page's address,
+   * so the banner is drawn only while the tab still shows it (L8), and the
+   * Undo is honoured only from this tab.
    */
-  tabId?: number
+  origin?: FeedbackOrigin
 }
 
 // --- page <-> SW RPC ------------------------------------------------------
@@ -248,6 +286,9 @@ export type RpcRequest =
   // same spirit as the undo window: nothing is transmitted, because there is
   // nothing to retract (INTERACTION_FLOWS §4f).
   | { type: 'cancelHeld'; id: string }
+  // Send a held tab whose device was removed to another device instead
+  // (PLANS.md P-15 item 3). Sealed afresh for the new device's key.
+  | { type: 'retargetHeld'; id: string; targetEndpointId: string }
 
 /** A relay move the user began in settings and has not completed. */
 export interface PendingSwitch {
@@ -346,6 +387,17 @@ export interface HeldTab {
   url?: string
   /** ISO — when the user hit send. */
   createdAt: string
+  /** The target's name at send time, which outlives its removal. */
+  targetLabel?: string
+  /** The target has left the group: offer another device (PLANS.md P-15 item 3). */
+  targetGone?: boolean
+  /** This browser removed the target itself, so "was removed" is a fact it can state. */
+  removedHere?: boolean
+  /**
+   * With `targetGone`: the ids of the devices the tab may move to
+   * (`heldTabChoices`), never the raw list (SECURITY_REVIEW L3).
+   */
+  choices?: string[]
 }
 
 export interface ChooserView {
@@ -474,5 +526,6 @@ export type RpcResponse =
   | { ok: true; probe: RelayProbe }
   | { ok: true; settings: ClientSettings }
   | { ok: true; onboarding: { canCreate: boolean } }
+  | { ok: true; moved: boolean }
   | { ok: true }
   | { ok: false; error: string }

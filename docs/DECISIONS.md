@@ -1291,6 +1291,18 @@ Drafting the `shared/` contracts (follow-on to 0008) surfaced four items `types.
 - The server performs **no** crypto — it forwards ciphertext; sealing/opening is client-only (libsodium-wrappers in the browser, lazysodium/libsodium on Android).
 - Remaining open: **0006 (transport)** — the Stage 0 spike. All UX/contract items are now locked.
 
+### Note — 2026-10-15 · what the launch-surface review found against decision 4
+
+Two statements here no longer hold (`SECURITY_REVIEW.md` L10, `PLANS.md` P-16 item 10).
+**Sender authentication does not stop every injection.** `crypto_box` derives one key per pair
+of devices, so a box A sealed to B also opens at A with B named as sender, and the sealed
+payload names neither target nor message id. A compromised relay cannot inject a new link, but
+it can hand a device its own sent tab back "from" the device it went to, and replay any tab to
+its recipient under new ids. The fix on record is to seal the target's key id and the message
+id inside the payload. **Android does not use lazysodium**: since ADR-0012 it composes
+BouncyCastle's X25519, XSalsa20 and Poly1305 with its own HSalsa20; iOS writes Salsa20 and
+Poly1305 itself. Both matched libsodium in every case of the review's differential test.
+
 ---
 
 ## 0008 — Interaction/UX flow set

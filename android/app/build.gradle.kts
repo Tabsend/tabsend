@@ -7,7 +7,7 @@ plugins {
 /**
  * Marketing version. Bump by hand for a real release.
  */
-val appVersion = "0.7.2"
+val appVersion = "0.8.0"
 
 /**
  * Build identity. Builds are installed by downloading the CI artifact — there is no
@@ -21,6 +21,17 @@ val appVersion = "0.7.2"
  */
 val ciRunNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "").toIntOrNull()
 val gitSha = (System.getenv("GITHUB_SHA") ?: "").take(7)
+
+/**
+ * Google Play builds are made on the owner's Mac by `tools/build-play-bundle.sh`, never in
+ * CI: they are signed with the upload key, which stays on that Mac. The script sets the
+ * versionCode to the commit count of the build's commit, which only grows along `main`,
+ * so every upload is newer than the last, as Play requires. Play installs and GitHub APKs
+ * are signed with different keys, so neither ever updates the other and their numbers
+ * need not line up.
+ */
+val playVersionCode = (System.getenv("TABSEND_PLAY_VERSION_CODE") ?: "").toIntOrNull()
+val playSha = (System.getenv("TABSEND_PLAY_SHA") ?: "").take(7)
 
 /**
  * Stable signing identity for CI artifacts. Android refuses to install an APK over
@@ -70,14 +81,15 @@ val signingKeyPassword = System.getenv("TABSEND_KEY_PASSWORD") ?: ""
 
 android {
     namespace = "io.tabsend.app"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.tabsend.app"
         minSdk = 26
-        targetSdk = 34
-        versionCode = ciRunNumber ?: 1
+        targetSdk = 36
+        versionCode = playVersionCode ?: ciRunNumber ?: 1
         versionName = when {
+            playVersionCode != null -> "$appVersion (Play $playVersionCode · $playSha)"
             ciRunNumber != null && gitSha.isNotEmpty() -> "$appVersion (build $ciRunNumber · $gitSha)"
             ciRunNumber != null -> "$appVersion (build $ciRunNumber)"
             else -> "$appVersion (local dev build)"

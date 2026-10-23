@@ -16,6 +16,7 @@ private struct Vectors: Decodable {
         var label: String
         var createdAt: String
         var e2ePubkey: String?
+        var kind: String?
     }
     struct WatchCase: Decodable {
         var name: String
@@ -79,6 +80,13 @@ private struct Vectors: Decodable {
         var list: [ListEntry]
         var expect: [String]
     }
+    struct HeldTabChoicesCase: Decodable {
+        var name: String
+        var selfId: String
+        var watch: NewDeviceWatch?
+        var list: [ListEntry]
+        var expect: [String]
+    }
     var confirmReview: [ConfirmReviewCase]
     var dismissVanished: [DismissVanishedCase]
     var remove: [RemoveCase]
@@ -86,6 +94,7 @@ private struct Vectors: Decodable {
     var rotationDeparted: [DepartedCase]
     var rotationDone: [RotationDoneCase]
     var knownTo: [KnownToCase]
+    var heldTabChoices: [HeldTabChoicesCase]
 }
 
 private func loadVectors() throws -> Vectors {
@@ -102,10 +111,10 @@ private func loadVectors() throws -> Vectors {
 }
 
 /// The vectors carry only the fields the rule reads; the rest is filler. The key is
-/// "pk" unless the entry names one, as the vector file says.
+/// "pk" and the kind "extension" unless the entry names one, as the vector file says.
 private func endpoint(_ entry: Vectors.ListEntry) -> Endpoint {
     Endpoint(
-        id: entry.id, groupId: "g", kind: "extension", browser: nil, platform: nil,
+        id: entry.id, groupId: "g", kind: entry.kind ?? "extension", browser: nil, platform: nil,
         label: entry.label, deviceName: nil, e2ePubkey: entry.e2ePubkey ?? "pk",
         presence: "online", lastSeenAt: entry.createdAt, createdAt: entry.createdAt
     )
@@ -197,6 +206,18 @@ struct NewDevicesVectorTests {
         for c in vectors.knownTo {
             #expect(
                 NewDevices.endpointsKnownTo(c.watch, c.list.map(endpoint)).map(\.id) == c.expect,
+                "\(c.name)"
+            )
+        }
+    }
+
+    @Test func everyHeldTabChoicesCase() throws {
+        let vectors = try loadVectors()
+        #expect(!vectors.heldTabChoices.isEmpty)
+        for c in vectors.heldTabChoices {
+            #expect(
+                NewDevices.heldTabChoices(c.watch, c.list.map(endpoint), selfId: c.selfId).map(\.id)
+                    == c.expect,
                 "\(c.name)"
             )
         }

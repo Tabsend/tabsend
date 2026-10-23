@@ -5,11 +5,13 @@
     <color name="ic_launcher_background">#2F6FED</color>
     <!-- The relay-move "different relay" verdict — not an error (nothing failed),
          just a cost to weigh, so it gets amber rather than colorError's red. -->
-    <color name="relay_warning">#9A6700</color>
-    <!-- Pale amber tint behind the relay-outage line. Both this and the text
-         colour above are fixed rather than theme-attribute driven, so the pair
-         stays legible whether the phone is in light or dark mode. -->
-    <color name="relay_warning_bg">#FAEEDA</color>
+    <color name="relay_warning">@color/ts_waiting_text</color>
+    <!-- Amber panel behind the relay-outage line and the device-check cards: the
+         `waiting` amber at 14% (16% in dark, values-night) over whatever ground is
+         behind it, with a half-strength amber frame, so it follows light and dark
+         like every other token (docs/APP_UI.md). -->
+    <color name="relay_warning_bg">#24E0A11B</color>
+    <color name="relay_warning_stroke">#80E0A11B</color>
 
     <!-- ===== Generic petrol tint tokens (docs/APP_UI.md "Colour tokens"), light =====
          Prefixed ts_ so no library resource of the same name is overridden by

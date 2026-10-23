@@ -3,6 +3,7 @@ import { ext } from '../lib/ext'
 import { isRelayDown } from '../lib/health'
 import type { ChooserRow, ChooserView, HeldTab, SendResult, StateView } from '../lib/model'
 import {
+  goneTargetCopy,
   heldTabLabel,
   heldTabsHeading,
   multiSelectionLine,
@@ -48,6 +49,10 @@ let sending = false
 // How many highlighted tabs a row click sends (variant A: every row sends the
 // whole selection). Queried once on open; 1 means everything looks as today.
 let selectedCount = 1
+
+// The state the popup opened with, so a repaint after moving a held tab can
+// redraw the whole view the same way the live refresh does.
+let currentState: StateView | undefined
 
 function show(el: HTMLElement, visible: boolean): void {
   el.classList.toggle('hidden', !visible)
@@ -354,7 +359,10 @@ function renderChooser(view: ChooserView, state: StateView): void {
     show(emptyEl, true)
     show(targetsEl, false)
     show(pendingEl, false)
-    show(heldEl, false)
+    // Still list tabs held here: with the only other device removed, a tab
+    // held for it would otherwise be invisible, and so impossible to discard.
+    if (view.registered) renderHeld(view, () => 'a device')
+    else show(heldEl, false)
     return
   }
 
@@ -422,14 +430,111 @@ function renderHeld(view: ChooserView, labelFor: (id: string) => string): void {
     // still identifiable when two pages share a title.
     if (item.url) name.title = item.url
 
-    const to = document.createElement('span')
-    to.className = 'held-to'
-    to.textContent = `→ ${labelFor(item.targetEndpointId)}`
-
-    row.append(name, to, cancelButton(item, row))
+    if (item.targetGone) {
+      // Its device left the group, so "→ <device>" would point nowhere. Say
+      // so, and offer the devices it may go to instead (P-15 item 3).
+      row.classList.add('gone')
+      row.append(name, cancelButton(item, row), goneTargetChoice(item, view))
+    } else {
+      const to = document.createElement('span')
+      to.className = 'held-to'
+      // The label saved at send time first: the device list only names devices
+      // that are still in it.
+      to.textContent = `→ ${item.targetLabel ?? labelFor(item.targetEndpointId)}`
+      row.append(name, to, cancelButton(item, row))
+    }
     heldEl.append(row)
   }
   show(heldEl, true)
+}
+
+/** Up to this many devices get a button each; more get a menu. */
+const MAX_RETARGET_BUTTONS = 3
+
+/**
+ * "S24 is no longer in your group. Send to: Pixel · Arc", under a held tab
+ * whose device is gone. Choosing a device seals the tab again for that device
+ * and puts it back in the queue; it then sends like any held tab.
+ */
+function goneTargetChoice(item: HeldTab, view: ChooserView): HTMLElement {
+  const box = document.createElement('div')
+  box.className = 'held-gone'
+  const line = document.createElement('div')
+  line.textContent = goneTargetCopy.removedLine(item.targetLabel, item.removedHere === true)
+  box.append(line)
+
+  // Without a web address there is nothing to seal again, and nothing is
+  // offered; the × is still there.
+  if (!item.choices) return box
+  // The rows' order, kept to the devices the background allows for this tab
+  // (`heldTabChoices`): accepted and answered for, never this browser, a
+  // console, or a device it removed. The send checks the same list again.
+  const allowed = new Set(item.choices)
+  const others = view.targets.map((t) => t.endpoint).filter((e) => allowed.has(e.id))
+  if (others.length === 0) {
+    const none = document.createElement('div')
+    none.textContent = goneTargetCopy.noOtherDevice
+    box.append(none)
+    return box
+  }
+
+  const choices = document.createElement('div')
+  choices.className = 'held-gone-choices'
+  const controls: Array<HTMLButtonElement | HTMLSelectElement> = []
+  const pick = (endpointId: string): void => {
+    for (const c of controls) c.disabled = true
+    void retarget(item.id, endpointId)
+  }
+  if (others.length <= MAX_RETARGET_BUTTONS) {
+    const lead = document.createElement('span')
+    lead.textContent = goneTargetCopy.sendTo
+    choices.append(lead)
+    for (const endpoint of others) {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'linkish'
+      btn.textContent = endpoint.label
+      btn.setAttribute('aria-label', goneTargetCopy.sendToAria(heldTabLabel(item), endpoint.label))
+      btn.addEventListener('click', () => pick(endpoint.id))
+      controls.push(btn)
+      choices.append(btn)
+    }
+  } else {
+    const select = document.createElement('select')
+    select.setAttribute('aria-label', `${goneTargetCopy.sendToMenu} ${heldTabLabel(item)}`)
+    const placeholder = document.createElement('option')
+    placeholder.value = ''
+    placeholder.textContent = goneTargetCopy.sendToMenu
+    placeholder.disabled = true
+    placeholder.selected = true
+    select.append(placeholder)
+    for (const endpoint of others) {
+      const option = document.createElement('option')
+      option.value = endpoint.id
+      option.textContent = endpoint.label
+      select.append(option)
+    }
+    select.addEventListener('change', () => {
+      if (select.value) pick(select.value)
+    })
+    controls.push(select)
+    choices.append(select)
+  }
+  box.append(choices)
+  return box
+}
+
+/**
+ * Move the tab, then draw the list again from storage: the row now reads
+ * "→ <new device>" like any held tab, and leaves once the drain sends it.
+ */
+async function retarget(id: string, targetEndpointId: string): Promise<void> {
+  await rpcOk({ type: 'retargetHeld', id, targetEndpointId }).catch(() => undefined)
+  const res = await rpcOk<{ ok: true; chooser: ChooserView }>({
+    type: 'getChooser',
+    cached: true,
+  }).catch(() => undefined)
+  if (res && currentState && !sending) renderChooser(res.chooser, currentState)
 }
 
 /**
@@ -514,6 +619,7 @@ async function main(): Promise<void> {
     return
   }
   const state = stateRes.state
+  currentState = state
   // Variant A: with several tabs highlighted, say so once, above the list — the
   // rows themselves stay exactly as they are, each one sends the whole selection.
   selectedCount = Math.max(1, selectionRes.selection.count)

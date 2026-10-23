@@ -14,6 +14,12 @@ import { createPublicPushAgent, validatePushEndpoint } from './push-egress'
  */
 export interface PushSender {
   wake(subscription: PushSubscription): Promise<void>
+  /**
+   * Retire a subscription the relay has just deleted, where the channel has a way to.
+   * Only the wake-up forwarder has one ({@link ForwarderWakeSender.revoke}); a Web Push
+   * subscription belongs to the browser, and nothing the relay holds can end it.
+   */
+  revoke?(subscription: PushSubscription): Promise<void>
 }
 
 /**
@@ -158,6 +164,18 @@ export class ForwarderWakeError extends Error {
   }
 }
 
+/**
+ * A revoke call that did not come back 200 [2026-10-20]. Like {@link ForwarderWakeError},
+ * it says the forwarder is unhappy or the URL is wrong, never anything about the token:
+ * the forwarder answers 200 to a live token, a revoked one and an invented one alike.
+ */
+export class ForwarderRevokeError extends Error {
+  constructor(readonly status: number) {
+    super(`wake forwarder returned ${status} to a revoke`)
+    this.name = 'ForwarderRevokeError'
+  }
+}
+
 /** No push configured (no VAPID keys). Wakes are no-ops; queue+poll still deliver. */
 export class NoopPushSender implements PushSender {
   async wake(): Promise<void> {
@@ -272,6 +290,7 @@ const FORWARDER_WAKE_TIMEOUT_MS = 3_000
  */
 export class ForwarderWakeSender implements PushSender {
   private readonly wakeUrl: string
+  private readonly revokeUrl: string
 
   constructor(
     forwarderUrl: string,
@@ -284,6 +303,7 @@ export class ForwarderWakeSender implements PushSender {
     // has already stripped any trailing slash; belt and braces, since a double slash
     // would 404 against a service that answers 202 to everything else.
     this.wakeUrl = `${forwarderUrl.replace(/\/+$/, '')}/v1/wake`
+    this.revokeUrl = `${forwarderUrl.replace(/\/+$/, '')}/v1/revoke`
   }
 
   async wake(subscription: PushSubscription): Promise<void> {
@@ -323,6 +343,79 @@ export class ForwarderWakeSender implements PushSender {
     // is wrong. Thrown so the caller logs it once — never counted against the endpoint.
     if (response.status !== 202) throw new ForwarderWakeError(response.status)
   }
+
+  /**
+   * Retire a deleted device's wake token at the forwarder [2026-10-20, PLANS P-17].
+   *
+   * The forwarder drops a phone's record when the phone itself unpairs, re-registers, or
+   * Apple or Google say the app is gone. A device removed by another one, or deleted
+   * with its whole group, does none of those: nobody rings it again, so the last never
+   * fires either, and its record (the push address and the token's hash) stayed at the
+   * forwarder for good. So the relay, which is the one that deleted it, says so.
+   *
+   * Same shape as a wake: `POST /v1/revoke`, the token in `Authorization: Bearer`, an
+   * empty JSON body, bounded, no redirect followed, and exactly one success answer
+   * (200). Anyone holding a wake token can already revoke it, so a device that
+   * registered somebody else's token gains nothing by being removed.
+   */
+  async revoke(subscription: PushSubscription): Promise<void> {
+    if (subscription.transport !== 'forwarder') return
+    const response = await this.fetchImpl(this.revokeUrl, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${subscription.wakeToken}`,
+        'content-type': 'application/json',
+      },
+      body: '{}',
+      signal: AbortSignal.timeout(this.timeoutMs),
+      redirect: 'manual',
+    })
+    if (response.status !== 200) throw new ForwarderRevokeError(response.status)
+  }
+}
+
+/** Where {@link revokeDeleted} writes its one line per failure. */
+interface RevokeLog {
+  warn(fields: object, message: string): void
+}
+
+/**
+ * Retire the wake tokens of devices the relay has just deleted, AFTER the deletion has
+ * committed [2026-10-20, PLANS P-17]. Detached and best effort, on the wake contract:
+ * nothing waits for it, a failure is one warn line (its status, never the token) and is
+ * not retried, and a deletion has already succeeded whatever the forwarder does. One
+ * call at a time, so a group of thirty phones is thirty short calls in a row rather
+ * than thirty at once against a per-caller limit every tenant shares.
+ */
+export function revokeDeleted(
+  push: PushSender,
+  deleted: { endpointId: string; pushSubscription: string }[],
+  log: RevokeLog,
+): void {
+  const revoke = push.revoke?.bind(push)
+  if (!revoke) return
+  const owed: { endpointId: string; subscription: PushSubscription }[] = []
+  for (const row of deleted) {
+    let subscription: PushSubscription
+    try {
+      subscription = JSON.parse(row.pushSubscription)
+    } catch {
+      // Unreadable is relay-side corruption; there is no token to retire.
+      continue
+    }
+    if (subscription.transport === 'forwarder')
+      owed.push({ endpointId: row.endpointId, subscription })
+  }
+  if (owed.length === 0) return
+  void (async () => {
+    for (const { endpointId, subscription } of owed) {
+      try {
+        await revoke(subscription)
+      } catch (err) {
+        log.warn({ err, endpointId }, 'wake token revoke failed; not retried')
+      }
+    }
+  })()
 }
 
 /**

@@ -1,0 +1,42 @@
+<!-- Google Play feature graphic, 1024 x 500 (option B, wording 2, picked by the owner
+     2026-10-22). A phone and a laptop with links going both ways. Archivo is the app's
+     own heading font (android/app/src/main/res/font); the font paths resolve because
+     scripts/render-play-assets.sh renders this from inside assets/play/. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500" role="img">
+  <title>Tabsend: send a link to any browser or device</title>
+  <style>
+    @font-face { font-family: Archivo; font-weight: 700; src: url("../../android/app/src/main/res/font/archivo_bold.ttf"); }
+    @font-face { font-family: Archivo; font-weight: 400; src: url("../../android/app/src/main/res/font/archivo_regular.ttf"); }
+    .head { font-family: Archivo, "Helvetica Neue", Arial, sans-serif; font-weight: 700; font-size: 54px; fill: #10233F; }
+    .sub { font-family: Archivo, "Helvetica Neue", Arial, sans-serif; font-weight: 400; font-size: 28px; fill: #3A4F70; }
+  </style>
+  <rect width="1024" height="500" fill="#EEF3FE"/>
+
+  <text class="head" x="72" y="196">Send a link to any</text>
+  <text class="head" x="72" y="260">browser or device</text>
+  <text class="sub" x="72" y="322">Chrome, Edge, Firefox,</text>
+  <text class="sub" x="72" y="360">Android and iPhone</text>
+
+  <!-- Phone -->
+  <g transform="translate(640,158) scale(0.9)">
+    <rect x="0" y="0" width="96" height="184" rx="16" fill="#FFFFFF" stroke="#10233F" stroke-width="5"/>
+    <rect x="16" y="30" width="62" height="14" rx="3" fill="#2F6FED"/>
+    <rect x="16" y="54" width="52" height="9" rx="3" fill="#B9C6DE"/>
+    <rect x="16" y="70" width="44" height="9" rx="3" fill="#B9C6DE"/>
+  </g>
+
+  <!-- Arrows both ways -->
+  <g fill="none" stroke="#2F6FED" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M744 222 H808"/><path d="M794 208 L810 222 L794 236"/>
+    <path d="M810 264 H746"/><path d="M760 250 L744 264 L760 278"/>
+  </g>
+
+  <!-- Laptop -->
+  <g transform="translate(830,184) scale(0.9)">
+    <rect x="0" y="0" width="150" height="104" rx="8" fill="#FFFFFF" stroke="#10233F" stroke-width="5"/>
+    <rect x="-16" y="104" width="182" height="16" rx="6" fill="#10233F"/>
+    <rect x="18" y="20" width="80" height="13" rx="3" fill="#2F6FED"/>
+    <rect x="18" y="42" width="110" height="9" rx="3" fill="#B9C6DE"/>
+    <rect x="18" y="58" width="96" height="9" rx="3" fill="#B9C6DE"/>
+  </g>
+</svg>

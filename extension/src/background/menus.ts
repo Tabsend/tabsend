@@ -173,13 +173,24 @@ export async function handleMenuClick(
     })
     return
   }
+  // The banner goes on the tab that was clicked, while it shows this page (L8).
+  const origin = tab?.id !== undefined && tab.url ? { tabId: tab.id, url: tab.url } : undefined
   if (id.startsWith(TAB_PREFIX)) {
     const targetId = id.slice(TAB_PREFIX.length)
-    await sendToTarget(targetId, (await selectionForTab(tab)) ?? payloadFromTab(tab))
+    await sendToTarget(
+      targetId,
+      (await selectionForTab(tab)) ?? payloadFromTab(tab),
+      origin ? { origin } : {},
+    )
     return
   }
   if (id.startsWith(LINK_PREFIX)) {
     const targetId = id.slice(LINK_PREFIX.length)
-    await sendToTarget(targetId, payloadFromLink(info))
+    // A link's title is its host name, read off this page, so this page may see it.
+    await sendToTarget(
+      targetId,
+      payloadFromLink(info),
+      origin ? { origin, titleFrom: origin.url } : {},
+    )
   }
 }

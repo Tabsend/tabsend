@@ -1,4 +1,5 @@
 import type { GroupLimit } from '@tabsend/shared'
+import { HOME_NETWORK_HINT } from '@tabsend/shared'
 import { describe, expect, it } from 'vitest'
 import type { InboxItem } from './model'
 import {
@@ -791,6 +792,29 @@ describe('relayDownLine', () => {
 
   it('reads sensibly at zero', () => {
     expect(relayDownLine('http://x', 0)).toContain('just now')
+  })
+
+  // P-15 item 4: away from home, a home-network relay is silent for a reason the
+  // bare outage line did not give, and it read as a refresh bug.
+  it('says why a home-network relay is out of reach, and what to do', () => {
+    const line = relayDownLine('http://192.168.1.20:8786', 19)
+    expect(line).toContain('19m ago')
+    expect(line).toContain(HOME_NETWORK_HINT)
+    expect(line.endsWith(HOME_NETWORK_HINT)).toBe(true)
+    expect(line).not.toContain('—')
+    expect(relayDownLine('http://minipc.local:8786', 5)).toContain(HOME_NETWORK_HINT)
+  })
+
+  it('adds no home-network line for a public, hosted, Tailscale or same-machine relay', () => {
+    for (const url of [
+      'https://app.tabsend.org',
+      'https://relay.example.com',
+      'http://100.101.102.103:8787',
+      'http://localhost:8787',
+      'http://127.0.0.1:8787',
+    ]) {
+      expect(relayDownLine(url, 19)).not.toContain(HOME_NETWORK_HINT)
+    }
   })
 })
 

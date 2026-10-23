@@ -5,6 +5,7 @@ packages:
   - shared
   - server
   - forwarder
+  - control
   - extension
   - console
   - e2e

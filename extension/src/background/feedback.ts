@@ -1,4 +1,5 @@
 import { ext } from '../lib/ext'
+import type { FeedbackOrigin } from '../lib/model'
 import type { SendBanner } from '../lib/strings'
 import { badgeError, badgeQueued, badgeSuccess, badgeTitle } from './badge'
 
@@ -18,11 +19,34 @@ import { badgeError, badgeQueued, badgeSuccess, badgeTitle } from './badge'
  *     which of the three tabs you fired off actually went.
  *  3. It has a failure tone at all. The old toast could only say nice things,
  *     so every relay outage was rendered as a success or as nothing.
+ *
+ * And what it may say is limited, because the page it sits in can read it
+ * (SECURITY_REVIEW L8). The shadow root is closed. It goes only to the tab the
+ * send came from, and only while that tab still shows the page it showed then;
+ * otherwise the badge says it alone. It names a tab only when the name is this
+ * page's own, and it never shows the relay's address. Its Undo answers to a
+ * real click only, and the service worker honours it only from that tab.
  */
 
 export interface FeedbackOptions {
-  /** Show it on this specific tab (the tab the send came FROM), not the active one. */
-  tabId?: number
+  /**
+   * The tab the send came FROM, and the address it showed then. Without it
+   * there is no banner, only the badge: never the active tab by default, which
+   * is how a later outcome used to land in whatever page was in front.
+   */
+  origin?: FeedbackOrigin
+  /**
+   * The address of the page `banner.title` was taken from. The title (and any
+   * headline naming it) goes into the page only when this is `origin.url`, the
+   * page's own; otherwise the page gets `untitled`.
+   */
+  titleFrom?: string
+  /**
+   * The banner without the tab's name, for a page that the name isn't from.
+   * Defaults to `banner` minus its title row, which suits every banner whose
+   * headline doesn't name the tab.
+   */
+  untitled?: SendBanner
   /** Present ⇒ render an "Undo" button that cancels the 4s-window send. */
   undoId?: string
   /** Override the tone's default dwell time. */
@@ -49,7 +73,11 @@ function bannerInPage(
   detail: string | null,
   undoId: string | null,
   durationMs: number,
-): void {
+  expectedUrl: string,
+): boolean {
+  // The tab may have moved on to another page since the send: then this
+  // outcome is not this page's business, and the badge carries it alone.
+  if (location.href !== expectedUrl) return false
   const ID = '__tabsend_feedback__'
   document.getElementById(ID)?.remove()
   const host = document.createElement('div')
@@ -57,7 +85,9 @@ function bannerInPage(
   // Top-right: directly under where the toolbar icon lives. `all:initial` first,
   // then our own positioning, so nothing inherits from the page.
   host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;top:12px;right:12px;'
-  const root = host.attachShadow({ mode: 'open' })
+  // Closed, so the page's own scripts can neither read what it says nor reach
+  // its buttons (SECURITY_REVIEW L8). Only this function holds `root`.
+  const root = host.attachShadow({ mode: 'closed' })
 
   // The app UI's "petrol tint" tokens (docs/APP_UI.md), light and dark. Inlined
   // because this runs in the page: no stylesheet of ours exists here, and the
@@ -202,7 +232,10 @@ function bannerInPage(
   if (undoId) {
     const undo = document.createElement('button')
     undo.textContent = 'Undo'
-    undo.addEventListener('click', () => {
+    undo.addEventListener('click', (event) => {
+      // A real click only. A page can't reach this button through a closed
+      // root, but a synthetic event is never the user changing their mind.
+      if (!event.isTrusted) return
       window.clearTimeout(timer)
       try {
         api?.runtime.sendMessage({ __tabsendUndo: true, id: undoId })
@@ -221,7 +254,8 @@ function bannerInPage(
     const dismiss = document.createElement('button')
     dismiss.className = 'dismiss'
     dismiss.textContent = 'Dismiss'
-    dismiss.addEventListener('click', () => {
+    dismiss.addEventListener('click', (event) => {
+      if (!event.isTrusted) return
       window.clearTimeout(timer)
       host.remove()
     })
@@ -232,11 +266,32 @@ function bannerInPage(
   card.append(badge, body)
   root.append(style, card)
   document.documentElement.appendChild(host)
+  return true
 }
 
-async function activeTabId(): Promise<number | undefined> {
+/**
+ * The tab in front right now, and its address: where a send the user is making
+ * this moment came from. Read when the send starts, not when it is reported, so
+ * switching tabs during a slow send doesn't move its banner.
+ */
+export async function activeOrigin(): Promise<FeedbackOrigin | undefined> {
   const [tab] = await ext.tabs.query({ active: true, lastFocusedWindow: true })
-  return tab?.id
+  if (tab?.id === undefined || !tab.url) return undefined
+  return { tabId: tab.id, url: tab.url }
+}
+
+/** What the page may be shown of `banner` (L8): its own tab's name, no relay address. */
+function pageBanner(banner: SendBanner, opts: FeedbackOptions, pageUrl: string): SendBanner {
+  const ownTitle = opts.titleFrom !== undefined && opts.titleFrom === pageUrl
+  const shown = ownTitle ? banner : (opts.untitled ?? banner)
+  const detail = shown.pageDetail ?? shown.detail
+  return {
+    tone: shown.tone,
+    headline: shown.headline,
+    ...(ownTitle && shown.title !== undefined ? { title: shown.title } : {}),
+    ...(ownTitle && shown.favicon !== undefined ? { favicon: shown.favicon } : {}),
+    ...(detail === undefined ? {} : { detail }),
+  }
 }
 
 /**
@@ -253,10 +308,10 @@ export function feedbackBadge(banner: SendBanner): void {
 }
 
 /**
- * Show `banner` on the send's own tab (falling back to the active one). Always
- * sets the badge too: the badge is the only signal that survives the tab being
- * closed, navigated, or restricted, and a failure must never depend on the
- * injection succeeding.
+ * Show `banner` on the send's own tab, if it still shows the page it showed
+ * then. Always sets the badge too: the badge is the only signal that survives
+ * the tab being closed, navigated, or restricted, and a failure must never
+ * depend on the injection succeeding. Resolves true only if the banner was drawn.
  */
 export async function showFeedback(
   banner: SendBanner,
@@ -264,24 +319,26 @@ export async function showFeedback(
 ): Promise<boolean> {
   feedbackBadge(banner)
 
-  const tabId = opts.tabId ?? (await activeTabId())
+  const origin = opts.origin
   const scripting = ext.scripting
-  if (tabId === undefined || !scripting) return false
+  if (!origin || !scripting) return false
+  const page = pageBanner(banner, opts, origin.url)
   try {
-    await scripting.executeScript({
-      target: { tabId },
+    const results = await scripting.executeScript({
+      target: { tabId: origin.tabId },
       func: bannerInPage,
       args: [
-        banner.tone,
-        banner.headline,
-        banner.title ?? null,
-        banner.favicon ?? null,
-        banner.detail ?? null,
+        page.tone,
+        page.headline,
+        page.title ?? null,
+        page.favicon ?? null,
+        page.detail ?? null,
         opts.undoId ?? null,
         opts.durationMs ?? DWELL_MS[banner.tone],
+        origin.url,
       ],
     })
-    return true
+    return results?.[0]?.result === true
   } catch {
     // Restricted page, or the tab is gone — the badge already carried it.
     return false

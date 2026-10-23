@@ -13,17 +13,22 @@ exact steps to reproduce the reviewed artifact byte-for-behaviour from this repo
 | `pnpm package:firefox` | `dist-packages/tabsend-firefox-<version>.zip` | AMO (a `.zip` is a valid `.xpi`) |
 | `pnpm package` | both | — |
 
-The separately uploaded reviewer source archive contains every tracked or intentionally
-untracked, non-ignored source file from the release worktree. Create it from the repository
-root after the release diff is final:
+The separately uploaded reviewer source archive is the public repository,
+[github.com/Tabsend/tabsend](https://github.com/Tabsend/tabsend), at the release tag, and
+nothing else. Make it, and the store packages, in a clone of that repository with the release
+tag checked out, from its root:
 
 ```bash
-git ls-files -co --exclude-standard | \
-  zip -q dist-packages/tabsend-source-<version>.zip -@
+pnpm install --frozen-lockfile
+pnpm package
+version=$(node -p "require('./package.json').version")
+git archive --format=zip --output "dist-packages/tabsend-source-$version.zip" "v$version"
 ```
 
-Ignored dependencies, generated builds, local environment files, and store packages are
-therefore excluded.
+`git archive` takes only the files committed at the tag, so dependencies, builds, local
+environment files and the store packages stay out. Building the packages from the same clone
+means the reviewer rebuilds exactly what was uploaded. Never make the archive from any other
+checkout: it would carry whatever else that checkout holds.
 
 Each command does a **clean build** (`emptyOutDir`) then archives it. The Firefox package
 is produced by `web-ext build` over `extension/dist-firefox/`.

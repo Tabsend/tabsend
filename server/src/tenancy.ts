@@ -358,6 +358,12 @@ export interface GroupDeletion {
     removedEndpoints: number
     quotaCounters: number
   }
+  /**
+   * The deleted devices' stored push subscriptions, for the caller to retire their wake
+   * tokens after the commit. Server-side only: it holds wake tokens, so it must never
+   * reach a response body or a log line.
+   */
+  deletedEndpoints: { endpointId: string; pushSubscription: string }[]
 }
 
 function deletedRows(result: { numDeletedRows?: bigint } | undefined): number {
@@ -444,6 +450,13 @@ export async function deleteGroupCascade(
       .deleteFrom('removed_endpoints')
       .where('group_id', '=', groupId)
       .executeTakeFirst()
+    // Read before they go, so the caller can retire their wake tokens at the forwarder
+    // once this has committed [2026-10-20, PLANS P-17].
+    const wakeTargets = await trx
+      .selectFrom('endpoints')
+      .select(['id', 'push_subscription'])
+      .where('group_id', '=', groupId)
+      .execute()
     const endpoints = await trx
       .deleteFrom('endpoints')
       .where('group_id', '=', groupId)
@@ -465,6 +478,10 @@ export async function deleteGroupCascade(
         removedEndpoints: deletedRows(removedEndpoints),
         quotaCounters: deletedRows(quotaCounters),
       },
+      deletedEndpoints: wakeTargets.map((row) => ({
+        endpointId: row.id,
+        pushSubscription: row.push_subscription,
+      })),
     }
   })
 }

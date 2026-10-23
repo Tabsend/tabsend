@@ -99,13 +99,15 @@ function isUndoMessage(message: unknown): message is { __tabsendUndo: true; id: 
 }
 
 ext.runtime.onMessage.addListener(
-  (message: unknown, _sender, sendResponse: (r: unknown) => void) => {
+  (message: unknown, sender, sendResponse: (r: unknown) => void) => {
     if (isWsEnvelope(message)) {
       void handleStreamEvent(message.event)
       return false // no response channel needed
     }
     if (isUndoMessage(message)) {
-      void undoSend(message.id)
+      // Only from the tab the banner was drawn on (L8): `sender.tab` is set by
+      // the browser, not by the page.
+      void undoSend(message.id, sender.tab?.id)
       return false
     }
     if (isNeedConfig(message)) {

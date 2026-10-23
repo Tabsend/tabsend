@@ -564,6 +564,64 @@ describe('provisioning API: the first link is only ever the FIRST', () => {
   })
 })
 
+describe('provisioning API: a longer first link, for a store reviewer', () => {
+  const HOUR_MS = 60 * 60 * 1000
+  // The relay runs on the test clock, which does not move unless a test moves it.
+  const lifeOf = (pairing: MintedPairing) =>
+    Date.parse(pairing.expiresAt) - server.clock.now().getTime()
+
+  it('keeps the relay default when nothing is asked, and gives the asked lifetime when it is', async () => {
+    server = await startHosted()
+    const plain = await mintFirstLink(server.baseUrl, await createGroup(server.baseUrl))
+    expect(lifeOf(plain)).toBe(24 * HOUR_MS)
+
+    const groupId = await createGroup(server.baseUrl)
+    const res = await http.post<MintedPairing>(
+      server.baseUrl,
+      `/admin/provisioning/groups/${groupId}/pairing`,
+      { lifetimeMinutes: 14 * 24 * 60 },
+      TOKEN,
+    )
+    expect(res.status).toBe(201)
+    expect(lifeOf(res.body)).toBe(14 * 24 * HOUR_MS)
+
+    // Still only ever the FIRST device: the long link pairs once, and then the group is
+    // device to device like any other.
+    await register(server.baseUrl, { pairingCode: pairingCodeFromLink(res.body.link) })
+    const again = await http.post<ApiError>(
+      server.baseUrl,
+      `/admin/provisioning/groups/${groupId}/pairing`,
+      { lifetimeMinutes: 60 },
+      TOKEN,
+    )
+    expect(again.status).toBe(403)
+  })
+
+  it('refuses a lifetime over 30 days, under a minute, or not a whole number', async () => {
+    server = await startHosted()
+    const groupId = await createGroup(server.baseUrl)
+    for (const lifetimeMinutes of [30 * 24 * 60 + 1, 0, -5, 90.5, '1440', null]) {
+      const res = await http.post<ApiError>(
+        server.baseUrl,
+        `/admin/provisioning/groups/${groupId}/pairing`,
+        { lifetimeMinutes },
+        TOKEN,
+      )
+      expect(res.status).toBe(400)
+      expect(res.body.error.message).toContain('lifetimeMinutes')
+    }
+
+    // The upper bound itself is allowed.
+    const longest = await http.post<MintedPairing>(
+      server.baseUrl,
+      `/admin/provisioning/groups/${groupId}/pairing`,
+      { lifetimeMinutes: 30 * 24 * 60 },
+      TOKEN,
+    )
+    expect(longest.status).toBe(201)
+  })
+})
+
 describe('provisioning API: caps', () => {
   it('sets overrides, reads them back, and keeps null and 0 apart', async () => {
     server = await startHosted({ caps: { endpoints: 5, queuedMessages: 9 } })

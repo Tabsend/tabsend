@@ -11,7 +11,7 @@ contribute. It does not take your copyright away, and it does not stop you doing
 like with your own work elsewhere.
 
 **Owner:** Benjamin Misja (alvanx)
-**Project:** Tabsend — <https://github.com/tabsend/tabsend>
+**Project:** Tabsend — <https://github.com/Tabsend/tabsend>
 
 ## 1. What this covers
 

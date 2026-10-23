@@ -38,10 +38,10 @@ const PAIR_PAGE = `<!doctype html>
     <p class="muted">The link works once and expires. Opening it in a normal browser does not pair the browser by itself.</p>
     <div class="actions">
       <button id="copy" type="button">Copy pairing link</button>
-      <a class="button" href="https://github.com/tabsend/tabsend/releases" rel="noreferrer">Get Tabsend</a>
+      <a class="button" href="https://github.com/Tabsend/tabsend/releases" rel="noreferrer">Get Tabsend</a>
     </div>
     <p id="copied" role="status"></p>
-    <p class="muted"><a href="https://github.com/tabsend/tabsend" rel="noreferrer">Setup help and source code</a></p>
+    <p class="muted"><a href="https://github.com/Tabsend/tabsend" rel="noreferrer">Setup help and source code</a></p>
   </main>
   <script>
     const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)

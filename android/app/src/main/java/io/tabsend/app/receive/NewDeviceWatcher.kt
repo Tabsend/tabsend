@@ -109,8 +109,33 @@ object NewDeviceWatcher {
     fun vanished(context: Context): List<NewDeviceNotice> = mine(Store.get(context))?.vanished.orEmpty()
 
     /** The record, only if it belongs to the pairing this phone is in. */
-    private fun mine(store: Store): NewDeviceWatch? =
+    fun mine(store: Store): NewDeviceWatch? =
         store.newDeviceWatch?.takeIf { it.selfId == store.registration?.endpointId }
+
+    // --- held tabs whose device is gone (P-15 item 3, SECURITY_REVIEW L3) ------
+    //
+    // The flush and the home screen judge a held tab by the same three answers,
+    // all read from this phone's watch rather than from the relay's list as it
+    // stands: the relay decides when a tab asks for a new device, so the list it
+    // serves must not also decide what is offered, or what is said about it.
+
+    /**
+     * The ids a held tab's device must be among to be posted to: the cached list
+     * as the watch accepts it ([NewDevices.endpointsKnownTo]), not the list itself,
+     * so a device this phone removed that the relay still lists counts as gone
+     * (X13). Empty with no watch of this pairing, which flags nothing new.
+     */
+    fun acceptedIds(store: Store): Set<String> =
+        NewDevices.endpointsKnownTo(mine(store), store.cachedEndpoints).mapTo(HashSet()) { it.id }
+
+    /** The devices a held tab whose device is gone may be moved to, in list order. */
+    fun heldTabChoices(store: Store): List<Endpoint> {
+        val selfId = store.registration?.endpointId ?: return emptyList()
+        return NewDevices.heldTabChoices(mine(store), store.cachedEndpoints, selfId)
+    }
+
+    /** The ids THIS phone removed (X13): only a tab for one of these may say "was removed". */
+    fun removedHere(store: Store): Set<String> = mine(store)?.removed.orEmpty().toSet()
 
     /** "All of these are mine": the first look is answered on this phone only. */
     fun confirmReview(context: Context) {
@@ -134,6 +159,27 @@ object NewDeviceWatcher {
     }
 
     /**
+     * Remove another device from the group: the relay's DELETE ([delete], given the
+     * id), then the removal written into the watch. The device row's Remove and the
+     * new-device banner's "Remove it" both come here; the Android mirror of iOS's
+     * `NewDevices.removeFromGroup`. A relay that answers "not found" has already
+     * done it, and `ApiClient.deleteEndpoint` returns normally then. Anything
+     * else [delete] throws is thrown on, with nothing recorded: the device may
+     * still be in the group, and the caller says so. Never this phone, which
+     * leaves with Unpair: nothing is sent for it.
+     */
+    internal fun removeFromGroup(
+        store: Store,
+        id: String,
+        now: String = isoMillisOf(System.currentTimeMillis()),
+        delete: (String) -> Unit,
+    ) {
+        if (id == store.registration?.endpointId) return
+        delete(id)
+        removed(store, id, now)
+    }
+
+    /**
      * A device this phone removed and the relay accepted: out of the cached list
      * and out of the pending notices at once, and written into the watch (X13).
      * "Remove it" is only a request, and a relay that answers it and keeps listing
@@ -141,8 +187,6 @@ object NewDeviceWatcher {
      * owes a rotation now, leaves the device out of key handoff for good, and
      * announces it if a later list shows it again.
      */
-    fun removed(context: Context, id: String) = removed(Store.get(context), id)
-
     internal fun removed(
         store: Store,
         id: String,

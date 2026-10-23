@@ -11,6 +11,7 @@
     android:background="@color/ts_phone_ground">
 
     <com.google.android.material.appbar.AppBarLayout
+        style="@style/Widget.Tabsend.AppBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:liftOnScroll="true"
@@ -25,6 +26,8 @@
             android:layout_height="?attr/actionBarSize"
             app:title="@string/history_title"
             app:titleTextAppearance="@style/TextAppearance.Tabsend.ScreenTitle" />
+
+        <View style="@style/Widget.Tabsend.Hairline" />
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView

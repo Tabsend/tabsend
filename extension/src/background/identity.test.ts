@@ -332,6 +332,24 @@ describe('handleRemoval', () => {
   })
 })
 
+describe('a fresh pairing', () => {
+  it("drops tabs still held from an earlier one, sealed for another group's devices (L4)", async () => {
+    // No registration, yet a queue: a send that failed just after an unpair.
+    store.set('outbound', [
+      { id: 'old', targetEndpointId: 'old-phone', createdAt: '2026-10-01T00:00:00.000Z' },
+    ])
+    vi.mocked(registerApi).mockResolvedValueOnce({
+      endpointId: 'ep-new' as EndpointId,
+      groupId: 'g2' as GroupId,
+      deviceToken: 'dt-new' as DeviceToken,
+    })
+
+    await createGroup('http://localhost:8787', 'Dia', 'MacBook')
+
+    expect(store.get('outbound')).toEqual([])
+  })
+})
+
 describe('protocol handshake', () => {
   it('names a v1 relay as stale before bootstrap pairing attempts registration', async () => {
     vi.mocked(getConfigApi).mockResolvedValueOnce({

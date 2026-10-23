@@ -14,6 +14,7 @@ import { isPostgresUrl, legacyGroupDefaults } from '../db'
 import { fail, NOT_FOUND_BODY } from '../errors'
 import { newId } from '../ids'
 import { isDirectLocalCall } from '../netguard'
+import { revokeDeleted } from '../push'
 import { deleteGroupCascade, groupUsage, setGroupSuspended } from '../tenancy'
 import { iso } from '../time'
 import { asObject } from '../validate'
@@ -167,6 +168,39 @@ function readCapPatch(body: Record<string, unknown>): GroupCapOverrides {
     patch[field] = value
   }
   return patch
+}
+
+/**
+ * The longest first pairing link the provisioning API mints on request: 30 days.
+ *
+ * A store review can take a week or two, and the reviewer pastes the link from the
+ * review notes whenever they get to it. Longer than that is a link sitting in a store's
+ * records for no reason. The rule that makes any first link safe still holds whatever
+ * its life: it only ever makes the group's FIRST device, and the first join retires it.
+ */
+const MAX_FIRST_LINK_MINUTES = 30 * 24 * 60
+
+/**
+ * The optional `lifetimeMinutes` of a first-link mint, in ms, or undefined for the
+ * relay's bootstrap default. An absent body is the default too: that is how the control
+ * plane and `provision.sh new` call it.
+ */
+function readFirstLinkLifetime(body: unknown): number | undefined {
+  if (body === undefined || body === null) return undefined
+  const value = asObject(body).lifetimeMinutes
+  if (value === undefined) return undefined
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < 1 ||
+    value > MAX_FIRST_LINK_MINUTES
+  ) {
+    fail(
+      'invalid_request',
+      `lifetimeMinutes must be a whole number from 1 to ${MAX_FIRST_LINK_MINUTES} (30 days).`,
+    )
+  }
+  return value * 60 * 1000
 }
 
 export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -327,6 +361,7 @@ export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext
       async (request, reply) => {
         const groupId = request.params.id
         request.provisioningAudit = { groupId }
+        const ttlMs = readFirstLinkLifetime(request.body)
         // One read for both questions it has about the group row — does it exist, and
         // is it accepting devices. They are the same row and the same moment.
         const group = await ctx.db
@@ -347,7 +382,14 @@ export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext
         }
 
         const outcome = await ctx.groupWrites.run(groupId, () =>
-          mintFirstPairingForGroup(ctx.db, ctx.config, groupId, ctx.certFingerprint, ctx.now()),
+          mintFirstPairingForGroup(
+            ctx.db,
+            ctx.config,
+            groupId,
+            ctx.certFingerprint,
+            ctx.now(),
+            ttlMs,
+          ),
         )
         // Deleted between the read above and the mint's own hold on the row. Rare, and
         // it gets the same answer as a group that was never there: before the mint said
@@ -472,13 +514,16 @@ export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext
         // Behind the group's queued writes in this process (group-queue.ts), so the
         // deletion waits its turn in memory like they do, and they finish or find the
         // group gone rather than racing it for a connection.
-        const result = await ctx.groupWrites.run(groupId, () =>
+        const { deletedEndpoints, ...result } = await ctx.groupWrites.run(groupId, () =>
           deleteGroupCascade(ctx.db, isPostgresUrl(ctx.config.databaseUrl), groupId),
         )
         // AFTER the commit, and only then: a rollback must not have closed the sockets
         // of a group that still exists. See Hub.disconnectGroup for why this is
         // "tell them" rather than "close a hole".
         const disconnected = ctx.hub.disconnectGroup(groupId as GroupId)
+        // And their doorbells [2026-10-20, PLANS P-17]: nobody rings a deleted group's
+        // phones again, so without this the forwarder kept their records for good.
+        revokeDeleted(ctx.push, deletedEndpoints, request.log)
         request.provisioningAudit = {
           groupId,
           existed: result.existed,

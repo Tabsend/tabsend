@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyDrain,
   cancelOutbound,
   type HeldItem,
+  heldForNewTarget,
   heldTabsOnly,
+  isTargetGone,
+  markGoneTargets,
   OUTBOUND_MAX_AGE_DAYS,
   OUTBOUND_MAX_AGE_MS,
   OUTBOUND_MAX_ITEMS,
   planOutbound,
+  retargetOutbound,
+  type TargetedItem,
 } from './outbound'
 
 /**
@@ -191,5 +197,125 @@ describe('cancelOutbound', () => {
   it('is a no-op for an id that has already gone', () => {
     const queue = [item('a'), item('b')]
     expect(cancelOutbound(queue, 'gone').map((i) => i.id)).toEqual(['a', 'b'])
+  })
+})
+
+/**
+ * A held tab whose device left the group (PLANS.md P-15 item 3). Mirrored by
+ * OutboundQueueTest.kt and OutboundQueueTests.swift.
+ */
+describe('a held tab whose device was removed', () => {
+  const sent = (id: string, to: string, extra: Partial<TargetedItem> = {}): TargetedItem => ({
+    id,
+    createdAt: at(0),
+    targetEndpointId: to,
+    ...extra,
+  })
+  const group = new Set(['self', 'phone', 'laptop'])
+
+  it('leaves a tab alone while its device is in the group', () => {
+    const queue = [sent('a', 'phone')]
+    expect(isTargetGone(queue[0]!, group)).toBe(false)
+    const marked = markGoneTargets(queue, group)
+    expect(marked[0]).toBe(queue[0]) // the same object: nothing to store
+    expect(marked[0]?.targetGone).toBeUndefined()
+  })
+
+  it('flags a tab whose device is no longer in the group, as a list flag', () => {
+    const marked = markGoneTargets([sent('a', 'removed'), sent('b', 'phone')], group)
+    expect(marked.map((i) => Boolean(i.targetGone))).toEqual([true, false])
+    expect(marked[0]?.goneFromList).toBe(true)
+  })
+
+  it('changes nothing against an empty list, which proves nothing either way', () => {
+    expect(isTargetGone(sent('a', 'removed'), new Set())).toBe(false)
+    const flagged = sent('a', 'phone', { targetGone: true, goneFromList: true })
+    expect(isTargetGone(flagged, new Set())).toBe(true)
+    expect(markGoneTargets([flagged], new Set())[0]).toBe(flagged)
+  })
+
+  it("keeps the relay's flag even when a list still shows the device", () => {
+    const refused = sent('a', 'phone', { targetGone: true })
+    expect(isTargetGone(refused, group)).toBe(true)
+    expect(markGoneTargets([refused], group)[0]).toBe(refused)
+  })
+
+  it("lifts a list's flag once the device is accepted again (L3)", () => {
+    const fromList = sent('a', 'phone', { targetGone: true, goneFromList: true })
+    expect(isTargetGone(fromList, group)).toBe(false)
+    const [back] = markGoneTargets([fromList], group)
+    expect(back?.targetGone).toBeUndefined()
+    expect(back?.goneFromList).toBeUndefined()
+    // Still out of the list: the flag stays as it is.
+    const stillOut = sent('a', 'removed', { targetGone: true, goneFromList: true })
+    expect(markGoneTargets([stillOut], group)[0]).toBe(stillOut)
+  })
+
+  it('never flags a console history copy on its own account', () => {
+    expect(isTargetGone(sent('c', 'removed-console', { history: true }), group)).toBe(false)
+  })
+
+  it('holds a flagged tab and its console copies back from the drain', () => {
+    const queue = [
+      sent('a', 'removed', { targetGone: true }),
+      sent('copy-a', 'console', { history: true, copyOf: 'a' }),
+      sent('b', 'phone'),
+      sent('copy-b', 'console', { history: true, copyOf: 'b' }),
+    ]
+    expect([...heldForNewTarget(queue)].sort()).toEqual(['a', 'copy-a'])
+  })
+
+  it('moves a tab to a new device in its old place, taking its old copies out', () => {
+    const queue = [
+      sent('a', 'removed', { targetGone: true }),
+      sent('copy-a', 'console', { history: true, copyOf: 'a' }),
+      sent('b', 'phone'),
+    ]
+    const moved = retargetOutbound(queue, 'a', [
+      sent('a2', 'laptop'),
+      sent('copy-a2', 'console', { history: true, copyOf: 'a2' }),
+    ])
+    expect(moved.map((i) => `${i.id}>${i.targetEndpointId}`)).toEqual([
+      'a2>laptop',
+      'copy-a2>console',
+      'b>phone',
+    ])
+    // Still queued, and no longer flagged: the drain will post it.
+    expect(heldForNewTarget(moved).size).toBe(0)
+  })
+
+  it('moves nothing when the tab has already left the queue', () => {
+    const queue = [sent('b', 'phone')]
+    expect(retargetOutbound(queue, 'gone', [sent('x', 'laptop')])).toBe(queue)
+  })
+})
+
+/** A drain's outcome, applied by id to the queue as it is when the drain ends (L4). */
+describe('applyDrain', () => {
+  const item = (id: string, attempts = 0) => ({ id, createdAt: at(0), attempts })
+
+  it('drops what the drain settled and keeps what it kept, as it left them', () => {
+    const latest = [item('sent'), item('kept')]
+    const out = applyDrain(latest, new Set(['sent', 'kept']), new Map([['kept', item('kept', 1)]]))
+    expect(out).toEqual([item('kept', 1)])
+  })
+
+  it('leaves alone what the drain never read, and puts back nothing that left meanwhile', () => {
+    // The drain read a, b and c. Since then b was cancelled, c moved (to c2), and d was sent.
+    const latest = [item('a'), item('c2'), item('d')]
+    const kept = new Map([
+      ['a', item('a', 1)],
+      ['b', item('b', 1)],
+      ['c', item('c', 1)],
+    ])
+    expect(applyDrain(latest, new Set(['a', 'b', 'c']), kept)).toEqual([
+      item('a', 1),
+      item('c2'),
+      item('d'),
+    ])
+  })
+
+  it('writes nothing back into a queue an unpair emptied', () => {
+    expect(applyDrain([], new Set(['a']), new Map([['a', item('a', 1)]]))).toEqual([])
   })
 })

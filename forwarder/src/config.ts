@@ -43,6 +43,8 @@ export interface ApnsConfig {
   defaultEnvironment: ApnsEnvironment
   /** Ceiling on one Apple call, in ms. A doorbell nobody answers must not hang. */
   timeoutMs: number
+  /** Rings allowed to wait on Apple at once; past it a ring is dropped. */
+  maxInFlight: number
 }
 
 /**
@@ -58,6 +60,11 @@ export interface FcmConfig {
   serviceAccountPath?: string
   /** Ceiling on one Google call, in ms. A doorbell nobody answers must not hang. */
   timeoutMs: number
+  /**
+   * Rings allowed to wait on Google at once; past it a ring is dropped [2026-10-20,
+   * SECURITY_REVIEW G17].
+   */
+  maxInFlight: number
 }
 
 export interface Config {
@@ -98,8 +105,14 @@ export interface Config {
   wakeRateLimit: RateLimitConfig
   /** Wakes allowed per calling relay, keyed by client IP. */
   callerRateLimit: RateLimitConfig
-  /** Registrations allowed per client IP. */
+  /** Registrations allowed per client IP, an IPv6 /64 counting as one. */
   registerRateLimit: RateLimitConfig
+  /**
+   * Registered phones this forwarder holds at most [2026-10-20, SECURITY_REVIEW G16]. A
+   * phone that is already registered can always register again (that replaces its row);
+   * a new one is refused once the table is full, before the disk it shares is.
+   */
+  maxDevices: number
   logLevel: string
 }
 
@@ -117,6 +130,36 @@ function positiveNum(value: string | undefined, fallback: number, name: string):
   if (n <= 0) throw new Error(`${name} must be greater than zero, got: ${n}`)
   return n
 }
+
+/**
+ * A whole number of ms in [min, max] [2026-10-20, SECURITY_REVIEW G13]. A provider timeout
+ * of 1.5 ms, or one past what a Node timer can hold (which then fires at once), made every
+ * call to that provider fail while the forwarder looked healthy.
+ */
+function wholeNum(
+  value: string | undefined,
+  fallback: number,
+  name: string,
+  min: number,
+  max: number,
+): number {
+  const n = num(value, fallback, name)
+  if (!Number.isInteger(n) || n < min || n > max) {
+    throw new Error(`${name} must be a whole number from ${min} to ${max}, got: ${value}`)
+  }
+  return n
+}
+
+/**
+ * Rings allowed to wait on one provider at once, Apple and Google alike [2026-10-20,
+ * SECURITY_REVIEW G17]. Sixty-four is far above what a working provider ever has
+ * outstanding here, and small enough that a stalled one cannot fill the memory.
+ */
+const DEFAULT_MAX_IN_FLIGHT = 64
+
+/** Provider timeouts: at least 100 ms, at most a minute. */
+const TIMEOUT_MIN_MS = 100
+const TIMEOUT_MAX_MS = 60_000
 
 function flag(value: string | undefined): boolean {
   return value === '1' || value === 'true'
@@ -165,7 +208,20 @@ function readFcmConfig(env: NodeJS.ProcessEnv): FcmConfig | undefined {
   return {
     ...(serviceAccountJson ? { serviceAccountJson } : {}),
     ...(serviceAccountPath ? { serviceAccountPath } : {}),
-    timeoutMs: positiveNum(env.FCM_TIMEOUT_MS, 5_000, 'FCM_TIMEOUT_MS'),
+    timeoutMs: wholeNum(
+      env.FCM_TIMEOUT_MS,
+      5_000,
+      'FCM_TIMEOUT_MS',
+      TIMEOUT_MIN_MS,
+      TIMEOUT_MAX_MS,
+    ),
+    maxInFlight: wholeNum(
+      env.FCM_MAX_IN_FLIGHT,
+      DEFAULT_MAX_IN_FLIGHT,
+      'FCM_MAX_IN_FLIGHT',
+      1,
+      10_000,
+    ),
   }
 }
 
@@ -207,7 +263,20 @@ function readApnsConfig(env: NodeJS.ProcessEnv): ApnsConfig {
     teamId,
     topic: trimmed(env.APNS_TOPIC) ?? 'io.tabsend.app',
     defaultEnvironment: readEnvironment(env.APNS_DEFAULT_ENVIRONMENT, 'APNS_DEFAULT_ENVIRONMENT'),
-    timeoutMs: positiveNum(env.APNS_TIMEOUT_MS, 5_000, 'APNS_TIMEOUT_MS'),
+    timeoutMs: wholeNum(
+      env.APNS_TIMEOUT_MS,
+      5_000,
+      'APNS_TIMEOUT_MS',
+      TIMEOUT_MIN_MS,
+      TIMEOUT_MAX_MS,
+    ),
+    maxInFlight: wholeNum(
+      env.APNS_MAX_IN_FLIGHT,
+      DEFAULT_MAX_IN_FLIGHT,
+      'APNS_MAX_IN_FLIGHT',
+      1,
+      10_000,
+    ),
   }
 }
 
@@ -285,6 +354,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
           'REGISTER_RATE_LIMIT_WINDOW_SECONDS',
         ) * 1000,
     },
+    // About 1.2 KB a row with its index at the 512-character token cap (measured
+    // 2026-10-20), so the default is under 250 MB on a disk shared with a relay and its
+    // database.
+    maxDevices: wholeNum(env.MAX_DEVICES, 200_000, 'MAX_DEVICES', 1, Number.MAX_SAFE_INTEGER),
     logLevel: trimmed(env.LOG_LEVEL) ?? 'info',
   }
 }

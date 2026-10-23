@@ -19,6 +19,7 @@ vi.mock('./identity', () => ({
   joinGroup: vi.fn(async () => state),
   createGroup: vi.fn(async () => state),
   changeRelayUrl: vi.fn(async () => ({ relayUrl: 'https://relay.example', verified: true })),
+  removeEndpoint: vi.fn(async () => undefined),
 }))
 
 let finishPush: (outcome: 'subscribed' | 'failed') => void = () => {}
@@ -48,6 +49,7 @@ vi.mock('./prefs', () => ({ setPrimary: vi.fn() }))
 vi.mock('./send', () => ({
   cancelHeldTab: vi.fn(),
   processOutbound: vi.fn(),
+  retargetHeldTab: vi.fn(),
   selectedTabCount: vi.fn(),
   sendToTarget: vi.fn(),
 }))
@@ -55,6 +57,7 @@ vi.mock('./session', () => ({ currentSession: vi.fn() }))
 vi.mock('./settings', () => ({ updateSettings: vi.fn() }))
 
 import { heartbeatNow } from './heartbeat'
+import { removeEndpoint } from './identity'
 import { rebuildMenus } from './menus'
 import { ensureOffscreen, pushConfigToOffscreen } from './offscreen'
 import { ensurePushSubscription } from './push'
@@ -115,5 +118,19 @@ describe('push setup runs behind the reply, not in front of it', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     // Nothing new to carry, so no extra heartbeat; the poll alarm sends the next one.
     expect(heartbeatNow).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Settings and the manage screen remove a device through this request. The
+ * removal it reaches writes the device into this browser's watch (X13, tested in
+ * identity.test.ts), so the handler must go there and nowhere else.
+ */
+describe('removeEndpoint', () => {
+  it('goes through the removal that records it in the watch', async () => {
+    expect(await handleRpc({ type: 'removeEndpoint', endpointId: 'ep-phone' })).toMatchObject({
+      ok: true,
+    })
+    expect(removeEndpoint).toHaveBeenCalledWith('ep-phone')
   })
 })

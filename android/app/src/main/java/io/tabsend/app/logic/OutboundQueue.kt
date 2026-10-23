@@ -135,7 +135,87 @@ object OutboundQueue {
      */
     fun <T : HeldItem> cancel(queue: List<T>, id: String): List<T> = queue.filterNot { it.id == id }
 
+    // --- a held tab whose device is gone (PLANS.md P-15 item 3) --------------
+    //
+    // Before this, a tab held for a device that was then removed waited until
+    // the relay answered, and the relay's `unknown_target` then dropped it with
+    // an error. Now it is FLAGGED: the flush stops posting it, the home screen
+    // says the device is no longer in the group, and the user picks another
+    // device for it. Mirrors `extension/src/lib/outbound.ts`. Android makes no
+    // console history copies, so there are none to hold back with it.
+    //
+    // The flag has two sources, and they are not worth the same (SECURITY_REVIEW
+    // L3). The relay refusing the tab is final: it is the one party that delivers.
+    // A device list that no longer has the device is not: a list can be old, or
+    // wrong on purpose, so that flag lifts once the device is accepted again.
+
+    /**
+     * Whether this held tab waits for a device that is no longer in the group.
+     *
+     * [acceptedIds] is the group as this phone last ACCEPTED it: the ids
+     * [NewDevices.endpointsKnownTo] keeps from the cached list, not the list
+     * itself, so a device this phone removed that the relay still lists counts as
+     * gone (X13). The relay's refusal outweighs any list: the list a flush reads
+     * can be older than the refusal, and trusting it would post the tab to a
+     * device the relay has already said is gone. An empty list proves nothing (a
+     * fresh install, a cache not yet filled), so it changes nothing either way.
+     */
+    fun isTargetGone(item: TargetedItem, acceptedIds: Set<String>): Boolean = when {
+        item.targetGone && !item.goneFromList -> true
+        acceptedIds.isEmpty() -> item.targetGone
+        else -> item.targetEndpointId !in acceptedIds
+    }
+
+    /**
+     * Flag every held tab whose device has left the group, and lift a list's flag
+     * from a tab whose device is accepted again. [setFromList] copies one item with
+     * the list's flag set (true: [TargetedItem.targetGone] and
+     * [TargetedItem.goneFromList]) or lifted (false: both off). A relay's flag is
+     * never lifted here. Pure: an item that does not change comes back as itself.
+     */
+    fun <T : TargetedItem> markGoneTargets(
+        queue: List<T>,
+        acceptedIds: Set<String>,
+        setFromList: (T, Boolean) -> T,
+    ): List<T> = queue.map {
+        val gone = isTargetGone(it, acceptedIds)
+        when {
+            gone && !it.targetGone -> setFromList(it, true)
+            !gone && it.targetGone -> setFromList(it, false)
+            else -> it
+        }
+    }
+
+    /**
+     * Point a held tab at another device: [replacement] (the tab sealed afresh
+     * for the new device) takes the old item's place, so it keeps its turn.
+     * Pure, and it seals nothing: an envelope sealed to one device's key must
+     * never be sent to another. An id no longer queued changes nothing.
+     */
+    fun <T : HeldItem> retarget(queue: List<T>, id: String, replacement: T): List<T> =
+        queue.map { if (it.id == id) replacement else it }
+
     /** When the send was made, in epoch ms; [nowMs] when the stamp won't parse. */
     private fun createdAtMs(item: HeldItem, nowMs: Long): Long =
         parseIsoMillis(item.createdAt) ?: nowMs
+}
+
+/** The slice of a held item the "is its device gone?" rule needs. */
+interface TargetedItem : HeldItem {
+    val targetEndpointId: String
+
+    /**
+     * Set once the device is known to be gone. Sticky when the relay set it;
+     * lifted again when [goneFromList] says a list set it and a later list has the
+     * device accepted again.
+     */
+    val targetGone: Boolean
+
+    /**
+     * True when [targetGone] was set because a device list no longer had the
+     * device; false when the relay refused the tab (`unknown_target`,
+     * `not_in_group`). A tab stored before this existed reads false, which is the
+     * relay's flag: the safe reading, since it keeps the tab unposted.
+     */
+    val goneFromList: Boolean
 }

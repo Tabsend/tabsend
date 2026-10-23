@@ -536,3 +536,71 @@ describe('wake tallies', () => {
     }
   })
 })
+
+/**
+ * The 2026-10-20 review of SECURITY_REVIEW G16: the ceiling had no way down, so once a
+ * flood filled the table every new phone was refused for good. Near the ceiling, rows never
+ * rung are now removed oldest first, on their own schedule, and at no other time.
+ */
+describe('trimming a nearly full table', () => {
+  function storeWith(maxDevices: number, removed: number[]) {
+    return new DeviceStore(join(dir, 'trim.db'), TEST_DEVICE_TOKEN_KEY, {
+      maxDevices,
+      trimIntervalMs: 20,
+      onTrimmed: (n) => removed.push(n),
+    })
+  }
+  function add(store: DeviceStore, at: number): string {
+    const hash = hashWakeToken(newWakeToken())
+    store.register({
+      wakeTokenHash: hash,
+      platform: 'ios',
+      deviceToken: fakeApnsToken(),
+      environment: 'production',
+      now: at,
+    })
+    return hash
+  }
+
+  it('removes the oldest rows never rung, down to the low-water mark, and nothing rung', async () => {
+    const removed: number[] = []
+    const store = storeWith(20, removed)
+    try {
+      const start = Date.UTC(2026, 9, 20, 12, 0, 0)
+      // The oldest row is a real phone, rung only in memory so far: the trim must write
+      // that out before judging, and keep it.
+      const realPhone = add(store, start)
+      store.recordWake(realPhone, start + 1)
+      const flood = Array.from({ length: 18 }, (_, i) => add(store, start + 10 + i))
+      const newest = add(store, start + 100)
+      expect(store.count()).toBe(20)
+
+      // Full (20 ≥ 19): trimmed to 18, taking the two oldest never rung.
+      await vi.waitFor(() => expect(removed).toEqual([2]))
+      expect(store.count()).toBe(18)
+      expect(store.find(realPhone)).toBeDefined()
+      expect(store.find(flood[0] as string)).toBeUndefined()
+      expect(store.find(flood[1] as string)).toBeUndefined()
+      expect(store.find(flood[2] as string)).toBeDefined()
+      expect(store.find(newest)).toBeDefined()
+      // A new phone fits again.
+      add(store, start + 200)
+      expect(store.count()).toBe(19)
+    } finally {
+      store.close()
+    }
+  })
+
+  it('removes nothing below the high-water mark, however old', async () => {
+    const removed: number[] = []
+    const store = storeWith(20, removed)
+    try {
+      for (let i = 0; i < 18; i++) add(store, Date.UTC(2020, 0, 1) + i)
+      await new Promise((resolve) => setTimeout(resolve, 120))
+      expect(removed).toEqual([])
+      expect(store.count()).toBe(18)
+    } finally {
+      store.close()
+    }
+  })
+})

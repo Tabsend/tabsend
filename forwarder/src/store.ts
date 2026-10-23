@@ -61,6 +61,38 @@ export interface DeviceStoreOptions {
   wakeFlushIntervalMs?: number
   /** Told about a flush that failed. The tallies are kept and tried again next time. */
   onFlushError?: (err: unknown) => void
+  /**
+   * The most rows `register` adds [2026-10-20, SECURITY_REVIEW G16]. A registration that
+   * replaces a phone's own row is always allowed. Defaults to no limit.
+   */
+  maxDevices?: number
+  /**
+   * How often the table is checked for a flood [2026-10-20 review of SECURITY_REVIEW G16].
+   * Defaults to once an hour. Only with `maxDevices`.
+   *
+   * Without it a full table refused every new phone for good, since nothing removes a
+   * sign-up for an invented address. When the table holds `TRIM_HIGH_WATER` of
+   * `maxDevices` or more, rows never rung are removed, oldest first, until it holds
+   * `TRIM_LOW_WATER`. Only under that pressure, because neither app signs up again on a
+   * schedule: an iPhone or an Android phone registers when it pairs and when Apple or
+   * Google gives it a new push address, and not otherwise, so a row removed is a phone
+   * unrung until it pairs again, with nothing to tell it. Real phones are therefore only
+   * at risk while a flood is filling the table, and then only those never rung.
+   *
+   * On a timer rather than at a sign-up: a sign-up that sometimes paid for a large delete
+   * would be slower in a way a caller could see; the timer runs whatever anyone does.
+   */
+  trimIntervalMs?: number
+  /** Told how many rows a trim removed, when it removed any. */
+  onTrimmed?: (removed: number) => void
+}
+
+/** `register` found the table full and the phone not in it. Nothing was written. */
+export class DeviceStoreFullError extends Error {
+  constructor() {
+    super('The forwarder holds as many phones as MAX_DEVICES allows.')
+    this.name = 'DeviceStoreFullError'
+  }
 }
 
 interface DeviceRow {
@@ -92,6 +124,12 @@ interface DeviceRowV2 {
 const SCHEMA_VERSION = 3
 
 const DEFAULT_WAKE_FLUSH_INTERVAL_MS = 60_000
+
+const DEFAULT_TRIM_INTERVAL_MS = 60 * 60 * 1000
+
+/** A trim starts at this share of `maxDevices`, and stops at the next. */
+export const TRIM_HIGH_WATER = 0.95
+export const TRIM_LOW_WATER = 0.9
 
 const DEVICES_TABLE = `
   CREATE TABLE devices (
@@ -147,6 +185,7 @@ export class DeviceStore {
     deleteByHash: Statement
     count: Statement
     flushedAt: Statement
+    trimUnrung: Statement
   }
   /** The register transaction, built once around the statements above. */
   private readonly registerTx: (params: RegisterParams) => { replaced: boolean }
@@ -154,7 +193,10 @@ export class DeviceStore {
   /** Wakes noted since the last flush, by token hash. Bounded by the number of devices. */
   private readonly pendingWakes = new Map<string, PendingWakes>()
   private readonly flushTimer: NodeJS.Timeout
+  private readonly trimTimer: NodeJS.Timeout | undefined
   private readonly onFlushError: ((err: unknown) => void) | undefined
+  /** Rows in the table, kept here so the ceiling costs no count per sign-up. */
+  private rows: number
 
   /**
    * Opens (creating if needed) the SQLite file, brings the schema up to date, and checks
@@ -162,6 +204,7 @@ export class DeviceStore {
    */
   constructor(databasePath: string, deviceTokenKey: Buffer, options: DeviceStoreOptions = {}) {
     this.box = new DeviceTokenBox(deviceTokenKey)
+    const maxDevices = options.maxDevices ?? Number.POSITIVE_INFINITY
     if (databasePath !== ':memory:') prepareFile(databasePath)
     this.db = new SQLite(databasePath)
     // WAL for the same reason the relay uses it: a reader never blocks the writer.
@@ -196,10 +239,24 @@ export class DeviceStore {
       flushedAt: this.db.prepare(
         "INSERT OR REPLACE INTO meta (key, value) VALUES ('wakes_flushed_at', ?)",
       ),
+      trimUnrung: this.db.prepare(
+        `DELETE FROM devices WHERE wake_token_hash IN (
+           SELECT wake_token_hash FROM devices
+            WHERE last_wake_at IS NULL AND wake_count = 0
+            ORDER BY created_at
+            LIMIT ?)`,
+      ),
     }
+    this.rows = (this.statements.count.get() as { n: number }).n
     this.registerTx = this.db.transaction((params: RegisterParams) => {
       const mac = this.box.index(params.deviceToken)
       const previous = this.statements.deleteByDeviceToken.run(mac)
+      // A flood of sign-ups for invented addresses is never rung, so nothing ever removes
+      // it; without a ceiling it grew until the disk the relay shares was full [G16]. In
+      // the transaction, so two sign-ups at once cannot both take the last place.
+      if (previous.changes === 0 && this.rows >= maxDevices) {
+        throw new DeviceStoreFullError()
+      }
       this.statements.insert.run(
         params.wakeTokenHash,
         params.platform,
@@ -208,6 +265,7 @@ export class DeviceStore {
         params.environment,
         params.now,
       )
+      this.rows += 1 - previous.changes
       return { replaced: previous.changes > 0 }
     })
     this.flushTx = this.db.transaction((entries: [string, PendingWakes][], at: number) => {
@@ -231,6 +289,33 @@ export class DeviceStore {
       }
     }, options.wakeFlushIntervalMs ?? DEFAULT_WAKE_FLUSH_INTERVAL_MS)
     this.flushTimer.unref()
+    if (Number.isFinite(maxDevices)) {
+      // A fixed schedule, whatever rings or sign-ups happen: nothing about it follows a
+      // token (PROTOCOL.md §4), and no sign-up pays for it.
+      this.trimTimer = setInterval(() => {
+        try {
+          const removed = this.trimIfFull(maxDevices)
+          if (removed > 0) options.onTrimmed?.(removed)
+        } catch (err) {
+          this.onFlushError?.(err)
+        }
+      }, options.trimIntervalMs ?? DEFAULT_TRIM_INTERVAL_MS)
+      this.trimTimer.unref()
+    }
+  }
+
+  /**
+   * At `TRIM_HIGH_WATER` of `maxDevices` or more, remove rows never rung, oldest first,
+   * down to `TRIM_LOW_WATER`. The tallies are written out first, so a row rung in the last
+   * minute is not mistaken for one never rung; if they cannot be, nothing is removed.
+   */
+  trimIfFull(maxDevices: number): number {
+    if (this.rows < Math.floor(maxDevices * TRIM_HIGH_WATER)) return 0
+    this.flushWakes()
+    const excess = this.rows - Math.floor(maxDevices * TRIM_LOW_WATER)
+    const { changes } = this.statements.trimUnrung.run(excess)
+    this.rows -= changes
+    return changes
   }
 
   /**
@@ -444,7 +529,9 @@ export class DeviceStore {
    *  whether a row went. */
   delete(wakeTokenHash: string): boolean {
     this.pendingWakes.delete(wakeTokenHash)
-    return this.statements.deleteByHash.run(wakeTokenHash).changes > 0
+    const { changes } = this.statements.deleteByHash.run(wakeTokenHash)
+    this.rows -= changes
+    return changes > 0
   }
 
   /** Registered devices. Operator-facing aggregate; not served on any public route. */
@@ -456,6 +543,7 @@ export class DeviceStore {
   /** Write any noted wakes, then close. */
   close(): void {
     clearInterval(this.flushTimer)
+    clearInterval(this.trimTimer)
     try {
       this.flushWakes()
     } catch (err) {

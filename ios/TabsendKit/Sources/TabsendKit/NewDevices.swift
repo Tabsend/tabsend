@@ -3,9 +3,9 @@ import Foundation
 /// The "new device joined" notice (PLANS.md P-10), iOS half.
 ///
 /// A line-for-line mirror of `shared/src/newdevices.ts` (`watchDevices`,
-/// `confirmNewDevice`, `listIncludesSelf`, `endpointsKnownTo`, `rotationDue`,
-/// `rotationDone`). The rule and its reasons are written down there; the short
-/// version is that each client remembers the device ids in the last list it fetched
+/// `confirmNewDevice`, `listIncludesSelf`, `endpointsKnownTo`, `heldTabChoices`,
+/// `rotationDue`, `rotationDone`). The rule and its reasons are written down there;
+/// the short version is that each client remembers the device ids in the last list it fetched
 /// and compares every new fetch against them. It never trusts the relay's
 /// `endpoint_added` event, because a compromised relay would simply not send it.
 ///
@@ -347,6 +347,24 @@ public enum NewDevices {
                 && !removed.contains(endpoint.id)
                 && !(unanswered.contains(endpoint.id) && heldKeys.contains(endpoint.e2ePubkey))
                 && (watch.keys == nil || watch.keys?[endpoint.id] == endpoint.e2ePubkey)
+        }
+    }
+
+    /// The devices a held tab whose device is gone may be moved to (P-15 item 3,
+    /// SECURITY_REVIEW L3): those this watch has accepted (`endpointsKnownTo`, so
+    /// never one this phone removed), never this phone or a console, and none the
+    /// user has not answered yet, a pending "new device" notice or the first-look
+    /// card. The relay decides when a held tab asks for a new device, so it must not
+    /// also decide what is offered. The device the tab was for is not left out: once
+    /// accepted again it is a fair choice. In list order; the screen sorts. A watch
+    /// that belongs to another pairing offers nothing.
+    public static func heldTabChoices(
+        _ watch: NewDeviceWatch?, _ list: [Endpoint], selfId: String
+    ) -> [Endpoint] {
+        guard let watch, watch.selfId == selfId else { return [] }
+        let unanswered = Set((watch.unconfirmed + (watch.review ?? [])).map(\.id))
+        return endpointsKnownTo(watch, list).filter {
+            $0.id != selfId && $0.kind != "console" && !unanswered.contains($0.id)
         }
     }
 

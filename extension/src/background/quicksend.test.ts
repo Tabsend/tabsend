@@ -71,11 +71,14 @@ vi.mock('./send', () => ({
 }))
 
 const showFeedback = vi.fn(async () => true)
+const ORIGIN = { tabId: TAB_ID, url: 'https://example.com/relay' }
+let activeOrigin: { tabId: number; url: string } | undefined = ORIGIN
 vi.mock('./feedback', () => ({
   showFeedback: (...args: unknown[]) => showFeedback(...(args as [])),
+  activeOrigin: async () => activeOrigin,
 }))
 
-import { flushUndo, quickSend } from './quicksend'
+import { flushUndo, quickSend, undoSend } from './quicksend'
 
 function bannerOf(call: unknown[]): SendBanner {
   return call[0] as SendBanner
@@ -84,6 +87,7 @@ function bannerOf(call: unknown[]): SendBanner {
 beforeEach(() => {
   vi.useFakeTimers()
   pendingUndo = null
+  activeOrigin = ORIGIN
   settings.showSuccessToast = true
   sendToTarget.mockClear()
   showFeedback.mockClear()
@@ -108,11 +112,41 @@ describe('quickSend', () => {
   it('shows the banner on the tab it was fired from, with an Undo affordance', async () => {
     await quickSend()
     const opts = (showFeedback.mock.calls[0] as unknown[])[1] as {
-      tabId?: number
+      origin?: { tabId: number; url: string }
+      titleFrom?: string
       undoId?: string
     }
-    expect(opts.tabId).toBe(TAB_ID)
+    // The tab AND its page, so the banner is drawn only while that page shows (L8).
+    expect(opts.origin).toEqual(ORIGIN)
+    // The title is the sent tab's own, so the page may show it.
+    expect(opts.titleFrom).toBe(payload.url)
     expect(opts.undoId).toBeTruthy()
+  })
+})
+
+describe('undoSend (SECURITY_REVIEW L8)', () => {
+  it('cancels the armed send when asked from the tab its banner is on', async () => {
+    await quickSend()
+    const { undoId } = (showFeedback.mock.calls[0] as unknown[])[1] as { undoId: string }
+    await undoSend(undoId, TAB_ID)
+    await flushUndo(true)
+    expect(sendToTarget).not.toHaveBeenCalled()
+  })
+
+  it('ignores the same Undo from any other tab, or from no tab at all', async () => {
+    await quickSend()
+    const { undoId } = (showFeedback.mock.calls[0] as unknown[])[1] as { undoId: string }
+    await undoSend(undoId, TAB_ID + 1)
+    await undoSend(undoId, undefined)
+    await flushUndo(true)
+    expect(sendToTarget).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores an Undo for a different send', async () => {
+    await quickSend()
+    await undoSend('not-this-send', TAB_ID)
+    await flushUndo(true)
+    expect(sendToTarget).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -125,14 +159,24 @@ describe('flushUndo', () => {
     const [targetId, sentPayloads, opts] = sendToTarget.mock.calls[0] as unknown as [
       string,
       SendPayload[],
-      { feedbackTabId?: number },
+      { origin?: { tabId: number; url: string } | null },
     ]
     expect(targetId).toBe('arc-1')
     // The held batch dispatches whole — one payload per tab that was selected.
     expect(sentPayloads).toEqual([payload])
     // Without this the real outcome would land on whatever tab happened to be
     // active seconds later — or nowhere at all, which is what used to happen.
-    expect(opts.feedbackTabId).toBe(TAB_ID)
+    expect(opts.origin).toEqual(ORIGIN)
+  })
+
+  it('with no tab to come back to, says the outcome on the badge alone, never the active tab', async () => {
+    activeOrigin = undefined // e.g. fired from a window with no web page in front
+    await quickSend()
+    await flushUndo(true)
+    const opts = (sendToTarget.mock.calls[0] as unknown as [string, SendPayload[], object])[2]
+    // `null`, not absent: absent would let sendToTarget pick the tab in front
+    // four seconds later, which is the page L8 is about.
+    expect(opts).toEqual({ origin: null })
   })
 
   it('does nothing when nothing is armed', async () => {

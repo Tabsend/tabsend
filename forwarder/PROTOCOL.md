@@ -97,7 +97,33 @@ phone registers at a forwarder with no Google credentials, or an iPhone at one w
 credentials. Refused rather than accepted, because the alternative is a phone that believes
 it is set up and never rings — the failure §10 exists to prevent. This is the one error code
 that is about the deployment rather than the request, and it says nothing about any token,
-so §4's oracle argument does not reach it.
+so §4's oracle argument does not reach it. Since 2026-10-20 an Android phone also gets `501`
+while the forwarder's last attempt to get an access token from Google failed (a deleted or
+wrong key, a skewed clock): until then such a forwarder signed phones up that it could not
+ring, which is worse than refusing them (`docs/SECURITY_REVIEW.md` G13). It takes them again
+as soon as an exchange succeeds.
+
+**A forwarder that holds `MAX_DEVICES` phones answers `503 unavailable`** to a phone it does
+not already hold [2026-10-20, G16]. A phone already registered can always register again,
+since that replaces its own row. Without a ceiling a flood of sign-ups for invented
+addresses, which are never rung and so never cleaned up, grew until the disk the forwarder
+shares with a relay was full. A Google token is at most 512 characters for the same reason
+(it was 1024). Both refusals are about the deployment; the one thing a full table tells a
+caller is whether a push address it already holds is registered, and holding the address
+already lets it register it.
+
+**A nearly full table is trimmed** [2026-10-20], so a flood cannot hold it full for good:
+once an hour, on a fixed schedule, a table at 95% of `MAX_DEVICES` or more loses its oldest
+rows that were never rung, down to 90%. Nothing is removed below 95%, whatever its age:
+neither app signs up again on a schedule (an iPhone or an Android phone registers when it
+pairs and when Apple or Google gives it a new push address), so a removed row is a phone
+unrung until it pairs again, with nothing to tell it. Real phones are at risk only while a
+flood is filling the table, and then only those never rung. On the timer rather than at a
+sign-up, so no sign-up is sometimes slower for paying for it.
+
+**Not cleaned up at all: the row of a phone that was rung and whose relay then went
+away.** Telling that apart from a phone whose relay is only quiet needs the apps to sign
+up again on a schedule, which they do not (`docs/SECURITY_REVIEW.md`, G26).
 
 **Registering a device token that is already known REPLACES its wake token.** The old one
 stops working the instant the new one is minted, in the same transaction. This is the
@@ -322,12 +348,11 @@ Two corollaries, so this is not quietly undone later:
   over the whole window could still accumulate a live token's extra work over enough
   samples, and the delay gives the most cover when other traffic is there to hide in.
   Every sample rings the victim's phone, and the per-device limit allows six a minute.
-  One rarer case is in the same spirit: after Google closes the connection, a ring that
-  comes in the pause before the background reconnect (one to thirty seconds) opens one
-  itself. A prober cannot cause that, but could be lucky. That residual is accepted and
-  stated here rather than claimed away. Not accepted, only not yet done: the Apple
-  sender still opens its connection on a ring, so an iPhone ring that finds it closed
-  pays for a new one after its reply (`docs/SECURITY_REVIEW.md`, G25).
+  One rarer case is in the same spirit: after Apple or Google closes the connection, a ring
+  that comes in the pause before the background reconnect (one to thirty seconds) opens
+  one itself. A prober cannot cause that, but could be lucky. That residual is accepted and stated here rather than claimed away. The Apple sender opened
+  its connection on a ring until 2026-10-20; it now keeps it open as the Google sender
+  does (`docs/SECURITY_REVIEW.md`, G25).
 
   This also removes a mismatch that was operationally silly on its own: a relay gives up on
   the doorbell in about three seconds, while the APNs call is allowed five, so the last two
@@ -448,7 +473,7 @@ A wake is a doorbell. More than a few rings a minute is abuse, not traffic.
 |---|---|---|---|
 | Wakes per token | SHA-256 of the presented token | 6 / 60s | One phone cannot need more. Bounds what a leaked token can do to one person's battery. Over it, a wake is answered 202 and not rung (§4). |
 | Wakes per caller | client IP | 120 / 60s | Bounds a hostile or broken relay, and the enumeration described in §4. A hosted relay is one caller for all of its tenants, so size this to the relay's phones, Android phones included (`CALLER_RATE_LIMIT_MAX`, §10). |
-| Registrations per caller | client IP | 10 / 600s | Registration is the only route that writes a new row. |
+| Registrations per caller | client IP, an IPv6 address by its /64 | 10 / 600s | Registration is the only route that writes a new row. A /64 is what one subscriber or one server is normally given, so keyed per address one connection had 2^64 allowances (`docs/SECURITY_REVIEW.md` G16). The two wake limits keep the whole address: some hosts put several customers' servers, and so several relays, in one /64, and a wake writes nothing. |
 
 Fixed-window, in-memory, per-process, and keyed by caller address, which is therefore
 held until a timed sweep finds its window closed, within two windows of the last call
@@ -576,8 +601,19 @@ header of each APNs request.
 - **The key never leaves the forwarder.** It cannot be given to self-hosters (P-5: it is not
   per-user, and anyone holding it could notify every Tabsend user). That single fact is the
   whole reason this service exists rather than being a relay feature.
-- **HTTP/2 via `node:http2`**, because APNs speaks nothing else. One long-lived session per
-  environment, re-established on failure. No HTTP client dependency.
+- **HTTP/2 via `node:http2`**, because APNs speaks nothing else. One kept session per
+  environment, handled exactly as Google's is below (`src/h2-session.ts`): both are opened
+  at start-up and kept open with a PING every two minutes and replaced in the background
+  when they close. At most `APNS_MAX_IN_FLIGHT` rings (64) wait on Apple at once.
+  Rings on a new connection wait for Apple's settings. Until 2026-10-20 the connection was
+  opened on a ring and its streams sent at once, which lost every ring past the few Apple
+  takes before its settings arrive (fifty at once against a limit of two delivered two;
+  `docs/SECURITY_REVIEW.md` G25). No HTTP client dependency.
+- **The credential is checked once at start-up** [2026-10-20]: one ring to an invented
+  device (64 zeros), read as `ok` on `400 BadDeviceToken` and as refused on a `403`,
+  logged as one `apns credential check: …` line (README, "Running your own"). Apple does
+  not document the order it checks a request in, so `ok` is what is observed, not what is
+  promised.
 
 ### 9.2 FCM
 
@@ -594,7 +630,12 @@ nothing to keep in sync beside it.
   timer, five minutes before expiry, with back-off when Google refuses, so no ring pays for
   an exchange (§4); a ring exchanges for itself only when there is no usable token at all.
   Concurrent callers share one exchange rather than starting one each, and a failed
-  exchange is not cached.
+  exchange is not cached. Since 2026-10-20 (`docs/SECURITY_REVIEW.md` G13, G17): the key
+  must be RSA, which is all Google accepts; a failed exchange starts a back-off (30 s,
+  doubling to 10 minutes) that holds for rings too, so a ring inside it fails at once
+  instead of signing and posting an assertion of its own; an empty token, or one with no
+  lifetime, is never cached; a `401` on a send drops the token and fetches another at once,
+  at most every 30 seconds; and the exchange follows no redirect and reads at most 64 KiB.
 - **The credential never leaves the forwarder**, exactly as Apple's does not. The client
   values that ship inside the Android app (`google-services.json`'s project id, app id, api
   key and sender id) are not credentials and cannot send a push; this service holds the one
@@ -606,6 +647,13 @@ nothing to keep in sync beside it.
   sends it away, or the network drops it) the next one is opened in the background after a
   random pause of one to thirty seconds, never on a ring. A reply is read up to 64 KiB and
   no further.
+- **Bounded, and it backs off when Google asks** [2026-10-20, G17]. At most
+  `FCM_MAX_IN_FLIGHT` rings (64) wait on Google at once; past that a ring is dropped at once
+  rather than queued (600 rings against a stalled Google used to add 145 MB on a 1 GB
+  machine). A `429` or `503` pauses every send for as long as its `Retry-After` says (at
+  most an hour), or for a minute after a `429` and ten seconds after a `503` that says
+  nothing; rings in the pause are dropped. A dropped ring is what a refused ring always
+  was: the phone picks up when it next checks in or opens (§7).
 - **A new connection's first rings wait for Google's settings**, inside their own deadline.
   Before those arrive Node assumes a server takes a hundred streams at once and sends that
   many, and a server allowing fewer refuses the rest (fifty rings at once against a limit
@@ -658,17 +706,20 @@ that names the environment mismatch and says where to check.
 | `APNS_TEAM_ID` | — | Required. The 10-character Apple team id. |
 | `APNS_TOPIC` | `io.tabsend.app` | The app bundle id. |
 | `APNS_DEFAULT_ENVIRONMENT` | `production` | Used when a registration omits `environment`. |
-| `APNS_TIMEOUT_MS` | `5000` | Per-request ceiling on the Apple call. |
+| `APNS_TIMEOUT_MS` | `5000` | Per-request ceiling on the Apple call. A whole number from 100 to 60000. |
 | `APNS_DRY_RUN` | off | Run with no Apple key at all: every wake is accepted and dropped. Local development only. |
 | `FCM_SERVICE_ACCOUNT_PATH` | — | Path to the Firebase service-account JSON. Exactly one of this and `FCM_SERVICE_ACCOUNT_JSON`. Absent ⇒ this forwarder refuses Android registrations with `501`. |
 | `FCM_SERVICE_ACCOUNT_JSON` | — | The same credential inline, for a secret store that injects env rather than files. |
-| `FCM_TIMEOUT_MS` | `5000` | Per-request ceiling on the Google call. |
+| `FCM_TIMEOUT_MS` | `5000` | Per-request ceiling on the Google call. A whole number from 100 to 60000. |
+| `FCM_MAX_IN_FLIGHT` | `64` | Android rings allowed to wait on Google at once (§9.2). |
+| `APNS_MAX_IN_FLIGHT` | `64` | iPhone rings allowed to wait on Apple at once (§9.1). |
 | `FCM_DRY_RUN` | off | Run with no Google credential: every Android wake is accepted and dropped. Local development only. |
 | `TRUST_PROXY` | off | Read `X-Forwarded-For` for the per-caller rate-limit key. |
 | `MAX_BODY_BYTES` | `4096` | Bodies here are one short string. A small cap is itself a guard. |
 | `WAKE_RATE_LIMIT_MAX` / `WAKE_RATE_LIMIT_WINDOW_SECONDS` | `6` / `60` | Per token. |
 | `CALLER_RATE_LIMIT_MAX` / `CALLER_RATE_LIMIT_WINDOW_SECONDS` | `120` / `60` | Per caller IP. |
-| `REGISTER_RATE_LIMIT_MAX` / `REGISTER_RATE_LIMIT_WINDOW_SECONDS` | `10` / `600` | Per caller IP. |
+| `REGISTER_RATE_LIMIT_MAX` / `REGISTER_RATE_LIMIT_WINDOW_SECONDS` | `10` / `600` | Per caller IP, an IPv6 address by its /64. |
+| `MAX_DEVICES` | `200000` | Phones held at most (§3.1). About 1.2 KB of disk each at the longest token. |
 | `LOG_LEVEL` | `info` | Fastify/pino level. |
 
 **At least one provider must be configured, and partial credentials are still refused.** A

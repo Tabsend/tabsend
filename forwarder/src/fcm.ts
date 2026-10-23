@@ -1,12 +1,5 @@
-import { randomInt } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import {
-  type ClientHttp2Session,
-  type ClientHttp2Stream,
-  connect,
-  constants,
-  type SecureClientSessionOptions,
-} from 'node:http2'
+import { constants, type SecureClientSessionOptions } from 'node:http2'
 import type { Config, FcmConfig } from './config'
 import {
   FcmTokenSource,
@@ -16,6 +9,7 @@ import {
   type TokenExchange,
   unrefScheduler,
 } from './fcm-auth'
+import { KEEPALIVE_MS, KeptSession } from './h2-session'
 import type { WakeOutcome } from './outcome'
 
 /**
@@ -37,6 +31,12 @@ export interface FcmWakeRequest {
 
 export interface FcmSender {
   wake(request: FcmWakeRequest): Promise<WakeOutcome>
+  /**
+   * Whether an Android phone should be let sign up now [2026-10-20, SECURITY_REVIEW G13].
+   * False while this forwarder cannot get an access token from Google: a phone that signed
+   * up then would close its own connection and never be rung.
+   */
+  acceptsRegistrations(): boolean
   close(): Promise<void>
 }
 
@@ -47,40 +47,23 @@ const SEND_PATH = (projectId: string) =>
   `/v1/projects/${encodeURIComponent(projectId)}/messages:send`
 
 /**
- * How often the connection to Google is checked with a PING [2026-10-02, SECURITY_REVIEW
- * G14 and its verification pass].
- *
- * The connection is opened at start-up and kept open, so no ring pays for a new one after
- * its reply. That cost, about 3 ms of TLS and HTTP/2 set-up, is work only a live Android
- * token causes, and it can be read from outside: `fetch` paid it on most rings, because
- * it dropped an idle connection after four seconds, and closing after four idle minutes
- * still let a prober who spaced its rings further apart than that tell a live token from
- * a dead one in about sixty rings. The PING runs on a fixed schedule that no ring moves.
- * It keeps the connection's path open through the usual cloud NAT idle limits (four
- * minutes on Azure, 350 seconds on AWS, ten on Google Cloud), and finds a connection that
- * died without saying so before a ring does. If Google closes the connection, for any
- * reason, objecting to the PINGs included, another is opened in the background.
+ * The connection to Google is opened at start-up and kept, checked on a schedule and
+ * replaced in the background (`h2-session.ts`, SECURITY_REVIEW G14). Kept as its own name
+ * because PROTOCOL.md §9.2 cites it.
  */
-export const FCM_KEEPALIVE_MS = 2 * 60 * 1000
+export const FCM_KEEPALIVE_MS = KEEPALIVE_MS
 
 /**
- * After the connection closes, the next one is opened in the background after a random
- * pause in this range: never on a ring, and never at a moment set by when the last live
- * ring was (a server that closes idle connections would otherwise time the reconnect off
- * it). A ring that comes during the pause opens one itself.
+ * How long sends pause after a 429 or 503 that names no `Retry-After` [2026-10-20,
+ * SECURITY_REVIEW G17]. Google asks a rate-limited sender (429) to wait at least a minute,
+ * and an unavailable one (503) to back off; ten seconds is the start of its suggested
+ * back-off.
  */
-const RECONNECT_MIN_MS = 1_000
-const RECONNECT_MAX_MS = 30_000
+const DEFAULT_PAUSE_MS: Record<number, number> = { 429: 60 * 1000, 503: 10 * 1000 }
 
-/**
- * Unanswered rings in a row after which a connection that still answers PINGs is
- * replaced anyway: something between here and Google that keeps the connection and loses
- * the requests.
- */
-const MAX_UNANSWERED = 3
-
-/** Google's error answers are a few hundred bytes. Past this, the rest is not read. */
-const MAX_REPLY_BYTES = 64 * 1024
+/** Nor longer than this, whatever `Retry-After` says. Delivery degrades to drain-on-open
+ *  meanwhile, which is the no-forwarder behaviour (PROTOCOL.md §7), not an outage. */
+const MAX_PAUSE_MS = 60 * 60 * 1000
 
 /**
  * A doorbell that stops ringing after five minutes, matching APNs. Past that the phone
@@ -124,6 +107,9 @@ export class NoopFcmSender implements FcmSender {
   async wake(): Promise<WakeOutcome> {
     return { ok: true }
   }
+  acceptsRegistrations(): boolean {
+    return true
+  }
   async close(): Promise<void> {}
 }
 
@@ -135,7 +121,13 @@ export class FakeFcmSender implements FcmSender {
   /** When set, every wake blocks on this promise after being RECORDED, which is what
    *  lets a test prove the route replied without waiting for Google. */
   gate: Promise<void> | null = null
+  /** When set, sign-ups are refused, as when Google refuses the forwarder's credential. */
+  refusingRegistrations = false
   closed = false
+
+  acceptsRegistrations(): boolean {
+    return !this.refusingRegistrations
+  }
 
   async wake(request: FcmWakeRequest): Promise<WakeOutcome> {
     this.calls.push(request)
@@ -171,50 +163,33 @@ export interface HttpFcmSenderOptions {
   keepAliveMs?: number
   /** Test seam: the pause before a background reconnect. Production picks at random. */
   reconnectDelayMs?: () => number
+  /** Test seam: the clock that times a pause Google asked for. */
+  now?: () => number
 }
 
 /**
- * The real client: HTTP/2 to Google over one session, opened at start-up, kept open and
- * re-established in the background whenever it closes. It used to be plain `fetch`, which
- * dropped the connection after four seconds idle; see `FCM_KEEPALIVE_MS`.
+ * The real client: HTTP/2 to Google over one kept session (`h2-session.ts`). It used to be
+ * plain `fetch`, which dropped the connection after four seconds idle; see
+ * `FCM_KEEPALIVE_MS`.
  */
 export class HttpFcmSender implements FcmSender {
   private readonly tokens: FcmTokenSource
   private readonly projectId: string
-  private readonly timeoutMs: number
-  private readonly origin: string
-  private readonly connectOptions: SecureClientSessionOptions | undefined
-  private session: ClientHttp2Session | undefined
-  /**
-   * Settles once the current session's server has sent its settings, or the session has
-   * gone. A ring opens its stream only after that [2026-10-02]: on a new connection Node
-   * sends streams before the server has said how many it takes, assuming a hundred, and
-   * the server refuses whatever is past its real limit (fifty rings at once against a
-   * limit of two lost forty-eight). Once the settings have arrived, Node queues streams
-   * past the limit itself. `fetch`, which this replaced, took care of both.
-   */
-  private ready: Promise<void> = Promise.resolve()
-  /** Sessions whose server has sent its settings, so they finished setting up. */
-  private readonly greeted = new WeakSet<ClientHttp2Session>()
-  /** Sessions with a liveness check in flight, so a burst of timeouts sends one PING. */
-  private readonly checking = new WeakSet<ClientHttp2Session>()
-  /** Unanswered rings in a row, per session. Any answer resets it. */
-  private readonly unanswered = new WeakMap<ClientHttp2Session, number>()
-  /** When each session was opened, to judge one that never finished setting up. */
-  private readonly openedAt = new WeakMap<ClientHttp2Session, number>()
-  private running = true
-  private readonly keepAliveTimer: NodeJS.Timeout
-  private readonly reconnectDelayMs: () => number
-  private reconnectTimer: NodeJS.Timeout | undefined
+  private readonly connection: KeptSession
+  private readonly maxInFlight: number
+  private readonly now: () => number
+  /** Rings between their start and their outcome, the wait for a token included. */
+  private inFlight = 0
+  /** Until when Google asked for no sends (`Retry-After`). */
+  private pausedUntil = 0
 
   constructor(config: FcmConfig, options: HttpFcmSenderOptions = {}) {
     const json =
       config.serviceAccountJson ?? readFileSync(config.serviceAccountPath as string, 'utf8')
     const account = loadServiceAccount(json)
     this.projectId = account.projectId
-    this.timeoutMs = config.timeoutMs
-    this.origin = options.origin ?? FCM_ORIGIN
-    this.connectOptions = options.connectOptions
+    this.maxInFlight = config.maxInFlight
+    this.now = options.now ?? (() => Date.now())
     this.tokens = new FcmTokenSource(
       account,
       config.timeoutMs,
@@ -226,87 +201,43 @@ export class HttpFcmSender implements FcmSender {
     // The first exchange happens now, at boot, rather than on the first ring.
     this.tokens.start()
     // And the connection is opened now and kept (`FCM_KEEPALIVE_MS`).
-    this.reconnectDelayMs =
-      options.reconnectDelayMs ?? (() => randomInt(RECONNECT_MIN_MS, RECONNECT_MAX_MS + 1))
-    this.keepAliveTimer = setInterval(
-      () => this.keepAlive(),
-      options.keepAliveMs ?? FCM_KEEPALIVE_MS,
-    )
-    this.keepAliveTimer.unref()
-    this.connection()
-  }
-
-  /**
-   * Reuse the live session, or open one. A session Google has sent away reads as closed
-   * (Node closes it on a GOAWAY), so it is replaced here rather than reused. Normally the
-   * background has opened one already and a ring only ever reuses it.
-   */
-  private connection(): ClientHttp2Session {
-    const existing = this.session
-    if (existing && !existing.closed && !existing.destroyed) return existing
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = undefined
-    }
-    const session = this.connectOptions
-      ? connect(this.origin, this.connectOptions)
-      : connect(this.origin)
-    this.openedAt.set(session, Date.now())
-    this.ready = new Promise<void>((resolve) => {
-      session.once('remoteSettings', () => {
-        this.greeted.add(session)
-        resolve()
-      })
-      session.once('close', () => resolve())
-      session.once('error', () => resolve())
+    this.connection = new KeptSession({
+      origin: options.origin ?? FCM_ORIGIN,
+      ...(options.connectOptions ? { connectOptions: options.connectOptions } : {}),
+      timeoutMs: config.timeoutMs,
+      ...(options.keepAliveMs ? { keepAliveMs: options.keepAliveMs } : {}),
+      ...(options.reconnectDelayMs ? { reconnectDelayMs: options.reconnectDelayMs } : {}),
     })
-    // A dead session must not poison every later wake: forget it and open the next in
-    // the background. An unhandled 'error' on an http2 session would end the process. A
-    // GOAWAY counts: the session takes no new streams from then on, though it may stay
-    // open until the rings already on it finish.
-    const forget = () => {
-      if (this.session !== session) return
-      this.session = undefined
-      this.reconnectLater()
-    }
-    session.on('error', forget)
-    session.on('close', forget)
-    session.on('goaway', forget)
-    this.session = session
-    return session
   }
 
-  /** Open the next connection in the background, after a random pause. */
-  private reconnectLater(): void {
-    if (!this.running || this.reconnectTimer) return
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = undefined
-      if (!this.running) return
-      try {
-        this.connection()
-      } catch {
-        // Thrown out of a timer, this would end the process. Try again after another pause.
-        this.reconnectLater()
-      }
-    }, this.reconnectDelayMs())
-    this.reconnectTimer.unref()
-  }
-
-  /**
-   * The fixed-schedule check (`FCM_KEEPALIVE_MS`): a connection that finished setting up is
-   * sent a PING, and one that has not within a ring's deadline is dropped.
-   */
-  private keepAlive(): void {
-    const session = this.session
-    if (!session || session.closed || session.destroyed) return
-    if (this.greeted.has(session)) {
-      this.check(session)
-    } else if (Date.now() - (this.openedAt.get(session) ?? 0) > this.timeoutMs) {
-      session.destroy()
-    }
+  acceptsRegistrations(): boolean {
+    return this.tokens.healthy
   }
 
   async wake(request: FcmWakeRequest): Promise<WakeOutcome> {
+    // [2026-10-20, SECURITY_REVIEW G17] Google asked for a pause: no send until it is over.
+    // The ring is dropped, as any ring Google refused is; the phone collects when it next
+    // checks in or opens.
+    if (this.now() < this.pausedUntil) {
+      return failed(
+        `Paused: Google asked for no sends for another ${Math.ceil((this.pausedUntil - this.now()) / 1000)} s`,
+      )
+    }
+    // [G17] A ceiling on rings in flight. With Google stalled, rings used to pile up without
+    // limit: 600 of them added 145 MB on a machine with 1 GB. Past the ceiling a ring is
+    // dropped at once rather than queued.
+    if (this.inFlight >= this.maxInFlight) {
+      return failed(`Busy: ${this.maxInFlight} rings already waiting on Google`)
+    }
+    this.inFlight += 1
+    try {
+      return await this.send(request)
+    } finally {
+      this.inFlight -= 1
+    }
+  }
+
+  private async send(request: FcmWakeRequest): Promise<WakeOutcome> {
     let accessToken: string
     try {
       accessToken = await this.tokens.current()
@@ -314,7 +245,7 @@ export class HttpFcmSender implements FcmSender {
       // A credential problem is the forwarder's, not the device's. Never `deviceGone`:
       // dropping rows because our own key is wrong would empty the table on a
       // misconfiguration.
-      return { ok: false, deviceGone: false, status: 0, reason: (err as Error).message }
+      return failed((err as Error).message)
     }
 
     const body = JSON.stringify({
@@ -332,137 +263,53 @@ export class HttpFcmSender implements FcmSender {
       },
     })
 
-    return await new Promise<WakeOutcome>((resolve) => {
-      let settled = false
-      let stream: ClientHttp2Stream | undefined
-      let timer: NodeJS.Timeout | undefined
-      const finish = (outcome: WakeOutcome) => {
-        if (settled) return
-        settled = true
-        clearTimeout(timer)
-        resolve(outcome)
-      }
-      const failed = (reason: string): WakeOutcome => ({
-        ok: false,
-        deviceGone: false,
-        status: 0,
-        reason,
-      })
-
-      let session: ClientHttp2Session
-      try {
-        session = this.connection()
-      } catch (err) {
-        finish(failed((err as Error).message))
-        return
-      }
-      // One deadline for the whole ring, the wait for a new connection's settings included.
-      timer = setTimeout(() => {
-        stream?.close(constants.NGHTTP2_CANCEL)
-        finish(failed('Timeout'))
-        this.suspect(session)
-      }, this.timeoutMs)
-      void this.ready.then(() => {
-        // A ring that ran out of time while waiting is not sent afterwards.
-        if (settled) return
-        let open: ClientHttp2Stream
-        try {
-          open = session.request({
-            [constants.HTTP2_HEADER_METHOD]: 'POST',
-            [constants.HTTP2_HEADER_PATH]: SEND_PATH(this.projectId),
-            [constants.HTTP2_HEADER_AUTHORIZATION]: `Bearer ${accessToken}`,
-            [constants.HTTP2_HEADER_CONTENT_TYPE]: 'application/json',
-            [constants.HTTP2_HEADER_CONTENT_LENGTH]: Buffer.byteLength(body),
-          })
-        } catch (err) {
-          finish(failed((err as Error).message))
-          return
-        }
-        stream = open
-        let status = 0
-        let size = 0
-        const chunks: Buffer[] = []
-        open.on('response', (headers) => {
-          status = Number(headers[constants.HTTP2_HEADER_STATUS] ?? 0)
-          this.unanswered.delete(session)
-        })
-        open.on('data', (chunk: Buffer) => {
-          size += chunk.length
-          if (size > MAX_REPLY_BYTES) {
-            open.close(constants.NGHTTP2_CANCEL)
-            finish(outcomeOf(status, Buffer.concat(chunks)))
-            return
-          }
-          chunks.push(chunk)
-        })
-        open.on('end', () => finish(outcomeOf(status, Buffer.concat(chunks))))
-        open.on('error', (err: Error) => finish(failed(err.message)))
-        // A stream reset or a session closed under it ends without 'end' or 'error'.
-        open.on('close', () =>
-          finish(status === 0 ? failed('Closed') : outcomeOf(status, Buffer.concat(chunks))),
-        )
-        open.end(body)
-      })
-    })
-  }
-
-  /**
-   * A ring went unanswered for its whole deadline, so the connection may be dead without
-   * having said so [2026-10-02 verification pass]. A connection that is kept open is
-   * closed by nothing a ring does: one that stalled while being set up, or went silent
-   * afterwards (a dropped route, a NAT that forgot it), would fail every ring after it.
-   * `fetch` reconnected after four idle seconds, which hid this. The scheduled PING
-   * (`FCM_KEEPALIVE_MS`) usually finds such a connection first; this is for the ring
-   * that finds it before the PING does.
-   *
-   * Not set up within a whole deadline: dropped now. Set up: asked with a PING, and
-   * dropped unless Google answers within the same deadline, or after `MAX_UNANSWERED`
-   * rings in a row went unanswered even so. Either way a fresh connection replaces it.
-   */
-  private suspect(session: ClientHttp2Session): void {
-    if (session.closed || session.destroyed) return
-    if (!this.greeted.has(session)) {
-      session.destroy()
-      return
+    const reply = await this.connection.request(
+      {
+        [constants.HTTP2_HEADER_METHOD]: 'POST',
+        [constants.HTTP2_HEADER_PATH]: SEND_PATH(this.projectId),
+        [constants.HTTP2_HEADER_AUTHORIZATION]: `Bearer ${accessToken}`,
+        [constants.HTTP2_HEADER_CONTENT_TYPE]: 'application/json',
+        [constants.HTTP2_HEADER_CONTENT_LENGTH]: Buffer.byteLength(body),
+      },
+      body,
+    )
+    if (!reply.answered) return failed(reply.reason)
+    // [G17] Google no longer takes this access token: drop it rather than use it for the
+    // rest of its hour.
+    if (reply.status === 401) this.tokens.invalidate(accessToken)
+    if (reply.status === 429 || reply.status === 503) {
+      const pause =
+        retryAfterMs(reply.headers['retry-after'], this.now()) ??
+        (DEFAULT_PAUSE_MS[reply.status] as number)
+      this.pausedUntil = Math.max(this.pausedUntil, this.now() + Math.min(pause, MAX_PAUSE_MS))
     }
-    const unanswered = (this.unanswered.get(session) ?? 0) + 1
-    this.unanswered.set(session, unanswered)
-    if (unanswered >= MAX_UNANSWERED) {
-      session.destroy()
-      return
-    }
-    this.check(session)
-  }
-
-  /** PING, and drop the connection unless Google answers within a ring's deadline. */
-  private check(session: ClientHttp2Session): void {
-    if (this.checking.has(session)) return
-    this.checking.add(session)
-    const deadline = setTimeout(() => session.destroy(), this.timeoutMs)
-    deadline.unref()
-    try {
-      session.ping((err) => {
-        clearTimeout(deadline)
-        this.checking.delete(session)
-        if (err) session.destroy()
-      })
-    } catch {
-      clearTimeout(deadline)
-      this.checking.delete(session)
-      session.destroy()
-    }
+    return outcomeOf(reply.status, reply.body)
   }
 
   /** Stop refreshing, checking and reconnecting, and close the session. */
   async close(): Promise<void> {
-    this.running = false
-    clearInterval(this.keepAliveTimer)
-    clearTimeout(this.reconnectTimer)
-    this.reconnectTimer = undefined
     this.tokens.stop()
-    this.session?.close()
-    this.session = undefined
+    this.connection.close()
   }
+}
+
+function failed(reason: string): WakeOutcome {
+  return { ok: false, deviceGone: false, status: 0, reason }
+}
+
+/**
+ * Read a `Retry-After` header, in seconds or as an HTTP date, as ms from `now`. Undefined
+ * for a missing or unreadable one.
+ */
+export function retryAfterMs(
+  header: string | string[] | undefined,
+  now: number,
+): number | undefined {
+  const raw = Array.isArray(header) ? header[0] : header
+  if (raw === undefined || raw.trim() === '') return undefined
+  if (/^\d+$/.test(raw.trim())) return Number(raw.trim()) * 1000
+  const at = Date.parse(raw)
+  return Number.isNaN(at) ? undefined : Math.max(at - now, 0)
 }
 
 /** Read Google's answer. Only 200 is success; the error body decides `deviceGone`. */

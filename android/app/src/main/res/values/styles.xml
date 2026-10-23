@@ -23,6 +23,14 @@
         <item name="android:letterSpacing">0</item>
     </style>
 
+    <!-- Top app bar: stays the screen's ground colour while content scrolls under it
+         (Material's default swaps to a darker tint once lifted, which looked like a
+         band). A hairline at the bar's foot marks the edge instead. -->
+    <style name="Widget.Tabsend.AppBar" parent="Widget.Material3.AppBarLayout">
+        <item name="android:background">@color/ts_phone_ground</item>
+        <item name="liftOnScrollColor">@color/ts_phone_ground</item>
+    </style>
+
     <!-- The wordmark at the top of the pairing screen. -->
     <style name="TextAppearance.Tabsend.Wordmark" parent="TextAppearance.Material3.TitleLarge">
         <item name="android:textSize">24sp</item>
@@ -84,8 +92,8 @@
 
     <!-- ===== Components ===== -->
 
-    <!-- The pairing screen's "Scan code", and nothing else: the one outlined,
-         shadowed button in the app (APP_UI "The signature moment"). Accent fill,
+    <!-- The pairing screen's "Scan code" and "Pair this phone", and nothing else:
+         the only outlined, shadowed buttons in the app (APP_UI "The signature moment"). Accent fill,
          ink outline, hard offset shadow. The custom background only survives with
          backgroundTint cleared; the extra 3dp of end/bottom padding centres the
          label on the face, not on face + shadow. -->

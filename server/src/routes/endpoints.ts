@@ -21,6 +21,7 @@ import type { Database } from '../db/schema'
 import { fail } from '../errors'
 import { hashToken, newDeviceToken, newId } from '../ids'
 import { toEndpoint } from '../mappers'
+import { revokeDeleted } from '../push'
 import { makeRateLimit } from '../ratelimit'
 import { readGroupGate, SUSPENDED_JOIN_MESSAGE } from '../tenancy'
 import { iso } from '../time'
@@ -640,6 +641,13 @@ export function registerEndpointRoutes(app: FastifyInstance, ctx: AppContext): v
       // open: every later device's label, name and public key, and presence. Its token
       // stopped working at once; its fast path did not.
       ctx.hub.disconnectEndpoint(row.id as EndpointId, 'endpoint removed')
+      // And its doorbell [2026-10-20, PLANS P-17]: a removed phone is never rung again,
+      // so without this the forwarder kept its record for good. Detached; see push.ts.
+      revokeDeleted(
+        ctx.push,
+        [{ endpointId: row.id, pushSubscription: row.push_subscription }],
+        request.log,
+      )
       return { ok: true }
     },
   )

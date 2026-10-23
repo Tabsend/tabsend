@@ -1,0 +1,13 @@
+<!-- Google Play store icon, 512 x 512, full bleed: Play rounds the corners itself.
+     The same design as the Android launcher icon (res/drawable/ic_launcher_foreground.xml
+     on @color/ic_launcher_background), so the store and the phone show one icon.
+     Rendered to icon-512.png by scripts/render-play-assets.sh. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512" role="img">
+  <title>Tabsend</title>
+  <rect width="108" height="108" fill="#2F6FED"/>
+  <g transform="translate(22,22) scale(2.6)" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18,13 v6 a2,2 0 0 1 -2,2 H5 a2,2 0 0 1 -2,-2 V8 a2,2 0 0 1 2,-2 h6"/>
+    <path d="M15,3 H21 V9"/>
+    <path d="M10,14 L21,3"/>
+  </g>
+</svg>

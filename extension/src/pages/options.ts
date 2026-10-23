@@ -1,7 +1,14 @@
 import type { ClientSettings } from '@tabsend/shared'
 import { ext } from '../lib/ext'
 import { isRelayDown } from '../lib/health'
-import type { ChooserView, RelayChangeResult, RelayProbe, StateView } from '../lib/model'
+import type {
+  ChooserView,
+  DeviceRow,
+  DevicesView,
+  RelayChangeResult,
+  RelayProbe,
+  StateView,
+} from '../lib/model'
 import { parsePairingInput } from '../lib/pairing'
 import { IS_FIREFOX } from '../lib/platform'
 import { browserTlsHint, normalizeRelayUrl } from '../lib/relay-url'
@@ -11,14 +18,16 @@ import {
   relayProbeCopy,
   relaySwitchCopy,
 } from '../lib/strings'
+import { askNewDeviceName, removeIfConfirmed, renderDeviceList } from './device-list'
 import { wirePairingBox } from './pairing-box'
 import { rpcOk } from './rpc-client'
 
 /**
  * Settings surface (ADR-0008 §7): toolbar click mode, per-source primary target
  * (view / change / pin, ADR-0002), confirmation toggles, context-menu
- * visibility, and pairing (mirrors the chooser/first-run pairing box — added so
- * the code stays reachable when quick-send mode removes the chooser popup).
+ * visibility, the group's devices (rename, remove), and pairing (mirrors the
+ * chooser/first-run pairing box — added so the code stays reachable when
+ * quick-send mode removes the chooser popup).
  * Every control writes through the SW so there's one source of truth.
  */
 
@@ -103,7 +112,62 @@ function paintConnection(state: StateView): void {
 async function refreshConnection(): Promise<StateView> {
   const res = await rpcOk<{ ok: true; state: StateView }>({ type: 'getState' })
   paintConnection(res.state)
+  await refreshDevices(res.state)
   return res.state
+}
+
+// --- devices ----------------------------------------------------------------
+/**
+ * The group's devices, with Rename and Remove. This used to live only on the
+ * manage screen, which nothing links to once a browser is paired, so a phone
+ * that was uninstalled could not be removed from here (dogfood 2026-10-15).
+ */
+async function refreshDevices(state: StateView): Promise<void> {
+  const block = $('devices-block')
+  if (!state.registered) {
+    block.style.display = 'none'
+    return
+  }
+  const res = await rpcOk<{ ok: true; devices: DevicesView }>({ type: 'getDevices' })
+  block.style.display = res.devices.devices.length > 0 ? 'block' : 'none'
+  renderDeviceList($('device-list'), res.devices.devices, {
+    rename: (dev) => void renameDevice(dev),
+    remove: (dev) => void removeDevice(dev),
+  })
+}
+
+function showDevicesError(err: unknown): void {
+  const el = $('devices-error')
+  el.textContent = err instanceof Error ? err.message : String(err)
+  el.classList.add('visible')
+}
+
+async function afterDeviceChange(change: Promise<unknown>): Promise<void> {
+  $('devices-error').classList.remove('visible')
+  try {
+    await change
+    flashSaved()
+    await refreshConnection()
+    // The primary-target menu lists the same devices.
+    const res = await rpcOk<{ ok: true; chooser: ChooserView }>({ type: 'getChooser' })
+    renderPrimary(res.chooser)
+  } catch (err) {
+    showDevicesError(err)
+  }
+}
+
+async function renameDevice(dev: DeviceRow): Promise<void> {
+  const next = (await askNewDeviceName(dev.label))?.trim()
+  if (!next || next === dev.label) return
+  await afterDeviceChange(
+    rpcOk({ type: 'renameEndpoint', endpointId: dev.endpointId, label: next }),
+  )
+}
+
+async function removeDevice(dev: DeviceRow): Promise<void> {
+  const request = removeIfConfirmed(dev, (question) => window.confirm(question))
+  if (!request) return
+  await afterDeviceChange(rpcOk(request))
 }
 
 /**
@@ -417,6 +481,8 @@ function renderPrimary(view: ChooserView): void {
     if (row.endpoint.id === view.primaryTargetId) opt.selected = true
     select.append(opt)
   }
+  select.disabled = false
+  pinned.disabled = false
   pinned.checked = view.primaryPinned
 
   const apply = (): void => {
@@ -424,8 +490,9 @@ function renderPrimary(view: ChooserView): void {
       flashSaved,
     )
   }
-  select.addEventListener('change', apply)
-  pinned.addEventListener('change', apply)
+  // Assigned, not added: this runs again after a device is renamed or removed.
+  select.onchange = apply
+  pinned.onchange = apply
 }
 
 function openShortcutSettings(): void {
@@ -460,6 +527,7 @@ async function main(): Promise<void> {
     paintConnection(stateRes.state)
     renderSettings(settingsRes.settings)
     renderPrimary(chooserRes.chooser)
+    await refreshDevices(stateRes.state)
   } catch (err) {
     const pageError = $('page-error')
     pageError.textContent = `Couldn't load your settings: ${err instanceof Error ? err.message : String(err)}`

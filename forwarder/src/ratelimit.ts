@@ -29,6 +29,48 @@ import type { RateLimitConfig } from './config'
  */
 export const SWEEP_EVERY_HITS = 512
 
+/**
+ * The rate-limit key for a caller's address: an IPv6 address counts by its /64, every
+ * other address as itself [2026-10-20, SECURITY_REVIEW G16].
+ *
+ * A /64 is what one subscriber, or one server, is normally given, and every address in it
+ * is that one party's to use: keyed per address, one connection had 2^64 registration
+ * allowances. An IPv4-mapped IPv6 address (`::ffff:0:0/96`, in any spelling) is its IPv4
+ * address. Used for registrations, the route that adds rows. The per-caller wake limit
+ * keeps the whole address: some hosts put several customers' servers, and so several
+ * relays, in one /64, and a wake writes nothing.
+ *
+ * Parsed by the WHATWG URL parser, which Node already has and which writes IPv6 in one
+ * canonical form (RFC 5952: hex, lowercase, the longest zero run as `::`), so every
+ * spelling of one address gives one key [2026-10-20 review: a hand-rolled split keyed
+ * `::ffff:c000:201` and its dotted spellings to one /64 bucket for every IPv4 caller, and
+ * threw on more than eight groups]. Anything it cannot read is keyed as written.
+ */
+export function addressKey(ip: string): string {
+  if (!ip.includes(':')) return ip
+  let canonical: string
+  try {
+    // A zone (`fe80::1%eth0`) names an interface on this machine, not a party.
+    canonical = new URL(`http://[${ip.split('%')[0]}]`).hostname.slice(1, -1)
+  } catch {
+    return ip
+  }
+  const [head = '', tail] = canonical.split('::')
+  const front = head === '' ? [] : head.split(':')
+  const back = tail === undefined || tail === '' ? [] : tail.split(':')
+  const groups =
+    tail === undefined
+      ? front
+      : [...front, ...Array<string>(8 - front.length - back.length).fill('0'), ...back]
+  if (groups.length !== 8) return ip
+  if (groups.slice(0, 5).every((group) => group === '0') && groups[5] === 'ffff') {
+    const high = Number.parseInt(groups[6] as string, 16)
+    const low = Number.parseInt(groups[7] as string, 16)
+    return [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.')
+  }
+  return `${groups.slice(0, 4).join(':')}::/64`
+}
+
 /** One fixed-window limiter over one keyspace. Three of them exist; see `app.ts`. */
 export class RateLimiter {
   private readonly hits = new Map<string, { count: number; resetAt: number }>()

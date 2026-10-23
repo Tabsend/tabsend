@@ -347,6 +347,11 @@ object Feedback {
      * The standing relay-outage line, for a surface the user opens LATER. Not
      * tied to any one send: it answers "why did nothing arrive?" for someone who
      * has already walked away from the tab they shared.
+     *
+     * A relay on a home-network address gets one more sentence (PLANS.md P-15
+     * item 4): away from home or on mobile data, that address cannot answer, and
+     * the bare outage line read as a refresh bug. Same rule and words as the
+     * extension, iOS and the console.
      */
     fun relayDownLine(relayUrl: String, sinceMinutes: Int): String {
         val ago = when {
@@ -354,8 +359,9 @@ object Feedback {
             sinceMinutes < 60 -> "${sinceMinutes}m ago"
             else -> "${Math.round(sinceMinutes / 60.0)}h ago"
         }
-        return "Can't reach your relay at $relayUrl. It last answered $ago, and sends are " +
+        val line = "Can't reach your relay at $relayUrl. It last answered $ago, and sends are " +
             "being held until it's back."
+        return if (HomeNetwork.isHomeNetworkRelay(relayUrl)) "$line ${HomeNetwork.HINT}" else line
     }
 
     /**

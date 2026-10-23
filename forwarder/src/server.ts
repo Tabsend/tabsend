@@ -18,8 +18,11 @@ export async function start(config: Config = loadConfig()): Promise<void> {
   // Late-bound: the store is opened before the app that owns the logger, and only calls
   // this from its flush timer, long after both exist.
   let report: (err: unknown) => void = () => undefined
+  let reportTrimmed: (removed: number) => void = () => undefined
   const store = new DeviceStore(config.databasePath, loadDeviceTokenKey(config), {
     onFlushError: (err) => report(err),
+    maxDevices: config.maxDevices,
+    onTrimmed: (removed) => reportTrimmed(removed),
   })
   const app = buildApp({
     config,
@@ -30,6 +33,11 @@ export async function start(config: Config = loadConfig()): Promise<void> {
     app.log.error(
       { err },
       'Could not write the wake tallies, or finish tidying the database after its upgrade. Both are tried again at the next flush; rings are not affected.',
+    )
+  reportTrimmed = (removed) =>
+    app.log.warn(
+      { removed },
+      'The forwarder was nearly full (MAX_DEVICES), so the oldest phones never rung were removed. This is usually a flood of fake sign-ups. A real phone among them is rung again once it pairs again.',
     )
   if (store.scrubPending) {
     app.log.warn(

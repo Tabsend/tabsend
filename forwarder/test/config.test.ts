@@ -72,6 +72,28 @@ describe('loadConfig', () => {
     )
   })
 
+  /** SECURITY_REVIEW G13: the Apple timeout had the same gap as Google's. */
+  it('accepts only a whole-number Apple timeout in a sane range', () => {
+    for (const bad of ['1.5', '0', '99', '60001', '3000000000']) {
+      expect(() => loadConfig({ ...APPLE_ENV, APNS_TIMEOUT_MS: bad })).toThrow(/APNS_TIMEOUT_MS/)
+    }
+  })
+
+  /** SECURITY_REVIEW G16: the ceiling on registered phones. */
+  it('reads the device ceiling, and refuses nonsense for it', () => {
+    expect(loadConfig(APPLE_ENV).maxDevices).toBe(200_000)
+    expect(loadConfig({ ...APPLE_ENV, MAX_DEVICES: '5000' }).maxDevices).toBe(5000)
+    expect(() => loadConfig({ ...APPLE_ENV, MAX_DEVICES: '0' })).toThrow(/MAX_DEVICES/)
+    expect(() => loadConfig({ ...APPLE_ENV, MAX_DEVICES: '1.5' })).toThrow(/MAX_DEVICES/)
+  })
+
+  it('reads the Apple ceiling on rings in flight', () => {
+    expect(loadConfig(APPLE_ENV).apns?.maxInFlight).toBe(64)
+    expect(() => loadConfig({ ...APPLE_ENV, APNS_MAX_IN_FLIGHT: '0' })).toThrow(
+      /APNS_MAX_IN_FLIGHT/,
+    )
+  })
+
   it('reads the knobs an operator actually turns', () => {
     const config = loadConfig({
       ...APPLE_ENV,

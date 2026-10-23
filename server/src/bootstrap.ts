@@ -136,6 +136,10 @@ export type FirstPairingOutcome =
  * killed the link the previous boot had printed, a second look at an account page
  * killed the link already on screen, and the delete took pairing-code rows in the
  * opposite order to a join, which deadlocked the two on Postgres.
+ *
+ * `ttlMs` overrides the bootstrap lifetime for this one link. Only the provisioning
+ * API passes it, for a store reviewer's group, whose review can take longer than a day
+ * (STORE_LISTING.md, "A way in for store reviewers"); the route bounds it.
  */
 export async function mintFirstPairingForGroup(
   db: Kysely<Database>,
@@ -143,10 +147,11 @@ export async function mintFirstPairingForGroup(
   groupId: string,
   certFingerprint: string | undefined,
   now: Date,
+  ttlMs: number = config.bootstrapPairingTtlMs,
 ): Promise<FirstPairingOutcome> {
   const postgres = isPostgresUrl(config.databaseUrl)
   const code = newPairingCode() as PairingCodeValue
-  const expiresAt = iso(addMs(now, config.bootstrapPairingTtlMs))
+  const expiresAt = iso(addMs(now, ttlMs))
 
   const status = await db.transaction().execute(async (trx) => {
     if (!(await lockGroup(trx, postgres, groupId))) return 'gone' as const

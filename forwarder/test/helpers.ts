@@ -163,7 +163,9 @@ export async function startRig(options: StartRigOptions = {}): Promise<TestRig> 
     PORT: '0',
     ...options.env,
   })
-  const store = new DeviceStore(databasePath, options.deviceTokenKey ?? TEST_DEVICE_TOKEN_KEY)
+  const store = new DeviceStore(databasePath, options.deviceTokenKey ?? TEST_DEVICE_TOKEN_KEY, {
+    maxDevices: config.maxDevices,
+  })
   const apns = new FakeApnsSender()
   const fcm = options.withoutFcm ? undefined : new FakeFcmSender()
   const clock = makeClock()

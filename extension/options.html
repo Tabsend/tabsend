@@ -80,6 +80,10 @@
       #pending-actions { margin-top: 10px; margin-left: 28px; }
       #pairing-box { margin-top: 18px; }
       #pairing-unregistered { margin: 0; }
+      #devices-block { padding-top: 0; padding-bottom: 0; }
+      .device-list li:first-child { border-top: none; }
+      #devices-error { display: none; margin: 8px 0 12px; }
+      #devices-error.visible { display: block; }
       details { margin-top: 12px; font-size: 13px; color: var(--muted); }
       summary {
         cursor: pointer;
@@ -228,6 +232,12 @@
       <section class="section" aria-labelledby="sec-devices">
         <h2 class="section-label" id="sec-devices">Devices</h2>
         <div class="rows">
+          <!-- Every device in the group, with Rename and Remove. The same list as
+               the manage screen (device-list.ts); hidden until this browser is paired. -->
+          <div class="setting stack" id="devices-block" style="display: none">
+            <ul id="device-list" class="device-list"></ul>
+            <p class="notice danger" id="devices-error" role="alert"></p>
+          </div>
           <div class="setting stack">
             <span class="setting-text">
               <span class="setting-title">Pair a device</span>
@@ -328,6 +338,15 @@
 
       <p class="saved" id="saved" role="status"></p>
     </main>
+
+    <dialog id="rename-dialog">
+      <h2>Rename this device</h2>
+      <input id="rename-input" type="text" autocomplete="off" />
+      <div class="dialog-actions">
+        <button type="button" id="rename-cancel" class="btn-secondary">Cancel</button>
+        <button type="button" id="rename-ok" class="btn-primary">OK</button>
+      </div>
+    </dialog>
     <script type="module" src="/src/pages/options.ts"></script>
   </body>
 </html>

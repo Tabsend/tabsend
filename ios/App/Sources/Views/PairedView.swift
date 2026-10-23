@@ -105,7 +105,29 @@ struct PairedView: View {
                                     // which tab, going where. The label was captured
                                     // when the send was made, since the envelope is
                                     // sealed and can't be asked who it was for.
-                                    if let label = item.targetLabel {
+                                    if model.isTargetGone(item) {
+                                        // Its device left the group, so "to <device>"
+                                        // would point nowhere. Say so, and offer the
+                                        // devices this phone has accepted (P-15 item 3).
+                                        Text(model.goneLine(for: item))
+                                            .font(.subheadline)
+                                            .foregroundColor(Palette.muted)
+                                        let others = model.retargetChoices(for: item)
+                                        if others.isEmpty {
+                                            Text(GoneTargetCopy.noOtherDevice)
+                                                .font(.subheadline)
+                                                .foregroundColor(Palette.muted)
+                                        } else if item.url != nil {
+                                            Menu(GoneTargetCopy.sendToMenu) {
+                                                ForEach(others) { endpoint in
+                                                    Button(endpoint.label) {
+                                                        model.retargetHeld(item, to: endpoint)
+                                                    }
+                                                }
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                    } else if let label = item.targetLabel {
                                         Text("to \(label)")
                                             .font(.subheadline)
                                             .foregroundColor(Palette.muted)
@@ -174,16 +196,29 @@ struct PairedView: View {
                             .panelRow()
                     }
                     ForEach(model.endpoints) { endpoint in
-                        DeviceRow(
-                            name: endpoint.label,
-                            symbol: endpoint.themeSymbol,
-                            kind: endpoint.kindWord,
-                            presence: endpoint.isOnline ? .online : .offline,
-                            note: endpoint.id == reg.endpointId ? "this phone" : nil
-                        )
+                        HStack(spacing: 8) {
+                            DeviceRow(
+                                name: endpoint.label,
+                                symbol: endpoint.themeSymbol,
+                                kind: endpoint.kindWord,
+                                presence: endpoint.isOnline ? .online : .offline,
+                                note: endpoint.id == reg.endpointId ? "this phone" : nil
+                            )
+                            // A visible Remove, so removing is never a hidden gesture
+                            // or a tap on the name. Borderless, so only the button is
+                            // a tap target and not the whole List row.
+                            if endpoint.id != reg.endpointId {
+                                Button("Remove", role: .destructive) {
+                                    removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Remove \(endpoint.label)")
+                            }
+                        }
                         .panelRow()
                         // Every other device can be removed from here; this phone
-                        // leaves through Unpair instead. Not `role: .destructive`:
+                        // leaves through Unpair instead. Swipe and long-press stay as
+                        // shortcuts for the button above. Not `role: .destructive`:
                         // that makes the List drop the row before the user confirms.
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             if endpoint.id != reg.endpointId {

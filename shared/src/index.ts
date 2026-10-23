@@ -12,3 +12,4 @@ export * from './naming';
 export * from './types';
 export * from './newdevices';
 export * from './keyrecord';
+export * from './homenetwork';

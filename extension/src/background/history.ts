@@ -13,7 +13,7 @@ import {
   setHistory,
 } from '../lib/storage'
 import { neverArrivedBanner } from '../lib/strings'
-import { showFeedback } from './feedback'
+import { feedbackBadge } from './feedback'
 import { historyBackedOff, markHistoryUnsupported, syncGroupKeys } from './groupkeys'
 import { currentSession } from './session'
 
@@ -183,9 +183,9 @@ async function announceNeverArrived(rows: readonly HistoryRow[]): Promise<void> 
 
   const first = fresh[0]
   if (!first) return
-  // `showFeedback` sets the badge itself, which is the part that always lands:
-  // this runs from an alarm, so there may be no page willing to host a banner.
-  await showFeedback(neverArrivedBanner(fresh.length, first.targetLabel, first.title)).catch(
-    () => false,
-  )
+  // The badge alone. This runs from an alarm or a popup opening, about a tab
+  // sent long ago from a page no one can still vouch for, so there is no tab
+  // this news belongs in, and the page in front must never be told another
+  // tab's title and device (SECURITY_REVIEW L8). The history page lists it.
+  feedbackBadge(neverArrivedBanner(fresh.length, first.targetLabel, first.title))
 }

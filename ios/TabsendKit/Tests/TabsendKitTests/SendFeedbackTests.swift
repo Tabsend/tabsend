@@ -388,6 +388,34 @@ final class SendFeedbackTests: XCTestCase {
         XCTAssertTrue(Feedback.relayDownLine(relayUrl: "http://x", sinceMinutes: 0).contains("just now"))
     }
 
+    // P-15 item 4: away from home, a home-network relay is silent for a reason the
+    // bare outage line did not give, and it read as a refresh bug.
+    func testRelayDownLineSaysWhyAHomeNetworkRelayIsOutOfReach() {
+        let line = Feedback.relayDownLine(relayUrl: "http://192.168.1.20:8786", sinceMinutes: 19)
+        XCTAssertTrue(line.contains("19m ago"))
+        XCTAssertTrue(line.hasSuffix(HomeNetwork.hint))
+        XCTAssertFalse(line.contains("—"))
+        XCTAssertTrue(
+            Feedback.relayDownLine(relayUrl: "http://minipc.local:8786", sinceMinutes: 5)
+                .hasSuffix(HomeNetwork.hint)
+        )
+    }
+
+    func testRelayDownLineAddsNothingForPublicHostedTailscaleOrSameDeviceRelays() {
+        for url in [
+            "https://app.tabsend.org",
+            "https://relay.example.com",
+            "http://100.101.102.103:8787",
+            "http://localhost:8787",
+            "http://127.0.0.1:8787",
+        ] {
+            XCTAssertFalse(
+                Feedback.relayDownLine(relayUrl: url, sinceMinutes: 19).contains(HomeNetwork.hint),
+                url
+            )
+        }
+    }
+
     // MARK: relay health
 
     func testAnOutageIsOnlyAnnouncedAfterTheGracePeriod() {

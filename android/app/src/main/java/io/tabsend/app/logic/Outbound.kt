@@ -24,7 +24,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class OutboundItem(
     override val id: String,
-    val targetEndpointId: String,
+    override val targetEndpointId: String,
     val envelope: EncryptedEnvelope,
     override val createdAt: String,
     val title: String? = null,
@@ -42,4 +42,15 @@ data class OutboundItem(
      * on anything queued by a build that predates this field.
      */
     val history: GroupSealed? = null,
-) : HeldItem
+    /**
+     * The target has left the group (PLANS.md P-15 item 3), so the flush stops
+     * posting this tab and the home screen offers another device for it. Sticky
+     * when the relay set it; see [OutboundQueue.isTargetGone].
+     */
+    override val targetGone: Boolean = false,
+    /** [targetGone] came from a device list, not the relay, so a later list can lift it. */
+    override val goneFromList: Boolean = false,
+) : TargetedItem {
+    /** This item with a device list's flag set (both fields on) or lifted (both off). */
+    fun withListFlag(gone: Boolean): OutboundItem = copy(targetGone = gone, goneFromList = gone)
+}

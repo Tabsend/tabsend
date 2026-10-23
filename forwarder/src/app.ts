@@ -9,8 +9,8 @@ import { type ApnsSender, createApnsSender, isBadDeviceToken } from './apns'
 import type { ApnsEnvironment, Config, DevicePlatform } from './config'
 import { ForwarderError, fail } from './errors'
 import { createFcmSender, type FcmSender, isWrongProject } from './fcm'
-import { RateLimiter } from './ratelimit'
-import type { DeviceRecord, DeviceStore } from './store'
+import { addressKey, RateLimiter } from './ratelimit'
+import { type DeviceRecord, type DeviceStore, DeviceStoreFullError } from './store'
 import { hashWakeToken, isWellFormedWakeToken, newWakeToken, tokenRef } from './tokens'
 import { FORWARDER_VERSION } from './version'
 
@@ -117,9 +117,12 @@ const APNS_TOKEN_PATTERN = /^[0-9a-f]{64,200}$/
  * that separates the instance id from the rest, and historically both dots and hyphens.
  * Google documents no length, so this checks the alphabet and leaves the bound generous —
  * the only job here is to reject something that is obviously not a token before it reaches
- * the database, not to validate Google's format for it.
+ * the database, not to validate Google's format for it. The bound was 1024 until
+ * 2026-10-20 (SECURITY_REVIEW G16), which made the largest row a sign-up anyone can make
+ * larger than it needed to be: real tokens are usually about 160 characters, so 512 still
+ * leaves room for Google to grow them.
  */
-const FCM_TOKEN_PATTERN = /^[A-Za-z0-9_:.-]{32,1024}$/
+const FCM_TOKEN_PATTERN = /^[A-Za-z0-9_:.-]{32,512}$/
 
 /** Read the wake token out of `Authorization: Bearer …`. Never out of a URL. */
 function bearerToken(request: FastifyRequest): string {
@@ -232,7 +235,16 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     trustProxy: config.trustProxy,
   })
 
-  const apns = options.apns ?? createApnsSender(config)
+  const apns =
+    options.apns ??
+    createApnsSender(config, {
+      // One line at start-up, for the operator and the deploy script; never on a route.
+      onCredentialCheck: (check) => {
+        if (check.outcome === 'ok') app.log.info(check.line)
+        else if (check.outcome === 'refused') app.log.error(check.line)
+        else app.log.warn(check.line)
+      },
+    })
   const fcm =
     options.fcm ??
     createFcmSender(config, {
@@ -428,7 +440,8 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   app.post('/v1/register', async (request, reply) => {
     charge(
       registerLimiter,
-      request.ip,
+      // An IPv6 /64 is one party's [2026-10-20, SECURITY_REVIEW G16]; see `addressKey`.
+      addressKey(request.ip),
       'Too many registrations from this address. Registering happens once per pairing, so a burst of them usually means a retry loop. Wait for the window to pass and try again.',
     )
     const body = asObject(request.body)
@@ -443,6 +456,15 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         "This forwarder has no Google credentials, so it cannot ring Android devices. Register with a forwarder that has them, or use the app without it — delivery then works over the app's own connection or by polling.",
       )
     }
+    // [2026-10-20, SECURITY_REVIEW G13] Credentials Google will not accept are refused the
+    // same way as none: the phone keeps its own connection rather than waiting for a ring
+    // that cannot come. Accepted again as soon as the forwarder gets an access token.
+    if (platform === 'android' && fcm && !fcm.acceptsRegistrations()) {
+      fail(
+        'unsupported',
+        "This forwarder cannot sign in to Google at the moment, so it cannot ring Android devices. Keep using the app's own connection, and try again later.",
+      )
+    }
     if (platform === 'ios' && !config.apns && !config.apnsDryRun) {
       fail(
         'unsupported',
@@ -454,13 +476,26 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
     const wakeToken = newWakeToken()
     const wakeTokenHash = hashWakeToken(wakeToken)
-    const { replaced } = store.register({
-      wakeTokenHash,
-      platform,
-      deviceToken,
-      environment,
-      now: now(),
-    })
+    let replaced: boolean
+    try {
+      ;({ replaced } = store.register({
+        wakeTokenHash,
+        platform,
+        deviceToken,
+        environment,
+        now: now(),
+      }))
+    } catch (err) {
+      if (!(err instanceof DeviceStoreFullError)) throw err
+      request.log.warn(
+        { maxDevices: config.maxDevices },
+        'Refused a sign-up: the forwarder holds MAX_DEVICES phones. Phones already signed up are unaffected. A sudden jump to the ceiling is more likely a flood of fake sign-ups than real phones.',
+      )
+      fail(
+        'unavailable',
+        "This forwarder is not taking new phones at the moment. Keep using the app's own connection, or the next time the app opens, and try again later.",
+      )
+    }
 
     // `tokenRef` is the ONLY token-derived value allowed in a log line (PROTOCOL.md §8).
     request.log.info(
@@ -532,8 +567,14 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         request.log.info({ tokenRef: ref }, 'Wake for an unknown or revoked token')
         return
       }
-      // In memory; written out once a minute (`store.ts`), so a ring touches no disk.
-      store.recordWake(wakeTokenHash, now())
+      // In memory; written out once a minute (`store.ts`), so a ring touches no disk. And
+      // never in the way of the ring [2026-10-20, SECURITY_REVIEW G16]: a tally that could
+      // not be kept is a lost number, while a ring not made is a phone not woken.
+      try {
+        store.recordWake(wakeTokenHash, now())
+      } catch (err) {
+        request.log.error({ err, tokenRef: ref }, 'Could not note a wake; ringing anyway')
+      }
       // Still detached from Apple on top of that: nothing Apple says reaches the caller,
       // so there is nothing to wait for. The outcome reaches the operator in the log.
       ring(request, ref, wakeTokenHash, device)

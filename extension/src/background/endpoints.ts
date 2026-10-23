@@ -1,12 +1,23 @@
-import { deviceNameFromLabel, type Endpoint } from '@tabsend/shared'
+import {
+  deviceNameFromLabel,
+  type Endpoint,
+  endpointsKnownTo,
+  heldTabChoices,
+} from '@tabsend/shared'
 import { getOutbox, listEndpoints } from '../lib/api'
 import type { ChooserView, DeviceRow, DevicesView, HeldTab } from '../lib/model'
-import { heldTabsOnly } from '../lib/outbound'
-import { isPresenceFresh, isStaleEndpoint } from '../lib/policy'
+import { heldTabsOnly, isTargetGone } from '../lib/outbound'
+import { isOpenableWebUrl, isPresenceFresh, isStaleEndpoint } from '../lib/policy'
 import { getCachedEndpoints, getCachedEndpointsAt, getOutbound, getPrefs } from '../lib/storage'
 import { agoLine } from '../lib/strings'
 import { relayHealth } from './health'
-import { newDeviceNotices, recordEndpoints, reviewNotices, vanishedNotices } from './newdevices'
+import {
+  currentDeviceWatch,
+  newDeviceNotices,
+  recordEndpoints,
+  reviewNotices,
+  vanishedNotices,
+} from './newdevices'
 import { orderTargets } from './prefs'
 import { currentSession } from './session'
 
@@ -127,6 +138,17 @@ export async function buildChooserView(opts: { cached?: boolean } = {}): Promise
   // appear — they aren't tabs the user sent anywhere — and that exclusion runs
   // through `heldTabsOnly` so this list and the counts in the give-up
   // announcements cannot come to disagree about what a "tab" is.
+  //
+  // A tab whose device has left the group says so (P-15 item 3). "Left" is
+  // judged against the devices this browser has accepted, as the drain judges
+  // it, so a device it removed counts as gone even while a relay keeps listing
+  // it; and the devices offered instead are `heldTabChoices`, never the raw
+  // list, since the relay picks when this question is asked (L3).
+  const selfId = session.registration.endpointId
+  const stored = await currentDeviceWatch().catch(() => undefined)
+  const watch = stored?.selfId === selfId ? stored : undefined
+  const acceptedIds = new Set(endpointsKnownTo(watch, endpoints).map((e) => e.id))
+  const choices = heldTabChoices(watch, endpoints, selfId).map((e) => e.id)
   const held: HeldTab[] = heldTabsOnly(outbound).map((item) => {
     const row: HeldTab = {
       id: item.id,
@@ -135,6 +157,14 @@ export async function buildChooserView(opts: { cached?: boolean } = {}): Promise
     }
     if (item.title) row.title = item.title
     if (item.url) row.url = item.url
+    if (item.targetLabel) row.targetLabel = item.targetLabel
+    if (isTargetGone(item, acceptedIds)) {
+      row.targetGone = true
+      if (watch?.removed?.includes(item.targetEndpointId)) row.removedHere = true
+      // Without a web address there is nothing to seal again (a queue from a
+      // build that kept none), so there is nothing to offer.
+      if (isOpenableWebUrl(item.url)) row.choices = choices
+    }
     return row
   })
 

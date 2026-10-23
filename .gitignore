@@ -41,3 +41,7 @@ dist-packages/
 .claude/
 # Apple APNs signing keys (forwarder); never committable
 *.p8
+
+# Cloudflare Wrangler working files for site/
+site/.wrangler/
+site/node_modules/

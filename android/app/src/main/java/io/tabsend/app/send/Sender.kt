@@ -13,12 +13,15 @@ import io.tabsend.app.logic.SendOutcomeView
 import io.tabsend.app.net.ApiClient
 import io.tabsend.app.net.ApiException
 import io.tabsend.app.net.Connectivity
+import io.tabsend.app.receive.LinkPolicy
+import io.tabsend.app.receive.NewDeviceWatcher
 import io.tabsend.app.store.Store
 import io.tabsend.app.wire.Endpoint
 import io.tabsend.app.wire.HistoryRecord
 import io.tabsend.app.wire.SendItem
 import io.tabsend.app.wire.SendPayload
 import io.tabsend.app.wire.SendRequest
+import io.tabsend.app.wire.SendResponse
 import io.tabsend.app.wire.WireJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -69,6 +72,16 @@ data class FlushReport(
     val firstDroppedTitle: String? = null,
     val firstDroppedTargetLabel: String? = null,
     val firstDroppedFailure: SendFailure? = null,
+    /**
+     * Tabs this pass found waiting for a device that has left the group
+     * (PLANS.md P-15 item 3). They stay queued, unposted, until the user picks
+     * another device on the home screen, and are announced once, here.
+     */
+    val newlyGone: Int = 0,
+    val firstGoneTitle: String? = null,
+    val firstGoneTargetLabel: String? = null,
+    /** This phone removed the first one's device, so the notice may say "was removed" (L3). */
+    val firstGoneRemovedHere: Boolean = false,
 ) {
     val recovered: Boolean get() = sent > 0
 }
@@ -273,10 +286,24 @@ object Sender {
     suspend fun flushOutbound(context: Context): FlushReport = withContext(Dispatchers.IO) {
         val store = Store.get(context)
         val reg = store.registration ?: return@withContext FlushReport(0, null, 0)
-        val queue = store.outbound
-        if (queue.isEmpty()) return@withContext FlushReport(0, null, 0)
+        // Built on first use: a pass with nothing to post makes no client.
+        val api by lazy { ApiClient.forRegistration(reg) }
+        flushOutbound(store) { api.sendMessages(reg.deviceToken, it) }
+    }
 
-        val api = ApiClient.forRegistration(reg)
+    /**
+     * [flushOutbound] over a [Store] and a stand-in for the POST, so the rules
+     * below are tested against the real queue and not a copy of them.
+     */
+    internal fun flushOutbound(
+        store: Store,
+        nowMs: Long = System.currentTimeMillis(),
+        send: (SendRequest) -> SendResponse,
+    ): FlushReport {
+        if (store.registration == null) return FlushReport(0, null, 0)
+        val queue = store.outbound
+        if (queue.isEmpty()) return FlushReport(0, null, 0)
+
         // Ids this pass settled one way or another. Removing exactly these,
         // rather than writing back a whole list computed before the network
         // calls, is what keeps a send queued mid-flush from being clobbered.
@@ -297,7 +324,7 @@ object Sender {
         // the app is installed. They ride out on the same report as a relay's
         // own refusals, because from the user's side both are "a tab you were
         // promised is not going".
-        val plan = OutboundQueue.plan(queue, System.currentTimeMillis())
+        val plan = OutboundQueue.plan(queue, nowMs)
         for ((item, failure) in givenUp(plan)) {
             settled += item.id
             dropped++
@@ -307,7 +334,43 @@ object Sender {
                 firstDroppedFailure = failure
             }
         }
-        for (item in plan.keep) {
+        // A tab whose device has left the group is not posted again: the relay
+        // would only refuse it, and the old flush then dropped the tab. It waits,
+        // flagged, for the user to pick another device (P-15 item 3).
+        //
+        // Judged against the group as this phone ACCEPTED it, not the cached list
+        // as the relay served it (L3): a device this phone removed that the relay
+        // still lists is gone here too, and a list's flag lifts once the device is
+        // accepted again, so that tab is posted in this same pass.
+        val acceptedIds = NewDeviceWatcher.acceptedIds(store)
+        val removedHere = NewDeviceWatcher.removedHere(store)
+        // Each item's flag as this pass leaves it, by id. Applied by id at the end,
+        // like [settled], so an item queued, cancelled or moved meanwhile is left
+        // as it now is.
+        val flags = mutableMapOf<String, GoneFlag>()
+        var newlyGone = 0
+        var firstGoneTitle: String? = null
+        var firstGoneLabel: String? = null
+        var firstGoneRemovedHere = false
+        // Announced once: only a tab that was not flagged before this pass. One
+        // whose list flag lifted and then came back is announced again, which is
+        // true: it was on its way again.
+        fun flag(item: OutboundItem, how: GoneFlag) {
+            flags[item.id] = how
+            if (item.targetGone) return
+            if (newlyGone++ == 0) {
+                firstGoneTitle = item.title
+                firstGoneLabel = item.targetLabel
+                firstGoneRemovedHere = item.targetEndpointId in removedHere
+            }
+        }
+        val marked = OutboundQueue.markGoneTargets(plan.keep, acceptedIds, OutboundItem::withListFlag)
+        for ((item, judged) in plan.keep.zip(marked)) {
+            if (judged.targetGone) {
+                if (!item.targetGone) flag(item, GoneFlag.FROM_LIST)
+                continue
+            }
+            if (item.targetGone) flags[item.id] = GoneFlag.LIFTED
             // Claim the id: this both skips a send still POSTing and stops two
             // concurrent flushes (DrainWorker and HeartbeatWorker use different
             // unique-work names, so they can overlap) from each counting the same
@@ -317,8 +380,7 @@ object Sender {
                 continue
             }
             try {
-                val resp = api.sendMessages(
-                    reg.deviceToken,
+                val resp = send(
                     SendRequest(
                         items = listOf(
                             SendItem(item.id, item.targetEndpointId, item.envelope, item.history),
@@ -339,6 +401,11 @@ object Sender {
                     settled.add(item.id)
                     sent++
                     if (firstTitle == null) firstTitle = item.title
+                } else if (isTargetGoneReason(rejection.reason)) {
+                    // The relay says the device is gone. Keep the tab and flag it
+                    // rather than dropping it: the user can still send it elsewhere.
+                    // The relay's flag, so no later list lifts it.
+                    flag(item, GoneFlag.FROM_RELAY)
                 } else if (rejectionFailure != null && Feedback.isRecoverable(rejectionFailure)) {
                     stillHeld++
                 } else {
@@ -384,8 +451,17 @@ object Sender {
                 inFlight.remove(item.id)
             }
         }
-        store.updateOutbound { current -> current.filterNot { it.id in settled } }
-        FlushReport(
+        store.updateOutbound { current ->
+            current.filterNot { it.id in settled }.map { item ->
+                when (flags[item.id]) {
+                    GoneFlag.FROM_LIST -> item.withListFlag(true)
+                    GoneFlag.FROM_RELAY -> item.copy(targetGone = true, goneFromList = false)
+                    GoneFlag.LIFTED -> item.withListFlag(false)
+                    null -> item
+                }
+            }
+        }
+        return FlushReport(
             sent = sent,
             firstTitle = firstTitle,
             stillHeld = stillHeld,
@@ -393,7 +469,118 @@ object Sender {
             firstDroppedTitle = firstDroppedTitle,
             firstDroppedTargetLabel = firstDroppedLabel,
             firstDroppedFailure = firstDroppedFailure,
+            newlyGone = newlyGone,
+            firstGoneTitle = firstGoneTitle,
+            firstGoneTargetLabel = firstGoneLabel,
+            firstGoneRemovedHere = firstGoneRemovedHere,
         )
+    }
+
+    /** What a flush pass did to one held tab's "device is gone" flag. */
+    private enum class GoneFlag {
+        /** A list no longer has the device accepted: lifted again if it comes back. */
+        FROM_LIST,
+
+        /** The relay refused the tab for it: sticky. */
+        FROM_RELAY,
+
+        /** A list's flag, lifted: the device is accepted again. */
+        LIFTED,
+    }
+
+    /**
+     * The relay's answer for a device that is not in the group. `not_in_group`
+     * is retired as an answer [0029], but an older relay may still say it, and
+     * it means the same thing here.
+     */
+    private fun isTargetGoneReason(reason: String): Boolean =
+        reason == "unknown_target" || reason == "not_in_group"
+
+    /**
+     * Send a held tab whose device is gone to [target] instead (PLANS.md P-15
+     * item 3). False, with the queue unchanged, when there is nothing to move or
+     * nowhere it may go: the tab was cancelled or sent meanwhile, it has no stored
+     * address to seal again, or that address is not an http(s) link.
+     *
+     * [target] is only the user's pick. It must be one of
+     * [NewDeviceWatcher.heldTabChoices] (a device this phone has accepted and with
+     * no question still waiting for the user's answer;
+     * never this phone, a console, or one it removed), and the tab is sealed to that
+     * device as the WATCH accepted it, not to the object passed in: the screen that
+     * offered it may have read an older list (SECURITY_REVIEW L3).
+     *
+     * The old envelope is NEVER reused: it is sealed to the old device's key.
+     * The tab is sealed again from its plaintext (kept beside every held tab for
+     * the list) to the new device's key, with a new id and a new history blob
+     * naming the new device, and takes the old item's place in the queue with no
+     * flag. The caller then runs a flush, which delivers it now or when the relay
+     * is back.
+     */
+    suspend fun retargetHeld(context: Context, id: String, target: Endpoint): Boolean =
+        withContext(Dispatchers.IO) { retargetHeld(Store.get(context), id, target) }
+
+    /** [retargetHeld] over a [Store], so its refusals are tested against the real queue. */
+    internal fun retargetHeld(store: Store, id: String, target: Endpoint): Boolean {
+        val identity = store.identity ?: return false
+        val reg = store.registration ?: return false
+        val chosen = NewDeviceWatcher.heldTabChoices(store).firstOrNull { it.id == target.id } ?: return false
+        val old = store.outbound.firstOrNull { it.id == id } ?: return false
+        // The same gate a received link passes before it opens: this re-seals a
+        // stored string, and a `javascript:` one has no business being sent.
+        val url = old.url?.takeIf { LinkPolicy.isOpenableWebUrl(it) } ?: return false
+        // The time the user first sent it, so the tab and its history row are
+        // dated honestly and the queue's age bound still counts from then.
+        val payload = SendPayload(url = url, title = old.title, sentAt = old.createdAt)
+        val envelope = try {
+            Sealer.seal(
+                payloadJson = WireJson.encodeToString(SendPayload.serializer(), payload),
+                targetPubB64 = chosen.e2ePubkey,
+                senderPrivB64 = identity.privateKey,
+                senderKeyId = identity.keyId,
+            )
+        } catch (e: Exception) {
+            return false
+        }
+        val history = try {
+            Keyring.current(store.groupKeys)?.let { key ->
+                Sealer.sealGroup(
+                    plaintextJson = WireJson.encodeToString(
+                        HistoryRecord.serializer(),
+                        HistoryRecord(
+                            payload = payload,
+                            sourceLabelAtSend = reg.label,
+                            targetLabelAtSend = chosen.label,
+                        ),
+                    ),
+                    keyB64 = key.key,
+                    keyId = key.keyId,
+                )
+            }
+        } catch (e: Exception) {
+            null
+        }
+        val moved = OutboundItem(
+            id = UUID.randomUUID().toString(),
+            targetEndpointId = chosen.id,
+            envelope = envelope,
+            createdAt = old.createdAt,
+            title = old.title,
+            url = url,
+            targetLabel = chosen.label,
+            history = history,
+        )
+        var done = false
+        store.updateOutbound { queue ->
+            // Read again inside the write: the queue may have moved on.
+            if (queue.none { it.id == id }) {
+                queue
+            } else {
+                done = true
+                OutboundQueue.retarget(queue, id, moved)
+            }
+        }
+        if (done) recordSend(store, chosen.id)
+        return done
     }
 
     /**

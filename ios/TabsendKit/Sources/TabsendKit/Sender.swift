@@ -65,6 +65,15 @@ public enum Sender {
         public var firstDroppedTitle: String?
         public var firstDroppedTargetLabel: String?
         public var firstDroppedFailure: SendFailure?
+        /// Tabs this pass found waiting for a device that has left the group
+        /// (PLANS.md P-15 item 3). They stay queued, unposted, until the user
+        /// picks another device in the app, and are announced once, here.
+        public var newlyGone: Int = 0
+        public var firstGoneTitle: String?
+        public var firstGoneTargetLabel: String?
+        /// This phone removed the first one's device itself, so the notice may say
+        /// it "was removed"; otherwise it "is no longer in your group" (L3).
+        public var firstGoneRemovedHere = false
         public var recovered: Bool { sent > 0 }
     }
 
@@ -262,7 +271,38 @@ public enum Sender {
             }
         }
 
-        for item in plan.keep {
+        // A tab whose device has left the group is not posted again: the relay
+        // would only refuse it, and the old flush then dropped the tab. It waits,
+        // flagged, for the user to pick another device (P-15 item 3). "Left" means
+        // no longer accepted by this phone's watch, not merely missing from the
+        // relay's list: a device this phone removed is gone even while the relay
+        // lists it (L3). A list's flag lifts once the device is accepted again, and
+        // that tab goes out in this pass like any other.
+        let targets = HeldTargets(store: store)
+        let marked = OutboundQueue.markGoneTargets(plan.keep, acceptedIds: targets.acceptedIds)
+        // Each tab's flag as this pass leaves it, by id: set by a list, set by the
+        // relay, or lifted. Only these are written back, onto the queue as it is
+        // then, so a re-target or a send made while this pass was posting keeps
+        // whatever it wrote.
+        var flags: [String: (targetGone: Bool?, goneFromList: Bool?)] = [:]
+        func announceGone(_ item: OutboundItem) {
+            if report.newlyGone == 0 {
+                report.firstGoneTitle = item.title
+                report.firstGoneTargetLabel = item.targetLabel
+                report.firstGoneRemovedHere = targets.removedHere(item)
+            }
+            report.newlyGone += 1
+        }
+
+        for (before, item) in zip(plan.keep, marked) {
+            if item.targetGone != before.targetGone || item.goneFromList != before.goneFromList {
+                flags[item.id] = (item.targetGone, item.goneFromList)
+            }
+            if item.targetGone == true {
+                // Said once: a tab flagged before this pass was announced then.
+                if before.targetGone != true { announceGone(item) }
+                continue
+            }
             // A background refresh's expiration handler cancels this task, and
             // `api.send` is a real await, so cancellation lands in the generic
             // `catch` below and would otherwise be absorbed — churning through the
@@ -295,7 +335,14 @@ public enum Sender {
                     let failure = SendFailure.relayRejected(
                         reason: rejection.reason, limit: rejection.limit
                     )
-                    if failure.isRecoverable {
+                    if isTargetGoneReason(rejection.reason) {
+                        // The relay says the device is gone. Keep the tab and flag
+                        // it rather than dropping it: it can still go elsewhere.
+                        // The relay's word, not a list's, so no list lifts it: it
+                        // stays until the user moves the tab.
+                        flags[item.id] = (true, nil)
+                        if before.targetGone != true { announceGone(item) }
+                    } else if failure.isRecoverable {
                         report.stillHeld += 1
                     } else {
                         settled.insert(item.id)
@@ -332,8 +379,84 @@ public enum Sender {
                 report.stillHeld += 1 // relay still not answering: keep
             }
         }
-        store.updateOutbound { current in current.filter { !settled.contains($0.id) } }
+        store.updateOutbound { current in
+            current.filter { !settled.contains($0.id) }.map { item in
+                guard let flag = flags[item.id] else { return item }
+                var next = item
+                next.targetGone = flag.targetGone
+                next.goneFromList = flag.goneFromList
+                return next
+            }
+        }
         return report
+    }
+
+    /// The relay's answer for a device that is not in the group. `not_in_group`
+    /// is retired as an answer [0029], but an older relay may still say it, and
+    /// it means the same thing here.
+    static func isTargetGoneReason(_ reason: String) -> Bool {
+        reason == "unknown_target" || reason == "not_in_group"
+    }
+
+    /// Send a held tab whose device is gone to `target` instead (PLANS.md P-15
+    /// item 3). False, with the queue untouched, when there is nothing to move
+    /// or nowhere it may go: the tab was cancelled or sent meanwhile, it has no
+    /// stored address to seal again or one that is not an openable web link, or
+    /// the target is not one of `NewDevices.heldTabChoices`.
+    ///
+    /// The old envelope is NEVER reused: it is sealed to the old device's key.
+    /// The tab is sealed again from its plaintext (kept beside every held tab for
+    /// the list) to the new device's key, with a new history blob naming the new
+    /// device, and takes the old item's place in the queue. The caller then runs
+    /// a flush, which delivers it now or when the relay is back.
+    ///
+    /// Only `target.id` is read. The device, and above all the key the tab is
+    /// sealed to, come from the choices this phone's watch allows, worked out
+    /// here from the store rather than taken from the caller: the relay decides
+    /// when a held tab asks for a new device, and must not also decide which key
+    /// it is sealed to (SECURITY_REVIEW L3). The address is checked as a link is
+    /// before it is opened, so a held `javascript:` or `file:` address is never
+    /// sealed for another device to open.
+    @discardableResult
+    public static func retargetHeld(id: String, to target: Endpoint, store: TabsendStore) -> Bool {
+        guard let identity = store.identity, let reg = store.registration,
+              let chosen = NewDevices.heldTabChoices(
+                  store.newDeviceWatch, store.cachedEndpoints, selfId: reg.endpointId
+              ).first(where: { $0.id == target.id }),
+              let old = store.outboundQueue.first(where: { $0.id == id }),
+              let url = old.url, LinkURLPolicy.openableURL(from: url) != nil
+        else { return false }
+        // The time the user first sent it, so the tab and its history row are
+        // dated honestly and the queue's age bound still counts from then.
+        let payload = SendPayload(url: url, title: old.title, sentAt: old.createdAt)
+        guard let plaintext = try? Wire.encoder.encode(payload),
+              let envelope = try? Sealer.seal(
+                  plaintext: plaintext,
+                  targetPublicKeyBase64: chosen.e2ePubkey,
+                  senderPrivateKeyBase64: identity.privateKey,
+                  senderKeyId: identity.keyId
+              )
+        else { return false }
+        // No flag: the new device is one this phone has accepted.
+        let moved = OutboundItem(
+            id: UUID().uuidString.lowercased(), targetEndpointId: chosen.id,
+            envelope: envelope, createdAt: old.createdAt, title: old.title, url: url,
+            targetLabel: chosen.label,
+            history: historyBlob(payload: payload, target: chosen, store: store)
+        )
+        var done = false
+        store.updateOutbound { queue in
+            // Read again inside the write: the queue may have moved on.
+            guard queue.contains(where: { $0.id == id }) else { return queue }
+            done = true
+            return OutboundQueue.retarget(queue, id: id, replacement: moved)
+        }
+        if done {
+            var prefs = store.sourcePrefs
+            prefs.recordSend(to: target.id)
+            store.sourcePrefs = prefs
+        }
+        return done
     }
 
     /// Extract the first http(s) URL from shared text; fall back to the whole text.

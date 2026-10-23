@@ -389,6 +389,28 @@ export function endpointsKnownTo(
   )
 }
 
+/**
+ * The devices a held tab whose device is gone may be moved to (P-15 item 3,
+ * SECURITY_REVIEW L3): those this watch has accepted (`endpointsKnownTo`, so never
+ * one this device removed), never this device or a console, and none the user has
+ * not answered yet, a pending "new device" notice or the first-look card. The relay
+ * decides when a held tab asks for a new device, so it must not also decide what
+ * is offered. The device the tab was for is not left out: once accepted again it
+ * is a fair choice. In list order; each client sorts for its own screen. A watch
+ * that belongs to another pairing offers nothing.
+ */
+export function heldTabChoices(
+  watch: NewDeviceWatch | null | undefined,
+  list: readonly Endpoint[],
+  selfId: string,
+): Endpoint[] {
+  if (!watch || watch.selfId !== selfId) return []
+  const unanswered = new Set([...watch.unconfirmed, ...(watch.review ?? [])].map((n) => n.id))
+  return endpointsKnownTo(watch, list).filter(
+    (e) => e.id !== selfId && e.kind !== 'console' && !unanswered.has(e.id),
+  )
+}
+
 /** The user said "Yes, it's mine": drop that device's pending notice. */
 export function confirmNewDevice(watch: NewDeviceWatch, id: string): NewDeviceWatch {
   return { ...watch, unconfirmed: watch.unconfirmed.filter((n) => n.id !== id) }

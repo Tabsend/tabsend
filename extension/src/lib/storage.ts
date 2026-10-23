@@ -177,6 +177,28 @@ export async function getOutbound(): Promise<OutboundItem[]> {
 }
 export const setOutbound = (v: OutboundItem[]) => set(KEYS.outbound, v)
 
+let outboundWrites: Promise<unknown> = Promise.resolve()
+
+/**
+ * Read the outbound queue, change it, and write it back, one change at a time
+ * (SECURITY_REVIEW L4). A drain, a new send, a cancel and a re-target can all
+ * be under way in the same second; two of them each writing back the queue they
+ * read would silently undo the other. `change` must be quick and must not wait
+ * on the network: everything slow happens before, and only its result is
+ * applied here. Resolves to the queue as written.
+ */
+export function updateOutbound(
+  change: (queue: OutboundItem[]) => OutboundItem[],
+): Promise<OutboundItem[]> {
+  const run = outboundWrites.then(async () => {
+    const next = change(await getOutbound())
+    await setOutbound(next)
+    return next
+  })
+  outboundWrites = run.catch(() => undefined)
+  return run
+}
+
 /**
  * Last-known group endpoint list. Cached so a send can seal to a target's key
  * (and the chooser can render) even while the relay is briefly unreachable.

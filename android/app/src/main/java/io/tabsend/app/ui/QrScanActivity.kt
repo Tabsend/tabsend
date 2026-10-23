@@ -16,8 +16,13 @@ import com.journeyapps.barcodescanner.DecoratedBarcodeView
 class QrScanActivity : CaptureActivity() {
     private lateinit var scannerView: DecoratedBarcodeView
 
+    // Padded clear of the system bars, so zxing's hint line at the bottom does not sit
+    // under the navigation bar on Android 15 and later (SystemBars).
     override fun initializeContent(): DecoratedBarcodeView =
-        super.initializeContent().also { scannerView = it }
+        super.initializeContent().also {
+            scannerView = it
+            SystemBars.pad(it)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

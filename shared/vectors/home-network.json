@@ -1,0 +1,67 @@
+{
+  "_comment": "PLANS.md P-15 item 4. Is a relay address one that only works on its home network? Run by shared/src/homenetwork.test.ts, Android HomeNetworkTest.kt and iOS HomeNetworkTests.swift.",
+  "cases": [
+    { "url": "http://192.168.1.20:8786", "home": true, "why": "a relay at home" },
+    { "url": "http://192.168.0.1", "home": true, "why": "192.168/16, no port" },
+    { "url": "https://192.168.255.255:8787/tabsend", "home": true, "why": "base path and https" },
+    { "url": "http://10.0.0.5:8787", "home": true, "why": "10/8" },
+    { "url": "http://10.255.255.255", "home": true, "why": "top of 10/8" },
+    { "url": "http://172.16.0.1:8787", "home": true, "why": "bottom of 172.16/12" },
+    { "url": "http://172.31.255.254:8787", "home": true, "why": "top of 172.16/12" },
+    { "url": "http://172.15.0.1:8787", "home": false, "why": "just below 172.16/12" },
+    { "url": "http://172.32.0.1:8787", "home": false, "why": "just above 172.16/12" },
+    { "url": "http://169.254.10.20:8787", "home": true, "why": "IPv4 link-local" },
+    { "url": "http://192.169.1.1", "home": false, "why": "public, next to 192.168" },
+    { "url": "http://11.0.0.1", "home": false, "why": "public, next to 10/8" },
+    {
+      "url": "http://100.64.0.1:8787",
+      "home": false,
+      "why": "Tailscale / CGNAT works away from home"
+    },
+    { "url": "http://100.101.102.103:8787", "home": false, "why": "a typical Tailscale address" },
+    { "url": "http://100.127.255.254", "home": false, "why": "top of 100.64/10" },
+    {
+      "url": "http://127.0.0.1:8787",
+      "home": false,
+      "why": "this same machine, a different problem"
+    },
+    { "url": "http://localhost:8787", "home": false, "why": "this same machine" },
+    { "url": "http://[::1]:8787", "home": false, "why": "IPv6 loopback" },
+    { "url": "http://0.0.0.0:8787", "home": false, "why": "not an address to reach" },
+    { "url": "http://8.8.8.8", "home": false, "why": "public IPv4" },
+    { "url": "http://256.1.1.1", "home": false, "why": "not an IPv4 address" },
+    { "url": "https://app.tabsend.org", "home": false, "why": "the hosted relay" },
+    { "url": "https://relay.example.com:8443", "home": false, "why": "a public name" },
+    { "url": "https://minipc.tail1234.ts.net", "home": false, "why": "Tailscale MagicDNS name" },
+    { "url": "http://minipc:8787", "home": false, "why": "single-label name, may be MagicDNS" },
+    { "url": "http://minipc.local:8786", "home": true, "why": "mDNS name" },
+    { "url": "http://MiniPC.Local:8786", "home": true, "why": "case does not matter" },
+    { "url": "http://minipc.local.:8786", "home": true, "why": "a trailing dot is the same name" },
+    { "url": "http://minipc.lan:8786", "home": true, "why": "router .lan name" },
+    { "url": "http://minipc.home.arpa", "home": true, "why": "RFC 8375 home name" },
+    { "url": "http://relay.internal", "home": true, "why": "ICANN private-use name" },
+    { "url": "http://local", "home": false, "why": "the bare suffix is not a name under it" },
+    { "url": "http://notlocal", "home": false, "why": "ends in 'local' but not '.local'" },
+    { "url": "http://myplan.com", "home": false, "why": "ends in 'lan' but not '.lan'" },
+    { "url": "http://[fd12:3456:789a::1]:8787", "home": true, "why": "IPv6 unique-local fd00::/8" },
+    { "url": "http://[fc00::1]", "home": true, "why": "IPv6 unique-local fc00::/8" },
+    { "url": "http://[fe80::1]:8787", "home": true, "why": "IPv6 link-local" },
+    { "url": "http://[FEBF::1]", "home": true, "why": "top of fe80::/10, upper case" },
+    { "url": "http://[fec0::1]", "home": false, "why": "just above fe80::/10" },
+    {
+      "url": "http://[fd7a:115c:a1e0::1]:8787",
+      "home": false,
+      "why": "Tailscale IPv6, works away from home"
+    },
+    {
+      "url": "http://[fd7a:115c:a1e1::1]",
+      "home": true,
+      "why": "next to Tailscale's range, still unique-local"
+    },
+    { "url": "http://[2001:db8::1]", "home": false, "why": "global IPv6" },
+    { "url": "http://user@192.168.1.5:8787", "home": true, "why": "userinfo is not the host" },
+    { "url": "192.168.1.5", "home": false, "why": "no scheme, not a relay URL" },
+    { "url": "", "home": false, "why": "empty" },
+    { "url": "http://", "home": false, "why": "no host" }
+  ]
+}

@@ -5,6 +5,7 @@ import {
   confirmReview,
   dismissVanished,
   endpointsKnownTo,
+  heldTabChoices,
   type NewDeviceWatch,
   removeDevice,
   rotationDeparted,
@@ -53,15 +54,23 @@ const vectors = raw as unknown as {
     list: (Pick<Endpoint, 'id' | 'label' | 'createdAt'> & { e2ePubkey?: string })[]
     expect: string[]
   }[]
+  heldTabChoices: {
+    name: string
+    selfId: string
+    watch: NewDeviceWatch | null
+    list: (Pick<Endpoint, 'id' | 'label' | 'createdAt'> &
+      Partial<Pick<Endpoint, 'kind' | 'e2ePubkey'>>)[]
+    expect: string[]
+  }[]
 }
 
 function endpoint(
-  e: Pick<Endpoint, 'id' | 'label' | 'createdAt'> & { e2ePubkey?: string },
+  e: Pick<Endpoint, 'id' | 'label' | 'createdAt'> & Partial<Pick<Endpoint, 'kind' | 'e2ePubkey'>>,
 ): Endpoint {
   return {
     ...e,
     groupId: 'g' as GroupId,
-    kind: 'extension',
+    kind: e.kind ?? 'extension',
     browser: 'chrome',
     platform: 'macos',
     e2ePubkey: e.e2ePubkey ?? 'pk',
@@ -123,6 +132,13 @@ describe('watchDevices (P-10 vectors)', () => {
   for (const c of vectors.knownTo) {
     it(`endpointsKnownTo: ${c.name}`, () => {
       expect(endpointsKnownTo(c.watch, c.list.map(endpoint)).map((e) => e.id)).toEqual(c.expect)
+    })
+  }
+  for (const c of vectors.heldTabChoices) {
+    it(`heldTabChoices: ${c.name}`, () => {
+      expect(heldTabChoices(c.watch, c.list.map(endpoint), c.selfId).map((e) => e.id)).toEqual(
+        c.expect,
+      )
     })
   }
 })

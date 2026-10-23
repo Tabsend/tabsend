@@ -322,6 +322,24 @@ object NewDevices {
         }
     }
 
+    /**
+     * The devices a held tab whose device is gone may be moved to (P-15 item 3,
+     * SECURITY_REVIEW L3): those this watch has accepted ([endpointsKnownTo], so never
+     * one this phone removed), never this phone or a console, and none the user has
+     * not answered yet, a pending "new device" notice or the first-look card. The relay
+     * decides when a held tab asks for a new device, so it must not also decide what
+     * is offered. The device the tab was for is not left out: once accepted again it
+     * is a fair choice. In list order; the home screen sorts. A watch that belongs to
+     * another pairing offers nothing.
+     */
+    fun heldTabChoices(watch: NewDeviceWatch?, list: List<Endpoint>, selfId: String): List<Endpoint> {
+        if (watch == null || watch.selfId != selfId) return emptyList()
+        val unanswered = (watch.unconfirmed + watch.review.orEmpty()).map { it.id }.toSet()
+        return endpointsKnownTo(watch, list).filter {
+            it.id != selfId && it.kind != "console" && it.id !in unanswered
+        }
+    }
+
     /** "All of these are mine": the first look is answered; its card goes on this phone only. */
     fun confirmReview(watch: NewDeviceWatch): NewDeviceWatch = watch.copy(review = null)
 

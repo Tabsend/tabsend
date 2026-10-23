@@ -2,13 +2,16 @@ import type {
   EncryptedEnvelope,
   Endpoint,
   EndpointId,
+  GroupKeyRecord,
+  HistoryRecord,
   IsoTimestamp,
+  NewDeviceWatch,
   SendItem,
   SendPayload,
 } from '@tabsend/shared'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '../lib/api'
-import { generateKeyPair, keyId, open } from '../lib/crypto'
+import { generateGroupKey, generateKeyPair, keyId, open, openGroup } from '../lib/crypto'
 import type { OutboundItem } from '../lib/model'
 
 // --- mocks for the runSend pipeline tests -----------------------------------
@@ -35,19 +38,42 @@ vi.mock('../lib/ext', () => ({
 
 let endpointList: Endpoint[] = []
 let outbound: OutboundItem[] = []
+let groupKeys: GroupKeyRecord[] = []
 vi.mock('../lib/storage', () => ({
   getCachedEndpoints: vi.fn(async () => endpointList),
   getOutbound: vi.fn(async () => [...outbound]),
   setOutbound: vi.fn(async (q: OutboundItem[]) => {
     outbound = q
   }),
+  updateOutbound: vi.fn(async (change: (q: OutboundItem[]) => OutboundItem[]) => {
+    outbound = change([...outbound])
+    return outbound
+  }),
   getSettings: vi.fn(async () => ({ showSuccessToast: false })),
+  // history.ts seals the group-history blob under the newest of these.
+  getGroupKeys: vi.fn(async () => groupKeys),
 }))
+
+/** This browser's watch (P-10): which devices it has accepted, removed, or not answered. */
+let watch: NewDeviceWatch | undefined
+vi.mock('./newdevices', () => ({ currentDeviceWatch: vi.fn(async () => watch) }))
+
+/** A watch that has accepted every device in `list`, as a settled group's would. */
+function acceptAll(list: Endpoint[], extra: Partial<NewDeviceWatch> = {}): NewDeviceWatch {
+  return {
+    selfId: 'self-1',
+    known: ['self-1', ...list.map((e) => e.id)],
+    unconfirmed: [],
+    keys: Object.fromEntries(list.map((e) => [e.id, e.e2ePubkey])),
+    ...extra,
+  }
+}
 
 vi.mock('./endpoints', () => ({ fetchEndpoints: vi.fn(async () => endpointList) }))
 vi.mock('./feedback', () => ({
   feedbackBadge: vi.fn(),
   showFeedback: vi.fn(async () => true),
+  activeOrigin: vi.fn(async () => undefined),
 }))
 vi.mock('./prefs', () => ({ recordSend: vi.fn(async () => undefined) }))
 vi.mock('./scheduler', () => ({ ensureRetryAlarm: vi.fn(async () => undefined) }))
@@ -57,16 +83,22 @@ interface FakeSession {
   registration: { relayUrl: string; deviceToken: string; endpointId: string }
 }
 let session: FakeSession
-vi.mock('./session', () => ({ requireSession: vi.fn(async () => session) }))
+/** Set to stand for a browser with no pairing (unpaired, or not yet paired). */
+let unpaired = false
+vi.mock('./session', () => ({
+  requireSession: vi.fn(async () => session),
+  currentSession: vi.fn(async () => (unpaired ? null : session)),
+}))
 
 import { OUTBOUND_MAX_AGE_MS, OUTBOUND_MAX_ITEMS } from '../lib/outbound'
-import { feedbackBadge, showFeedback } from './feedback'
+import { activeOrigin, feedbackBadge, showFeedback } from './feedback'
 import {
   buildConsoleCopies,
   cancelHeldTab,
   captureSelectedTabs,
   payloadsFromTabs,
   processOutbound,
+  retargetHeldTab,
   sendToTarget,
 } from './send'
 
@@ -242,6 +274,9 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+  unpaired = false
+  watch = undefined
+  groupKeys = []
 })
 
 let targetKeys: { publicKey: string; privateKey: string }
@@ -584,18 +619,20 @@ describe('processOutbound', () => {
     expect(shown()?.detail).toContain('Set Tabsend up again')
   })
 
+  // `expired_key` rather than a "device gone" answer: since P-15 item 3 those
+  // keep the tab for another device (see the describe block below).
   it('a per-item refusal is a drop, not a recovery, and names the device', async () => {
     outbound = [held('a', 'One')]
     sendMessages.mockImplementation(async (...args: unknown[]) => {
       const items = (args[2] as { items: SendItem[] }).items
-      return { accepted: [], rejected: [{ id: items[0]!.id, reason: 'not_in_group' }] }
+      return { accepted: [], rejected: [{ id: items[0]!.id, reason: 'expired_key' }] }
     })
 
     expect(await processOutbound()).toBe(false)
     expect(outbound).toEqual([])
     expect(feedbackBadge).not.toHaveBeenCalled() // never announced as "Sent"
     expect(shown()?.tone).toBe('error')
-    expect(shown()?.detail).toBe('Your relay says Arc · Mac mini has left your group of devices.')
+    expect(shown()?.detail).toContain('The keys on Arc · Mac mini have changed')
   })
 
   /**
@@ -784,5 +821,542 @@ describe('cancelHeldTab', () => {
     outbound = [queued('a'), queued('a-copy', { history: true, copyOf: 'a' }), queued('b')]
     await cancelHeldTab('a')
     expect(outbound.map((i) => i.id)).toEqual(['b'])
+  })
+})
+
+/**
+ * A tab held for a device that was then removed (PLANS.md P-15 item 3). It used
+ * to sit in the list until the relay answered, and then be dropped with an
+ * error. Now it waits, flagged, and the user sends it to another device.
+ */
+describe('held tabs for a removed device', () => {
+  const oldEnvelope: EncryptedEnvelope = {
+    alg: 'x25519-xsalsa20-poly1305/box',
+    senderKeyId: 'sender-key',
+    targetKeyId: 'removed-key',
+    nonce: 'nonce',
+    ciphertext: 'sealed-for-the-removed-device',
+  }
+  const forRemoved = (id: string, extra: Partial<OutboundItem> = {}): OutboundItem => ({
+    id,
+    targetEndpointId: 'removed-1',
+    envelope: oldEnvelope,
+    createdAt: '2026-08-16T00:00:00.000Z',
+    attempts: 2,
+    title: 'All workflows',
+    url: 'https://github.com/x/actions',
+    targetLabel: 'Galaxy S24 Ultra',
+    ...extra,
+  })
+  const copyOf = (id: string, parent: string): OutboundItem => ({
+    id,
+    targetEndpointId: 'con-1',
+    envelope: oldEnvelope,
+    createdAt: '2026-08-16T00:00:00.000Z',
+    attempts: 0,
+    history: true,
+    copyOf: parent,
+  })
+  const shown = () => vi.mocked(showFeedback).mock.calls[0]?.[0]
+  /** The device the tab was for, still (or again) on the relay's list. */
+  const removedDevice = (): Endpoint => ({ ...target, id: 'removed-1' as EndpointId })
+
+  beforeEach(() => {
+    endpointList = [target] // the removed device is no longer in the group
+    watch = acceptAll(endpointList)
+    outbound = []
+    sendMessages.mockReset()
+    sendMessages.mockResolvedValue({ accepted: [], rejected: [] })
+    vi.mocked(showFeedback).mockClear()
+    vi.mocked(feedbackBadge).mockClear()
+  })
+
+  it('flags a tab whose device left the list, posts nothing, and says so once', async () => {
+    outbound = [forRemoved('a'), copyOf('a-copy', 'a')]
+
+    // Nothing left that a retry could move, so no retry alarm is needed.
+    expect(await processOutbound()).toBe(false)
+    expect(sendMessages).not.toHaveBeenCalled()
+    expect(outbound.map((i) => i.id)).toEqual(['a', 'a-copy'])
+    expect(outbound[0]?.targetGone).toBe(true)
+    expect(outbound[0]?.goneFromList).toBe(true)
+    expect(outbound[0]?.attempts).toBe(2) // not counted as a failed try
+    expect(shown()?.tone).toBe('pending')
+    expect(shown()?.headline).toBe('“All workflows” is waiting for a new device')
+    // Nobody here removed it: all this browser knows is that it is not in the list (L3).
+    expect(shown()?.detail).toBe(
+      'Galaxy S24 Ultra is no longer in your group. Open Tabsend to send it to another device.',
+    )
+
+    // The flag is stored, so the next drain neither posts nor repeats itself.
+    vi.mocked(showFeedback).mockClear()
+    await processOutbound()
+    expect(sendMessages).not.toHaveBeenCalled()
+    expect(showFeedback).not.toHaveBeenCalled()
+  })
+
+  it('counts a device this browser removed as gone while the relay keeps listing it (L3)', async () => {
+    endpointList = [target, removedDevice()]
+    watch = acceptAll(endpointList, { removed: ['removed-1'] })
+    outbound = [forRemoved('a')]
+
+    await processOutbound()
+    expect(sendMessages).not.toHaveBeenCalled()
+    expect(outbound[0]?.targetGone).toBe(true)
+    expect(shown()?.detail).toBe(
+      'Galaxy S24 Ultra was removed from your group. Open Tabsend to send it to another device.',
+    )
+  })
+
+  it('takes no verdict from a watch another pairing left behind (L7)', async () => {
+    // Written under an earlier registration of this browser, which removed the
+    // device. This pairing has never judged it, so the list decides, as before P-10.
+    endpointList = [target, removedDevice()]
+    watch = { ...acceptAll(endpointList, { removed: ['removed-1'] }), selfId: 'old-self' }
+    outbound = [forRemoved('a')]
+
+    await processOutbound()
+    const posted = (sendMessages.mock.calls[0]![2] as { items: SendItem[] }).items
+    expect(posted.map((i) => i.targetEndpointId)).toEqual(['removed-1'])
+    expect(outbound).toEqual([])
+  })
+
+  it('does not say "was removed" from a watch another pairing left behind (L7)', async () => {
+    endpointList = [target, removedDevice()]
+    watch = { ...acceptAll(endpointList, { removed: ['removed-1'] }), selfId: 'old-self' }
+    outbound = [forRemoved('a')]
+    sendMessages.mockImplementation(async (...args: unknown[]) => {
+      const items = (args[2] as { items: SendItem[] }).items
+      return { accepted: [], rejected: [{ id: items[0]!.id, reason: 'unknown_target' }] }
+    })
+
+    await processOutbound()
+    expect(outbound[0]?.targetGone).toBe(true)
+    expect(shown()?.detail).toBe(
+      'Galaxy S24 Ultra is no longer in your group. Open Tabsend to send it to another device.',
+    )
+  })
+
+  it('still posts a tab whose device is in the list', async () => {
+    outbound = [forRemoved('a', { targetEndpointId: 'target-1' })]
+    expect(await processOutbound()).toBe(false)
+    expect(sendMessages).toHaveBeenCalledTimes(1)
+    expect(outbound).toEqual([])
+  })
+
+  it('gives a tab back to its device once a list shows that device accepted again (L3)', async () => {
+    // A list left the device out for a while: it is back, and so is its tab.
+    endpointList = [target, removedDevice()]
+    watch = acceptAll(endpointList)
+    outbound = [forRemoved('a', { targetGone: true, goneFromList: true })]
+
+    await processOutbound()
+    const posted = (sendMessages.mock.calls[0]![2] as { items: SendItem[] }).items
+    expect(posted.map((i) => i.targetEndpointId)).toEqual(['removed-1'])
+    expect(outbound).toEqual([])
+  })
+
+  it('does not say it twice when a tab given back to its device is then refused', async () => {
+    endpointList = [target, removedDevice()]
+    watch = acceptAll(endpointList)
+    outbound = [forRemoved('a', { targetGone: true, goneFromList: true })]
+    sendMessages.mockImplementation(async (...args: unknown[]) => {
+      const items = (args[2] as { items: SendItem[] }).items
+      return { accepted: [], rejected: [{ id: items[0]!.id, reason: 'unknown_target' }] }
+    })
+
+    await processOutbound()
+    expect(sendMessages).toHaveBeenCalledTimes(1)
+    expect(outbound[0]?.targetGone).toBe(true)
+    expect(outbound[0]?.goneFromList).toBeUndefined() // now the relay's flag
+    expect(showFeedback).not.toHaveBeenCalled()
+  })
+
+  it('keeps a tab the relay calls unknown, instead of dropping it, and holds its copy', async () => {
+    // The list here still shows the device: the relay knows better.
+    endpointList = [target, removedDevice()]
+    watch = acceptAll(endpointList)
+    outbound = [forRemoved('a'), copyOf('a-copy', 'a')]
+    sendMessages.mockImplementation(async (...args: unknown[]) => {
+      const items = (args[2] as { items: SendItem[] }).items
+      return { accepted: [], rejected: [{ id: items[0]!.id, reason: 'unknown_target' }] }
+    })
+
+    expect(await processOutbound()).toBe(false)
+    // The copy names the old device inside its ciphertext: it must not go.
+    expect(sendMessages).toHaveBeenCalledTimes(1)
+    expect(outbound.map((i) => i.id)).toEqual(['a', 'a-copy'])
+    expect(outbound[0]?.targetGone).toBe(true)
+    expect(outbound[0]?.goneFromList).toBeUndefined()
+    expect(shown()?.tone).toBe('pending') // not "Couldn't send"
+
+    // The relay's word holds against a list that still shows the device.
+    sendMessages.mockClear()
+    await processOutbound()
+    expect(sendMessages).not.toHaveBeenCalled()
+    expect(outbound[0]?.targetGone).toBe(true)
+  })
+
+  it('sends a moved tab to the new device, sealed afresh for its key', async () => {
+    const consoleKp = await generateKeyPair()
+    endpointList = [target, consoleEndpoint('con-1', consoleKp.publicKey)]
+    watch = acceptAll(endpointList)
+    const groupKey = await generateGroupKey()
+    groupKeys = [
+      { key: groupKey, keyId: 'gk-1', createdAt: '2026-08-01T00:00:00.000Z' as IsoTimestamp },
+    ]
+    const oldHistory = {
+      alg: 'xsalsa20-poly1305/secretbox' as const,
+      keyId: 'gk-1',
+      nonce: 'n',
+      ciphertext: 'names-the-removed-device',
+    }
+    outbound = [
+      forRemoved('a', { targetGone: true, groupHistory: oldHistory }),
+      copyOf('a-copy', 'a'),
+      forRemoved('b'),
+    ]
+
+    expect(await retargetHeldTab('a', 'target-1')).toBe(true)
+
+    // Still queued, in the old one's place, now for the new device.
+    const [moved, copy, other] = outbound
+    expect(outbound).toHaveLength(3)
+    expect(moved?.id).not.toBe('a')
+    expect(moved?.targetEndpointId).toBe('target-1')
+    expect(moved?.targetLabel).toBe('Arc · Mac mini')
+    expect(moved?.targetGone).toBeUndefined()
+    expect(moved?.createdAt).toBe('2026-08-16T00:00:00.000Z')
+    expect(moved?.url).toBe('https://github.com/x/actions')
+    // Never the old ciphertext: the new device opens it with its own key.
+    expect(moved?.envelope.ciphertext).not.toBe(oldEnvelope.ciphertext)
+    expect(moved?.envelope.targetKeyId).toBe(await keyId(targetKeys.publicKey))
+    const opened = JSON.parse(
+      await open(moved!.envelope, session.identity.publicKey, targetKeys.privateKey),
+    ) as SendPayload
+    expect(opened.url).toBe('https://github.com/x/actions')
+    expect(opened.title).toBe('All workflows')
+    // A new history blob, under the group key, that names the new device (L7).
+    expect(moved?.groupHistory).toBeDefined()
+    expect(moved?.groupHistory?.ciphertext).not.toBe(oldHistory.ciphertext)
+    const record = JSON.parse(await openGroup(moved!.groupHistory!, groupKey)) as HistoryRecord
+    expect(record.targetLabelAtSend).toBe('Arc · Mac mini')
+    expect(record.payload.url).toBe('https://github.com/x/actions')
+    // The old console copy is gone; a new one names the new device.
+    expect(copy?.history).toBe(true)
+    expect(copy?.copyOf).toBe(moved?.id)
+    const copyPayload = JSON.parse(
+      await open(copy!.envelope, session.identity.publicKey, consoleKp.privateKey),
+    ) as SendPayload
+    expect(copyPayload.historyOf).toEqual({ targetEndpointId: 'target-1' })
+    expect(other?.id).toBe('b')
+
+    // The drain then delivers it like any held tab.
+    await processOutbound()
+    const posted = (sendMessages.mock.calls[0]![2] as { items: SendItem[] }).items
+    expect(posted[0]?.targetEndpointId).toBe('target-1')
+    // The relay is handed the new blob, never the one naming the removed device.
+    expect(posted[0]?.history).toEqual(moved?.groupHistory)
+    expect(outbound.map((i) => i.id)).toEqual(['b'])
+    expect(vi.mocked(feedbackBadge).mock.calls[0]?.[0]?.headline).toBe('Sent “All workflows”')
+  })
+
+  it('may move the tab back to its own device once that device is accepted again', async () => {
+    endpointList = [target, removedDevice()]
+    watch = acceptAll(endpointList)
+    outbound = [forRemoved('a', { targetGone: true })] // the relay refused it once
+
+    expect(await retargetHeldTab('a', 'removed-1')).toBe(true)
+    expect(outbound[0]?.targetEndpointId).toBe('removed-1')
+    expect(outbound[0]?.id).not.toBe('a')
+  })
+
+  it('moves nothing to this browser itself, to an unknown device, or for a gone id', async () => {
+    outbound = [forRemoved('a', { targetGone: true })]
+    expect(await retargetHeldTab('a', 'self-1')).toBe(false)
+    expect(await retargetHeldTab('a', 'nobody')).toBe(false)
+    expect(await retargetHeldTab('zzz', 'target-1')).toBe(false)
+    expect(outbound.map((i) => i.id)).toEqual(['a'])
+  })
+
+  it('moves nothing to a device the relay lists but this browser has not accepted (L3)', async () => {
+    const consoleKp = await generateKeyPair()
+    const stranger = { ...target, id: 'stranger' as EndpointId }
+    const pending = { ...target, id: 'pending' as EndpointId }
+    const onCard = { ...target, id: 'on-card' as EndpointId }
+    endpointList = [
+      target,
+      removedDevice(),
+      stranger,
+      pending,
+      onCard,
+      consoleEndpoint('con-1', consoleKp.publicKey),
+    ]
+    const notice = (id: string) => ({ id, label: id, createdAt: target.createdAt })
+    watch = {
+      ...acceptAll(endpointList.filter((e) => e.id !== 'stranger')),
+      removed: ['removed-1'],
+      unconfirmed: [notice('pending')],
+      review: [notice('on-card')],
+    }
+    outbound = [forRemoved('a', { targetGone: true })]
+
+    expect(await retargetHeldTab('a', 'stranger')).toBe(false) // never accepted
+    expect(await retargetHeldTab('a', 'removed-1')).toBe(false) // removed here, still listed
+    expect(await retargetHeldTab('a', 'pending')).toBe(false) // "new device" unanswered
+    expect(await retargetHeldTab('a', 'on-card')).toBe(false) // first look unanswered
+    expect(await retargetHeldTab('a', 'con-1')).toBe(false) // a console
+    expect(outbound.map((i) => i.id)).toEqual(['a'])
+    // A watch from another pairing accepts nothing.
+    watch = { ...acceptAll([target]), selfId: 'someone-else' }
+    expect(await retargetHeldTab('a', 'target-1')).toBe(false)
+    expect(outbound.map((i) => i.id)).toEqual(['a'])
+  })
+
+  it('seals nothing but a web address again', async () => {
+    outbound = [forRemoved('a', { targetGone: true, url: 'javascript:alert(1)' })]
+    expect(await retargetHeldTab('a', 'target-1')).toBe(false)
+    expect(outbound.map((i) => i.id)).toEqual(['a'])
+  })
+})
+
+/**
+ * Several things write the queue, and a drain spends seconds on the network
+ * between reading it and writing it (SECURITY_REVIEW L4). Each test holds the
+ * drain's first POST open, changes the queue meanwhile, then lets it finish.
+ */
+describe('a drain that is still posting', () => {
+  const item = (id: string, extra: Partial<OutboundItem> = {}): OutboundItem => ({
+    id,
+    targetEndpointId: 'target-1',
+    envelope: {
+      alg: 'x25519-xsalsa20-poly1305/box',
+      senderKeyId: 'sender-key',
+      targetKeyId: 'target-key',
+      nonce: 'nonce',
+      ciphertext: `sealed-${id}`,
+    },
+    createdAt: '2026-08-16T00:00:00.000Z',
+    attempts: 1,
+    title: id,
+    url: `https://example.com/${id}`,
+    targetLabel: 'Arc · Mac mini',
+    ...extra,
+  })
+
+  /** Hold the first POST until `release` is called; every POST then gets `answer`. */
+  function holdFirstPost(answer: () => Promise<unknown>): {
+    posting: Promise<void>
+    release: () => void
+  } {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let started!: () => void
+    const posting = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    let first = true
+    sendMessages.mockImplementation(async () => {
+      if (first) {
+        first = false
+        started()
+        await gate
+      }
+      return answer()
+    })
+    return { posting, release }
+  }
+
+  const offline = async () => {
+    throw new TypeError('Failed to fetch')
+  }
+
+  beforeEach(() => {
+    endpointList = [target, { ...target, id: 'pixel' as EndpointId, label: 'Pixel 8' }]
+    watch = acceptAll(endpointList)
+    sendMessages.mockReset()
+    vi.mocked(showFeedback).mockClear()
+  })
+
+  it('does not undo a move made meanwhile, and the tab goes once', async () => {
+    outbound = [item('x'), item('a', { targetEndpointId: 'gone-1', targetGone: true })]
+    const { posting, release } = holdFirstPost(async () => ({ accepted: [], rejected: [] }))
+
+    const draining = processOutbound()
+    await posting
+    expect(await retargetHeldTab('a', 'pixel')).toBe(true)
+    release()
+    await draining
+
+    // The old row did not come back beside its replacement to be moved again.
+    expect(outbound.some((i) => i.id === 'a')).toBe(false)
+    expect(outbound.map((i) => i.targetEndpointId)).toEqual(['pixel'])
+    sendMessages.mockReset()
+    sendMessages.mockResolvedValue({ accepted: [], rejected: [] })
+    await processOutbound()
+    expect(sendMessages).toHaveBeenCalledTimes(1)
+    expect(outbound).toEqual([])
+  })
+
+  it('does not bring back a tab cancelled meanwhile', async () => {
+    outbound = [item('x'), item('y')]
+    const { posting, release } = holdFirstPost(offline)
+
+    const draining = processOutbound()
+    await posting
+    await cancelHeldTab('y')
+    release()
+    await draining
+
+    expect(outbound.map((i) => i.id)).toEqual(['x'])
+    expect(outbound[0]?.attempts).toBe(2)
+  })
+
+  it('keeps a send queued meanwhile', async () => {
+    outbound = [item('x')]
+    const { posting, release } = holdFirstPost(async () => ({ accepted: [], rejected: [] }))
+
+    const draining = processOutbound()
+    await posting
+    outbound = [...outbound, item('new', { attempts: 0 })] // as enqueueOutbound would
+    release()
+    await draining
+
+    expect(outbound.map((i) => i.id)).toEqual(['new'])
+  })
+
+  it('does not restore what an unpair wiped meanwhile', async () => {
+    outbound = [item('x'), item('y')]
+    const { posting, release } = holdFirstPost(offline)
+
+    const draining = processOutbound()
+    await posting
+    outbound = [] // clearRegistrationState
+    unpaired = true
+    release()
+    await draining
+
+    expect(outbound).toEqual([])
+  })
+
+  it('announces nothing for a pass an unpair overtook', async () => {
+    outbound = [item('x'), item('y')]
+    const { posting, release } = holdFirstPost(async () => ({ accepted: [], rejected: [] }))
+    vi.mocked(feedbackBadge).mockClear()
+
+    const draining = processOutbound()
+    await posting
+    outbound = [] // clearRegistrationState
+    unpaired = true
+    release()
+    expect(await draining).toBe(false)
+
+    expect(outbound).toEqual([])
+    expect(feedbackBadge).not.toHaveBeenCalled()
+    expect(showFeedback).not.toHaveBeenCalled()
+  })
+
+  it('posts and writes nothing without a pairing', async () => {
+    unpaired = true
+    outbound = [item('x')]
+    expect(await processOutbound()).toBe(false)
+    expect(sendMessages).not.toHaveBeenCalled()
+    expect(outbound.map((i) => i.attempts)).toEqual([1])
+  })
+})
+
+/**
+ * A later outcome (the relay came back, refused a held tab, or lost its
+ * device) goes up as a banner only on the tab the send came from, and names
+ * the tab only when it was that tab's own page (SECURITY_REVIEW L8). Before,
+ * every one of them landed in whatever page was in front.
+ */
+describe('later outcomes go only to the tab they came from (L8)', () => {
+  const envelope: EncryptedEnvelope = {
+    alg: 'x25519-xsalsa20-poly1305/box',
+    senderKeyId: 'sender-key',
+    targetKeyId: 'target-key',
+    nonce: 'nonce',
+    ciphertext: 'ciphertext',
+  }
+  const ORIGIN = { tabId: 7, url: 'https://a.example/a' }
+  function held(id: string, extra: Partial<OutboundItem> = {}): OutboundItem {
+    return {
+      id,
+      targetEndpointId: 'target-1',
+      envelope,
+      createdAt: '2026-08-16T00:00:00.000Z',
+      attempts: 1,
+      title: `Title ${id}`,
+      url: `https://a.example/${id}`,
+      ...extra,
+    }
+  }
+  const call = () => vi.mocked(showFeedback).mock.calls[0]
+  const refuse = () =>
+    sendMessages.mockRejectedValue(new ApiClientError(401, 'unauthorized', 'Bad token.'))
+
+  beforeEach(() => {
+    endpointList = [target]
+    watch = acceptAll(endpointList)
+    outbound = []
+    sendMessages.mockReset()
+    vi.mocked(showFeedback).mockClear()
+    vi.mocked(activeOrigin).mockReset()
+    vi.mocked(activeOrigin).mockResolvedValue(undefined)
+  })
+
+  it('keeps the tab and page a held send came from, on the tab itself only', async () => {
+    vi.mocked(activeOrigin).mockResolvedValue(ORIGIN)
+    sendMessages.mockRejectedValue(new TypeError('fetch failed'))
+    const [own] = payloadsFromTabs([fakeTab(ORIGIN.url, 'Title a')])
+    await sendToTarget('target-1', own)
+
+    expect(outbound.length).toBeGreaterThan(0)
+    expect(outbound.filter((i) => !i.history).map((i) => i.origin)).toEqual([ORIGIN])
+    // The immediate banner goes to that tab, and may name it: it is its own page.
+    expect(call()?.[1]).toEqual({ origin: ORIGIN, titleFrom: ORIGIN.url })
+  })
+
+  it('shows a refusal on the tab it came from, named only when it was that page', async () => {
+    outbound = [held('a', { origin: ORIGIN })]
+    refuse()
+    await processOutbound()
+
+    const [named, opts] = call() ?? []
+    expect(named?.headline).toBe("Couldn't send “Title a”")
+    expect(opts?.origin).toEqual(ORIGIN)
+    expect(opts?.titleFrom).toBe('https://a.example/a')
+    // For a page that the name isn't from, the same news without it.
+    expect(opts?.untitled?.headline).toBe("Couldn't send the tab that was waiting")
+  })
+
+  it('gives the badge alone for a held tab with no known origin', async () => {
+    outbound = [held('a')]
+    refuse()
+    await processOutbound()
+    expect(call()?.[1]?.origin).toBeUndefined()
+  })
+
+  it('gives the badge alone when the held tabs came from different pages', async () => {
+    outbound = [
+      held('a', { origin: ORIGIN }),
+      held('b', { origin: { tabId: 7, url: 'https://a.example/b' } }),
+    ]
+    refuse()
+    await processOutbound()
+    expect(call()?.[1]?.origin).toBeUndefined()
+  })
+
+  it('has an untitled wording for a tab that lost its device', async () => {
+    // Its device is no longer in the group.
+    outbound = [held('a', { origin: ORIGIN, targetEndpointId: 'gone-1', targetLabel: 'Pixel 8' })]
+    await processOutbound()
+    const [named, opts] = call() ?? []
+    expect(named?.headline).toBe('“Title a” is waiting for a new device')
+    expect(opts?.origin).toEqual(ORIGIN)
+    expect(opts?.untitled?.headline).toBe('A tab is waiting for a new device')
   })
 })

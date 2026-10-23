@@ -1,4 +1,5 @@
 import type { ApiErrorCode, GroupLimit, SendResponse } from '@tabsend/shared'
+import { HOME_NETWORK_HINT, isHomeNetworkRelay } from '@tabsend/shared'
 import type { InboxItem } from './model'
 import { OUTBOUND_MAX_AGE_DAYS, OUTBOUND_MAX_ITEMS } from './outbound'
 
@@ -135,6 +136,19 @@ export function sendFailureLine(failure: SendFailure, targetLabel?: string, coun
     case 'no-tab':
       return "There's nothing to send from this tab."
   }
+}
+
+/**
+ * `sendFailureLine` for the banner drawn inside a web page. The same sentence,
+ * except that it never names the relay's address: that is for Tabsend's own
+ * pages, and any script on the page can read what the banner says
+ * (SECURITY_REVIEW L8). The toolbar tooltip and the chooser keep the address.
+ */
+export function pageFailureLine(failure: SendFailure, targetLabel?: string, count = 1): string {
+  if (failure.kind !== 'relay-unreachable') return sendFailureLine(failure, targetLabel, count)
+  return count > 1
+    ? "Can't reach your relay. The tabs are held here and send themselves once the relay answers again."
+    : "Can't reach your relay. The tab is held here and sends itself once the relay answers again."
 }
 
 /**
@@ -317,6 +331,10 @@ export function isCapRejection(reason: SendRejectionReason): boolean {
  * The standing relay-outage line shown on surfaces the user opens LATER (the
  * chooser). Not tied to any one send — it answers "why did nothing arrive?"
  * for someone who has already walked away from the tab they sent.
+ *
+ * A relay on a home-network address gets one more sentence (PLANS.md P-15
+ * item 4): away from home, that address cannot answer, and the bare outage line
+ * read as a refresh bug. Same rule and words on Android, iOS and the console.
  */
 export function relayDownLine(relayUrl: string, sinceMinutes: number): string {
   const ago =
@@ -325,7 +343,8 @@ export function relayDownLine(relayUrl: string, sinceMinutes: number): string {
       : sinceMinutes < 60
         ? `${sinceMinutes}m ago`
         : `${Math.round(sinceMinutes / 60)}h ago`
-  return `Can't reach your relay at ${relayUrl}. It last answered ${ago}, and sends are being held until it's back.`
+  const line = `Can't reach your relay at ${relayUrl}. It last answered ${ago}, and sends are being held until it's back.`
+  return isHomeNetworkRelay(relayUrl) ? `${line} ${HOME_NETWORK_HINT}` : line
 }
 
 /** "just now", "5m ago", "3h ago", "2d ago": the short relative time the device list uses. */
@@ -410,7 +429,7 @@ export function pendingRow(count: number, label: string): string {
  * Surface: humanRegisterError (identity.ts). Tracked in docs/ROADMAP.md,
  * Phase 3.
  */
-export const SETUP_DOCS_URL = 'https://github.com/tabsend/tabsend/blob/main/docs/DEPLOY.md'
+export const SETUP_DOCS_URL = 'https://github.com/Tabsend/tabsend/blob/main/docs/DEPLOY.md'
 
 /**
  * Heading for the list of tabs still sitting on THIS browser because the relay
@@ -777,6 +796,11 @@ export interface SendBanner {
   favicon?: string
   /** Last line: the honest caveat or the diagnosis. */
   detail?: string
+  /**
+   * `detail` as the in-page banner says it, when `detail` holds something a web
+   * page must not read (the relay's address, L8). Absent when they are the same.
+   */
+  pageDetail?: string
 }
 
 export function sendBanner(result: {
@@ -822,10 +846,13 @@ export function sendBanner(result: {
     const recoverable = isRecoverableFailure(result.failure)
     const waiting = n > 1 ? `Waiting to send ${n} tabs to ${label}` : `Waiting to send to ${label}`
     const failed = n > 1 ? `Couldn't send ${n} tabs to ${label}` : `Couldn't send to ${label}`
+    const detail = sendFailureLine(result.failure, result.targetLabel, n)
+    const pageDetail = pageFailureLine(result.failure, result.targetLabel, n)
     return withTitle({
       tone: recoverable ? 'pending' : 'error',
       headline: recoverable ? waiting : failed,
-      detail: sendFailureLine(result.failure, result.targetLabel, n),
+      detail,
+      ...(pageDetail === detail ? {} : { pageDetail }),
     })
   }
   if (!result.ok) {
@@ -898,4 +925,57 @@ export function sendingBanner(
  */
 export function multiSelectionLine(count: number): string {
   return `${count} tabs selected. A click sends all ${count}.`
+}
+
+/**
+ * A held tab whose device was removed from the group (PLANS.md P-15 item 3).
+ * Its own block so it stays clear of the other P-15 copy. Said the same way by
+ * Android (`GoneTargetCopy.kt`) and iOS (`GoneTargetCopy.swift`).
+ *
+ * The tab is not lost: it is still held here, and the user picks where it goes
+ * next. So the words say what happened and what to do, never "failed".
+ */
+export const goneTargetCopy = {
+  /**
+   * The line under the held tab, in place of "→ <device>". "Was removed" only
+   * when this browser removed it: otherwise all it knows is that the device is
+   * not in the group it accepts, which a relay can arrange (SECURITY_REVIEW L3).
+   */
+  removedLine(targetLabel: string | undefined, removedHere: boolean): string {
+    return `${targetLabel ?? 'The device it was for'} ${goneVerb(removedHere)} your group.`
+  },
+  /** Before the device buttons, or as the first option of the menu. */
+  sendTo: 'Send to:',
+  sendToMenu: 'Send to…',
+  /** No other device the tab can go to: this one, or devices still waiting for an answer. */
+  noOtherDevice: 'No other device to send it to.',
+  /** Spoken name of one device button. */
+  sendToAria(tabLabel: string, deviceLabel: string): string {
+    return `Send ${tabLabel} to ${deviceLabel}`
+  },
+  /**
+   * The drain found the device gone. The tab was promised to send itself, and
+   * now it will not, so this is said once, out loud, like any withdrawn promise.
+   * `removedHere` is judged on the first tab, the one the banner names.
+   */
+  banner(
+    count: number,
+    firstTitle: string | undefined,
+    targetLabel: string | undefined,
+    removedHere: boolean,
+  ): SendBanner {
+    const headline =
+      count > 1
+        ? `${count} tabs are waiting for a new device`
+        : firstTitle
+          ? `“${firstTitle}” is waiting for a new device`
+          : 'A tab is waiting for a new device'
+    const who = targetLabel ?? (count > 1 ? 'The device they were for' : 'The device it was for')
+    const detail = `${who} ${goneVerb(removedHere)} your group. Open Tabsend to send ${count > 1 ? 'them' : 'it'} to another device.`
+    return { tone: 'pending', headline, detail }
+  },
+}
+
+function goneVerb(removedHere: boolean): string {
+  return removedHere ? 'was removed from' : 'is no longer in'
 }

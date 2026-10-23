@@ -257,6 +257,19 @@
         cursor: pointer;
       }
       .held-cancel:hover, .held-cancel:focus-visible { color: var(--danger); }
+      /* A held tab whose device left the group: the reason and the devices it
+         can go to instead, on their own line under the tab. */
+      .held-row.gone { flex-wrap: wrap; }
+      .held-gone { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+      .held-gone-choices {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 2px 10px;
+        margin-top: 2px;
+      }
+      .held-gone-choices .linkish { font-size: 12px; }
+      .held-gone-choices select { min-height: 32px; padding: 4px 8px; font-size: 13px; }
       #pairing-box {
         border-top: 1.5px solid var(--line);
         padding: 12px 14px;

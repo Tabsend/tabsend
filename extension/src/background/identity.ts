@@ -47,6 +47,7 @@ import {
   setPendingRelayUrl,
   setRegistration,
   setRemovedNotice,
+  updateOutbound,
 } from '../lib/storage'
 import {
   DEVICE_LIMIT_LINE,
@@ -201,6 +202,11 @@ async function persistRegistration(
   // and from here on the storage keys it owns are about to be reused.
   const previous = await getRegistration()
   if (previous) await retirePrevious(previous)
+  // With no pairing to retire, tabs held under an earlier one can still be
+  // queued: a send that failed just after an unpair is queued after its wipe.
+  // Sealed for another group's devices, they must not be offered for sending
+  // into this one (L4).
+  else await updateOutbound(() => [])
   // The relay's label wins: it de-duplicates within the group (`uniqueLabel`), so
   // it may have stored something other than what we sent. Keeping our own copy
   // would show this browser one name while every other device sees another.

@@ -31,6 +31,25 @@ describe('POST /v1/wake', () => {
     expect(stored?.lastWakeAt).toBe(rig.clock.now())
   })
 
+  /**
+   * SECURITY_REVIEW G16: once a write failed (a disk filled by a sign-up flood, say), the
+   * tally update threw before the ring, so live phones stopped being rung. The tally is in
+   * memory now, and a failure to keep it never stops the ring.
+   */
+  it('rings even when the wake cannot be noted', async () => {
+    const { wakeToken, apnsToken } = await register(rig)
+    vi.spyOn(rig.store, 'recordWake').mockImplementation(() => {
+      throw new Error('SQLITE_FULL: database or disk is full')
+    })
+
+    expect((await post(rig, '/v1/wake', {}, wakeToken)).status).toBe(202)
+
+    await vi.waitFor(() =>
+      expect(rig.apns.calls).toEqual([{ apnsToken, environment: 'production' }]),
+    )
+    expect(rig.log.all()).toContain('ringing anyway')
+  })
+
   it('is idempotent: replayed rings are just more rings, and leave one row', async () => {
     const { wakeToken } = await register(rig)
 

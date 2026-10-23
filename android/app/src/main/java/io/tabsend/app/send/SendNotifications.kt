@@ -9,11 +9,14 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import io.tabsend.app.R
 import io.tabsend.app.logic.Feedback
+import io.tabsend.app.logic.GoneTargetCopy
+import io.tabsend.app.logic.OutboundQueue
 import io.tabsend.app.logic.SendBanner
 import io.tabsend.app.logic.SendFailure
 import io.tabsend.app.logic.SendTone
 import io.tabsend.app.logic.noticeIdOf
 import io.tabsend.app.logic.stalePendingNoticeIds
+import io.tabsend.app.receive.NewDeviceWatcher
 import io.tabsend.app.store.Store
 import io.tabsend.app.ui.MainActivity
 
@@ -210,10 +213,50 @@ object SendNotifications {
                 report.firstDroppedFailure,
             )
         }
+        if (report.newlyGone > 0) {
+            postGoneTarget(
+                context,
+                report.newlyGone,
+                report.firstGoneTitle,
+                report.firstGoneTargetLabel,
+                report.firstGoneRemovedHere,
+            )
+        }
         // Unconditional, and after the report: this runs whether or not the flush
         // moved anything, so it is also what clears notices left stranded by an
         // emptied queue or by a process death mid-outage.
-        reconcilePending(context, Store.get(context).outbound.map { it.id })
+        reconcilePending(context, waitingIds(Store.get(context)))
+    }
+
+    /**
+     * The tabs whose "Waiting to send" notice is still true: everything queued
+     * except a tab waiting for a new device, which no relay answer will move.
+     * Its notice would say the opposite of the one [postGoneTarget] put up.
+     * Judged by the flush's own rule against the group as this phone accepts it
+     * now, so the shade and the home screen's rows never disagree about a tab.
+     */
+    fun waitingIds(store: Store): List<String> {
+        val acceptedIds = NewDeviceWatcher.acceptedIds(store)
+        return store.outbound.filterNot { OutboundQueue.isTargetGone(it, acceptedIds) }.map { it.id }
+    }
+
+    /**
+     * A held tab's device is gone from the group (PLANS.md P-15 item 3). The
+     * tab is still here, but it will not send itself any more, so the person
+     * who was told it would is told once, and shown where to pick a new device.
+     * [removedHere]: this phone removed the device, so the words may say so.
+     */
+    fun postGoneTarget(
+        context: Context,
+        count: Int,
+        firstTitle: String?,
+        targetLabel: String?,
+        removedHere: Boolean,
+    ): Boolean {
+        val banner = GoneTargetCopy.banner(count, firstTitle, targetLabel, removedHere)
+        // With several, the headline counts them and the body names the first.
+        val withTitle = if (count > 1) banner.copy(title = firstTitle) else banner
+        return post(context, withTitle, TAG_FLUSH, GONE_TARGET_ID)
     }
 
     /**
@@ -251,6 +294,7 @@ object SendNotifications {
         cancel(context, TAG_FLUSH, RECOVERED_ID)
         cancel(context, TAG_FLUSH, DROPPED_ID)
         cancel(context, TAG_FLUSH, NEVER_ARRIVED_ID)
+        cancel(context, TAG_FLUSH, GONE_TARGET_ID)
     }
 
     private fun cancel(context: Context, tag: String, id: Int) {
@@ -326,4 +370,5 @@ object SendNotifications {
     private const val RECOVERED_ID = 1
     private const val DROPPED_ID = 2
     private const val NEVER_ARRIVED_ID = 3
+    private const val GONE_TARGET_ID = 4
 }

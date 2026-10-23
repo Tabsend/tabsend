@@ -105,19 +105,6 @@
       }
       #self-label-line { margin-bottom: 20px; }
       .card-block { border-radius: 14px; padding: 4px 16px; margin-bottom: 20px; background: var(--card); }
-      #device-list { list-style: none; margin: 0; padding: 0; }
-      #device-list li {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        min-height: 56px;
-        padding: 8px 0;
-        border-top: 1.5px solid var(--line);
-      }
-      .dev-main { flex: 1; min-width: 0; }
-      .dev-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .dev-sub { font-size: 13px; color: var(--muted); }
-      .dev-actions { display: flex; gap: 14px; flex: none; font-size: 14px; }
       .relay-line {
         display: flex;
         align-items: baseline;
@@ -143,21 +130,6 @@
       .pair-block .btn-primary { margin-top: 0; }
       #pairing-box { margin-top: 18px; }
 
-      /* Rename dialog: a raised card (it IS the screen while it is open). */
-      #rename-dialog {
-        border: var(--outline);
-        border-radius: 14px;
-        box-shadow: 4px 4px 0 var(--shadow);
-        padding: 20px;
-        width: 340px;
-        max-width: calc(100vw - 32px);
-        color: var(--ink);
-        background: var(--card);
-      }
-      #rename-dialog::backdrop { background: rgba(4, 21, 19, 0.45); }
-      #rename-dialog h2 { font-size: 17px; margin: 0 0 12px; }
-      #rename-dialog .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
-      #rename-dialog .btn-primary { box-shadow: none; }
     </style>
   </head>
   <body>
@@ -247,7 +219,7 @@
             <code id="manage-relay"></code>
             <button type="button" class="linkish small" id="open-connection">Change…</button>
           </p>
-          <ul id="device-list"></ul>
+          <ul id="device-list" class="device-list"></ul>
         </div>
 
         <!-- Alone in the group, and not because it was just created. Same

@@ -9,6 +9,21 @@ public protocol HeldItem {
     var createdAt: String { get }
 }
 
+/// The slice of a held item the "is its device gone?" rule needs (PLANS.md
+/// P-15 item 3).
+public protocol TargetedItem: HeldItem {
+    var targetEndpointId: String { get }
+    /// Set once the device is known to be gone. Set by the relay's refusal it is
+    /// sticky; set by a list (`goneFromList`) it clears once the device is
+    /// accepted again.
+    var targetGone: Bool? { get set }
+    /// The flag came from a device list that no longer had the device, not from
+    /// the relay refusing the tab. A list can be wrong for a moment, or wrong on
+    /// purpose (SECURITY_REVIEW L3), so a device that comes back takes its tab
+    /// back. Nil (or false) beside `targetGone` is the relay's flag.
+    var goneFromList: Bool? { get set }
+}
+
 /// What bounds the source-side outbound queue.
 ///
 /// An item leaves that queue only on a DEFINITE answer from the relay: accepted,
@@ -134,8 +149,119 @@ public enum OutboundQueue {
         queue.filter { $0.id != id }
     }
 
+    // MARK: a held tab whose device was removed (PLANS.md P-15 item 3)
+    //
+    // Before this, a tab held for a device that was then removed waited until
+    // the relay answered, and the relay's `unknown_target` then dropped it with
+    // an error. Now it is FLAGGED: the flush stops posting it, the app says the
+    // device is no longer in the group, and the user picks another device for
+    // it. Mirrors `extension/src/lib/outbound.ts`. iOS makes no console history
+    // copies, so there are none to hold back with it.
+    //
+    // "In the group" means accepted by this phone's watch
+    // (`NewDevices.endpointsKnownTo`, read by `HeldTargets`), not merely listed:
+    // a device this phone removed is gone even while a relay keeps it on the
+    // list (SECURITY_REVIEW L3).
+
+    /// Whether this held tab waits for a device that is no longer in the group.
+    ///
+    /// `acceptedIds` is the group as this phone last accepted it. The relay's
+    /// refusal outweighs any list: the list a flush reads can be older than the
+    /// refusal, and trusting it would post the tab to a device the relay has
+    /// already said is gone. A list's own flag does not: the device may be back.
+    /// An empty list proves nothing (a fresh install, a cache not yet filled), so
+    /// it changes nothing either way.
+    public static func isTargetGone<T: TargetedItem>(_ item: T, acceptedIds: Set<String>) -> Bool {
+        if item.targetGone == true && item.goneFromList != true { return true }
+        if acceptedIds.isEmpty { return item.targetGone == true }
+        return !acceptedIds.contains(item.targetEndpointId)
+    }
+
+    /// Flag every held tab whose device has left the group, and lift a list's
+    /// flag from a tab whose device is accepted again. A tab flagged here is
+    /// flagged by the list (`goneFromList`); a relay's flag is never lifted.
+    /// Tabs that do not change come back as they were.
+    public static func markGoneTargets<T: TargetedItem>(_ queue: [T], acceptedIds: Set<String>) -> [T] {
+        queue.map { item in
+            let gone = isTargetGone(item, acceptedIds: acceptedIds)
+            if gone && item.targetGone != true {
+                var flagged = item
+                flagged.targetGone = true
+                flagged.goneFromList = true
+                return flagged
+            }
+            if !gone && item.targetGone == true {
+                // Only a list's flag gets here: a relay's flag always reads as gone.
+                var cleared = item
+                cleared.targetGone = nil
+                cleared.goneFromList = nil
+                return cleared
+            }
+            return item
+        }
+    }
+
+    /// Point a held tab at another device: `replacement` (the tab sealed afresh
+    /// for the new device) takes the old item's place, so it keeps its turn.
+    /// Pure, and it seals nothing: an envelope sealed to one device's key must
+    /// never be sent to another. An id no longer queued changes nothing.
+    public static func retarget<T: HeldItem>(_ queue: [T], id: String, replacement: T) -> [T] {
+        queue.map { $0.id == id ? replacement : $0 }
+    }
+
     /// When the send was made; `now` when the stamp will not parse.
     private static func createdAt(_ item: HeldItem, now: Date) -> Date {
         WireDate.date(from: item.createdAt) ?? now
+    }
+}
+
+/// Where this phone's held tabs stand against its device watch (PLANS.md P-15
+/// item 3, SECURITY_REVIEW L3), read once, so the flush and the home screen judge
+/// a tab the same way.
+///
+/// All three answers come from the watch, never from the relay's list alone. The
+/// relay decides when a held tab asks for a new device: it can leave the device off
+/// one list, or refuse the tab. It must not also decide whether that device counts
+/// as gone, which devices the tab may be moved to, or whether the line under the
+/// tab says the user removed it.
+public struct HeldTargets: Sendable, Equatable {
+    /// The devices in the list this phone's watch has accepted
+    /// (`NewDevices.endpointsKnownTo`): what "in the group" means for a held tab.
+    /// Not the raw list: a device this phone removed (X13) that the relay still
+    /// lists is gone. Empty with no watch, which flags nothing.
+    public var acceptedIds: Set<String>
+    /// The devices a tab whose device is gone may be moved to
+    /// (`NewDevices.heldTabChoices`), in list order.
+    public var choices: [Endpoint]
+    /// The devices this phone removed itself. Only for these may the line under
+    /// a tab say "was removed"; for any other it says "is no longer in your group".
+    public var removedIds: Set<String>
+
+    /// `selfId` is this phone's endpoint id; a watch from another pairing counts
+    /// as none.
+    public init(watch: NewDeviceWatch?, list: [Endpoint], selfId: String?) {
+        let mine = selfId != nil && watch?.selfId == selfId ? watch : nil
+        acceptedIds = Set(NewDevices.endpointsKnownTo(mine, list).map(\.id))
+        choices = selfId.map { NewDevices.heldTabChoices(mine, list, selfId: $0) } ?? []
+        removedIds = Set(mine?.removed ?? [])
+    }
+
+    /// This phone's watch, against the device list it last cached (the list the
+    /// watch was run on).
+    public init(store: TabsendStore) {
+        self.init(
+            watch: store.newDeviceWatch, list: store.cachedEndpoints,
+            selfId: store.registration?.endpointId
+        )
+    }
+
+    /// Whether this tab waits for a device that is no longer in the group.
+    public func isGone<T: TargetedItem>(_ item: T) -> Bool {
+        OutboundQueue.isTargetGone(item, acceptedIds: acceptedIds)
+    }
+
+    /// Whether this phone removed the tab's device itself.
+    public func removedHere<T: TargetedItem>(_ item: T) -> Bool {
+        removedIds.contains(item.targetEndpointId)
     }
 }

@@ -126,7 +126,7 @@ all on one group:
 | Call | What it does |
 |---|---|
 | `POST /admin/provisioning/groups` | Creates a group. Answers its id. |
-| `POST /admin/provisioning/groups/<id>/pairing` | Mints that group's **first** pairing link. Refused once any device has joined, and refused while the group is suspended. |
+| `POST /admin/provisioning/groups/<id>/pairing` | Mints that group's **first** pairing link. Refused once any device has joined, and refused while the group is suspended. It lasts `BOOTSTRAP_PAIRING_TTL_MINUTES`; a JSON body `{"lifetimeMinutes": n}` (1 to 43200, which is 30 days) sets a longer or shorter life for this one link, for a store reviewer whose review takes days. It still works only once, for the group's first device. |
 | `GET` / `PATCH /admin/provisioning/groups/<id>/caps` | Reads and sets the per-group limits (ADR-0030). Omitting a limit leaves it alone; `null` clears it back to the relay-wide default; `0` means unlimited for this group. |
 | `GET /admin/provisioning/groups/<id>/usage` | Counts and sizes only: devices, tabs waiting, bytes waiting, how long the oldest has waited, how many history key copies it holds and their size, the limits and the headroom left, whether it is suspended. Never device names or a device list — that view stays on `/admin/status`, on this machine. |
 | `POST /admin/provisioning/groups/<id>/suspend` and `/resume` | Stops the group **accepting** work: no sends, no joins, no new pairing links, and each refusal says why. Everything else keeps working — devices stay paired, tabs already waiting still arrive, and nothing is deleted. |

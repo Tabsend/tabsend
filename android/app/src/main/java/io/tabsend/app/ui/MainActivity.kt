@@ -32,11 +32,13 @@ import io.tabsend.app.R
 import io.tabsend.app.databinding.ActivityMainBinding
 import io.tabsend.app.logic.Chooser
 import io.tabsend.app.logic.Feedback
+import io.tabsend.app.logic.GoneTargetCopy
 import io.tabsend.app.logic.Inbox
 import io.tabsend.app.logic.InboxItem
 import io.tabsend.app.logic.JoinErrors
 import io.tabsend.app.logic.Labels
 import io.tabsend.app.logic.NewDeviceNotice
+import io.tabsend.app.logic.OutboundQueue
 import io.tabsend.app.logic.Pairing
 import io.tabsend.app.logic.Protocol
 import io.tabsend.app.logic.RelayMove
@@ -99,6 +101,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // Each screen pads itself, so its own ground fills the area behind the bars.
+        SystemBars.pad(binding.joinCard)
+        SystemBars.pad(binding.pairedCard)
 
         requestNotificationsIfNeeded()
         handleDeepLink(intent)
@@ -153,6 +158,8 @@ class MainActivity : AppCompatActivity() {
         binding.joinCard.visibility = View.VISIBLE
         binding.pairedCard.visibility = View.GONE
         // The pairing screen sits on the generic ground (APP_UI "The signature moment").
+        // Android 15 and later ignore this and show the screen's own ground behind the
+        // bar instead (SystemBars); older versions still paint the bar from it.
         window.statusBarColor = getColor(R.color.ts_ground)
 
         if (binding.deviceNameInput.text.isNullOrBlank()) {
@@ -233,7 +240,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-    /** The amber card all three share. Fixed tint in both themes, so its text colour is fixed too. */
+    /** The amber card all three share: the waiting amber tint and frame, text in the waiting text colour (light and dark). */
     private fun warningCard(title: String): LinearLayout {
         val warning = getColor(R.color.relay_warning)
         val card = LinearLayout(this).apply {
@@ -475,7 +482,8 @@ class MainActivity : AppCompatActivity() {
         // this runs on every resume. Nothing on screen waits for it, and it goes
         // on [AppScope] rather than `lifecycleScope` because housekeeping should
         // finish even if the user leaves the screen the moment it starts.
-        val heldIds = held.map { it.id }
+        // A tab waiting for a new device has no true "Waiting to send" notice.
+        val heldIds = SendNotifications.waitingIds(store)
         val app = applicationContext
         AppScope.launch(Dispatchers.Default) {
             SendNotifications.reconcilePending(app, heldIds)
@@ -491,6 +499,11 @@ class MainActivity : AppCompatActivity() {
 
         binding.heldTabsHeading.text = Feedback.heldTabsHeading(held.size)
         val density = resources.displayMetrics.density
+        // The flush's own three answers, read once for the whole list (L3): is the
+        // device gone, where may the tab go instead, and did this phone remove it.
+        val acceptedIds = NewDeviceWatcher.acceptedIds(store)
+        val choices = NewDeviceWatcher.heldTabChoices(store).sortedBy { it.label.lowercase() }
+        val removedHere = NewDeviceWatcher.removedHere(store)
         for (item in held) {
             // The row is now two columns: what is waiting, and the way out of the
             // wait. Until this the list was read-only, so a tab aimed at a relay
@@ -518,22 +531,81 @@ class MainActivity : AppCompatActivity() {
                     setTextAppearance(R.style.TextAppearance_Tabsend_RowTitle)
                 },
             )
-            // Naming the destination is the point of the row: "which tab, going
-            // where". The label was captured when the send was made, since the
-            // envelope is sealed and can't be asked who it was for.
-            item.targetLabel?.let { label ->
+            if (OutboundQueue.isTargetGone(item, acceptedIds)) {
+                // Its device left the group, so "to <device>" would point
+                // nowhere. Say so, and offer the devices that are left (P-15 item 3).
+                // "Was removed" only when this phone removed it (L3).
                 column.addView(
                     TextView(this).apply {
-                        text = "to $label"
+                        text = GoneTargetCopy.removedLine(
+                            item.targetLabel,
+                            item.targetEndpointId in removedHere,
+                        )
                         setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
                     },
                 )
+                // The device it was for is among them once it is accepted again.
+                if (choices.isEmpty()) {
+                    column.addView(
+                        TextView(this).apply {
+                            text = GoneTargetCopy.NO_OTHER_DEVICE
+                            setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
+                        },
+                    )
+                } else if (LinkPolicy.isOpenableWebUrl(item.url)) {
+                    // The same gate the re-target applies, so no button does nothing.
+                    column.addView(sendToButton(item.id, choices))
+                }
+            } else {
+                // Naming the destination is the point of the row: "which tab, going
+                // where". The label was captured when the send was made, since the
+                // envelope is sealed and can't be asked who it was for.
+                item.targetLabel?.let { label ->
+                    column.addView(
+                        TextView(this).apply {
+                            text = "to $label"
+                            setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
+                        },
+                    )
+                }
             }
             row.addView(column)
             row.addView(cancelHeldButton(item.id))
             binding.heldTabsList.addView(row)
         }
     }
+
+    /**
+     * "Send to…" under a tab whose device is gone (P-15 item 3). Opens the list
+     * of devices it may go to ([NewDeviceWatcher.heldTabChoices]); picking one
+     * seals the tab again for that device and puts it back in the queue, and a
+     * flush then sends it now or later. [Sender.retargetHeld] checks the pick
+     * again against the watch, so a list that changed since this was drawn
+     * cannot carry it somewhere else.
+     */
+    private fun sendToButton(messageId: String, others: List<Endpoint>): Button =
+        Button(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            text = GoneTargetCopy.SEND_TO_MENU
+            setTextColor(getColor(R.color.ts_accent_fill))
+            setAllCaps(false)
+            minHeight = (48 * resources.displayMetrics.density).toInt()
+            setPadding(0, paddingTop, paddingRight, paddingBottom)
+            setOnClickListener {
+                MaterialAlertDialogBuilder(this@MainActivity)
+                    .setTitle(GoneTargetCopy.SEND_TO_MENU)
+                    .setItems(others.map { it.label }.toTypedArray()) { _, which ->
+                        val target = others[which]
+                        isEnabled = false
+                        lifecycleScope.launch {
+                            Sender.retargetHeld(this@MainActivity, messageId, target)
+                            Scheduling.enqueueDrain(this@MainActivity)
+                            showPaired()
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
 
     /**
      * "Stop waiting" — abandon one held tab.
@@ -667,6 +739,9 @@ class MainActivity : AppCompatActivity() {
             renderDevices(endpoints, reg.endpointId)
             // The fetch may have found a new device, or lost one with a notice.
             renderNewDevices()
+            // A device the fetch found removed turns its held tabs into
+            // "pick another device" rows (P-15 item 3).
+            renderSendState(reg)
         }
     }
 
@@ -694,15 +769,18 @@ class MainActivity : AppCompatActivity() {
                 isMain = ep.id == mainId && ep.id != selfId,
                 detail = DeviceRows.detail(this, ep.kind, status, color),
             )
-            // Every other device can be removed from here [P-10]; this phone
-            // leaves with Unpair instead, which also wipes what it holds.
+            // Every other device can be removed from here [P-10], with its own
+            // Remove button rather than a tap on the row: tapping a name should
+            // not be what asks to remove it. This phone leaves with Unpair
+            // instead, which also wipes what it holds.
             if (ep.id != selfId) {
-                DeviceRows.makeTappable(row) { confirmRemove(ep.id, ep.label) }
-                androidx.core.view.ViewCompat.replaceAccessibilityAction(
-                    row,
-                    androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK,
-                    getString(R.string.device_row_remove_hint),
-                    null,
+                row.addView(
+                    cardButton(getString(R.string.review_remove), getColor(R.color.ts_danger)) {
+                        confirmRemove(ep.id, ep.label)
+                    }.apply {
+                        // So a screen reader says which device, not "Remove, Remove".
+                        contentDescription = getString(R.string.review_remove_for, ep.label)
+                    },
                 )
             }
             binding.devicesList.addView(row)
@@ -723,13 +801,19 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * The relay's DELETE and the removal written into the watch happen in
+     * [NewDeviceWatcher.removeFromGroup], where they are tested (L7); this keeps
+     * the words and the redraw.
+     */
     private fun removeDevice(endpointId: String, label: String) {
         val reg = store.registration ?: return
         if (endpointId == reg.endpointId) return // never this phone; Unpair is the way out
         lifecycleScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    ApiClient.forRegistration(reg).deleteEndpoint(reg.deviceToken, endpointId)
+                    val api = ApiClient.forRegistration(reg)
+                    NewDeviceWatcher.removeFromGroup(store, endpointId) { api.deleteEndpoint(reg.deviceToken, it) }
                 }
             } catch (e: ApiException) {
                 toastLong(getString(R.string.remove_device_refused, label, e.message.orEmpty()))
@@ -738,7 +822,6 @@ class MainActivity : AppCompatActivity() {
                 toastLong(getString(R.string.remove_device_offline, label))
                 return@launch
             }
-            NewDeviceWatcher.removed(this@MainActivity, endpointId)
             val remaining = store.cachedEndpoints
             ShareShortcuts.sync(this@MainActivity, remaining)
             renderNewDevices()

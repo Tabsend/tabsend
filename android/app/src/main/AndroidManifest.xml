@@ -22,8 +22,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
-    <!-- networkSecurityConfig: https-only, except cleartext to loopback/emulator
-         host for the local-relay test drive (see res/xml/network_security_config). -->
+    <!-- networkSecurityConfig: https-only. The debug build also allows cleartext to
+         loopback/emulator host for the local-relay test drive (src/debug/res/xml). -->
     <application
         android:name=".TabsendApp"
         android:networkSecurityConfig="@xml/network_security_config"
@@ -141,7 +141,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a WebSocket open to the user's own self-hosted relay so sent tabs arrive instantly. Used when Google push is unavailable or the user turned it off; the app then has no other way to receive tabs in the background." />
+                android:value="Keeps a connection open to the user's Tabsend server (their own, or the hosted one) so links sent from their other devices arrive immediately. Runs only while the user has Instant delivery switched on and Google push is not in use; the app then has no other way to receive links in the background." />
         </service>
 
         <!-- ~5-min poll chain tick [0015] (AlarmManager → heartbeat + drain). -->
