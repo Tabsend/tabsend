@@ -64,6 +64,11 @@
       #switch-cost { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
       #switch-cost:empty { display: none; }
       #switch-note .btn-secondary { margin-top: 10px; }
+      #hosted-offer { display: none; margin: 0 0 8px; }
+      #hosted-offer.visible { display: block; }
+      #hosted-offer h2 { font-size: 15px; margin: 0; }
+      #hosted-offer p { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
+      #hosted-offer .btn-secondary { margin-top: 10px; }
       #switch-link-note { display: none; }
       #switch-link-note.visible { display: block; }
 
@@ -162,6 +167,23 @@
           <button type="button" id="switch-keep" class="btn-secondary"></button>
         </aside>
 
+        <!-- Shown only to a browser that is not paired and not mid-move: someone new,
+             who most likely has no relay of their own. -->
+        <aside id="hosted-offer" class="notice accent" aria-labelledby="hosted-offer-title">
+          <h2 id="hosted-offer-title">New to Tabsend?</h2>
+          <p>
+            Start a free trial of our hosted service, and you get your pairing link in two
+            minutes. 30 days free, no card needed, then $14.99 a year or $49.99 once.
+          </p>
+          <a
+            id="hosted-offer-link"
+            class="btn-secondary"
+            href="https://tabsend.org/"
+            target="_blank"
+            rel="noopener"
+            >Start at tabsend.org</a
+          >
+        </aside>
         <label for="browser-name">Name this browser</label>
         <input id="browser-name" type="text" autocomplete="off" />
         <aside class="browser-name-note" id="browser-hint">
@@ -178,12 +200,12 @@
           placeholder="https://relay.example/pair#c=…"
         />
         <p class="hint">
-          Paste the link from a paired device. It tells Tabsend which relay to use and carries
-          the one-time credentials securely.
+          Paste the link from your Tabsend account page or from one of your paired devices. It
+          tells Tabsend which server to use and carries one-time credentials securely.
         </p>
         <p class="hint" id="switch-link-note"></p>
         <p class="hint">
-          Setting up your first browser? Use the pairing link the relay printed when it started.
+          Running your own server? Use the pairing link it printed when it started.
         </p>
         <button type="button" id="join" class="btn-primary">Pair this browser</button>
       </section>

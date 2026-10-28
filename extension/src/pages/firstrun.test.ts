@@ -163,3 +163,37 @@ describe('first run, manage screen: every Remove records the removal (X13)', () 
     expect(removals()).toEqual([])
   })
 })
+
+describe('first run, pair screen: the hosted-service offer', () => {
+  async function openPairScreen(): Promise<void> {
+    page = installFakePage('firstrun.html')
+    vi.resetModules()
+    await import('./firstrun')
+    await vi.waitFor(() => expect(document.body.dataset.ready).toBe('1'))
+  }
+  const offerShown = () => page.byId('hosted-offer').classList.contains('visible')
+
+  afterEach(() => {
+    state.registered = true
+    delete state.pendingSwitch
+  })
+
+  it('is shown to a browser that is not paired yet', async () => {
+    state.registered = false
+    await openPairScreen()
+    expect(page.byId('screen-name').classList.contains('hidden')).toBe(false)
+    expect(offerShown()).toBe(true)
+  })
+
+  it('is not shown to a browser moving to another relay', async () => {
+    state.pendingSwitch = { relayUrl: 'https://other.example' }
+    await openPairScreen()
+    expect(page.byId('screen-name').classList.contains('hidden')).toBe(false)
+    expect(offerShown()).toBe(false)
+  })
+
+  it('is not shown to a paired browser', async () => {
+    await openPairScreen()
+    expect(offerShown()).toBe(false)
+  })
+})

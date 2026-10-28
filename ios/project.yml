@@ -13,7 +13,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "0.8.0"
+    MARKETING_VERSION: "0.8.1"
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Automatic
     # Set your Apple Developer team once here (or in Xcode's Signing pane):

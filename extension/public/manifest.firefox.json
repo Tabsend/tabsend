@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tabsend",
   "version": "0.1.0",
-  "description": "Move one browser tab, on demand, to a specific other browser endpoint.",
+  "description": "Send the tab you're looking at to your phone or another computer. One click, end-to-end encrypted.",
   "browser_specific_settings": {
     "gecko": {
       "id": "tabsend@tabsend.app",

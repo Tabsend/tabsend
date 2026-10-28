@@ -383,6 +383,7 @@ async function main(): Promise<void> {
       }
     } else {
       showScreen('name')
+      $('hosted-offer').classList.add('visible')
       if (res.state.removedNotice) {
         showError(
           'This browser was removed from its group by another device. Set it up again below.',
