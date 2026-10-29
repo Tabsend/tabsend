@@ -643,6 +643,25 @@ export const relayProbeCopy = {
 } as const
 
 /**
+ * The browser's own permission to reach the relay (`relay-access.ts`). Asked for
+ * once, at pairing; these lines cover a "no" there, and a grant that was later
+ * taken away in the browser's settings, which looks to the extension exactly
+ * like a relay that stopped answering.
+ */
+export const relayAccessCopy = {
+  /** The user said no to the browser's prompt. */
+  denied: (): string =>
+    "Tabsend can't reach this relay without your permission. Try again and choose Allow.",
+  /** Paired, but the permission is missing. */
+  missing: (relayUrl: string): string =>
+    `Tabsend needs your permission to reach your relay at ${relayUrl}. Until then, sends are held here.`,
+  /** Settings button that asks again. */
+  allow: 'Allow access',
+  /** Popup button: the browser asks from Settings, not from a popup that closes. */
+  openSettings: 'Allow in Settings',
+} as const
+
+/**
  * The relay move while it is in flight, on both surfaces that show it.
  *
  * Choosing a different relay used to unpair immediately and hand the user to

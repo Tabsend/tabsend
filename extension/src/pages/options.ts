@@ -11,9 +11,11 @@ import type {
 } from '../lib/model'
 import { parsePairingInput } from '../lib/pairing'
 import { IS_FIREFOX } from '../lib/platform'
+import { hasRelayAccess, requestRelayAccess } from '../lib/relay-access'
 import { browserTlsHint, normalizeRelayUrl } from '../lib/relay-url'
 import {
   NOT_REGISTERED_ERROR,
+  relayAccessCopy,
   relayDownLine,
   relayProbeCopy,
   relaySwitchCopy,
@@ -104,6 +106,7 @@ function paintConnection(state: StateView): void {
   $('move-form').style.display = state.registered ? 'block' : 'none'
   $('setup-line').style.display = state.registered ? 'none' : 'block'
   paintRelayStatus(state)
+  void paintRelayAccess(state)
   paintPendingSwitch(state)
   paintPairing(state)
 }
@@ -191,6 +194,28 @@ function paintRelayStatus(state: StateView): void {
   )
   el.classList.add('down')
   el.textContent = relayDownLine(state.relay.relayUrl, minutes)
+}
+
+/**
+ * Paired, but the browser's permission to reach the relay is missing: taken
+ * away in the browser's settings, or never given on a build that predates the
+ * request at pairing. Every call fails then, so it overrides the outage line,
+ * and the button asks again (a click, which the browser requires).
+ */
+async function paintRelayAccess(state: StateView): Promise<void> {
+  const actions = $('relay-access-actions')
+  actions.replaceChildren()
+  if (!state.registered || !state.relayUrl || (await hasRelayAccess(state.relayUrl))) return
+  const el = $('relay-status')
+  el.classList.add('down')
+  el.textContent = relayAccessCopy.missing(state.relayUrl)
+  actions.append(
+    secondaryButton(relayAccessCopy.allow, () => {
+      void requestRelayAccess(state.relayUrl).then((granted) => {
+        if (granted) void refreshConnection()
+      })
+    }),
+  )
 }
 
 /**
@@ -345,6 +370,11 @@ function wireRelayMove(): void {
 
   /** Commit the address swap: same relay, so the group survives untouched. */
   const commitAddress = async (relayUrl: string, btn: HTMLButtonElement): Promise<void> => {
+    // First await of the click: the browser asks only while the click lasts.
+    if (!(await requestRelayAccess(relayUrl))) {
+      showProbe('bad', relayAccessCopy.denied())
+      return
+    }
     btn.disabled = true
     try {
       const res = await rpcOk<{ ok: true; relayChange: RelayChangeResult }>({
@@ -373,6 +403,12 @@ function wireRelayMove(): void {
       input.value = relayUrl
     } catch (err) {
       showProbe('bad', err instanceof Error ? err.message : String(err))
+      return
+    }
+    // The check itself calls the address, so it needs the permission too. Still
+    // the first await of the click or the Enter key.
+    if (!(await requestRelayAccess(relayUrl))) {
+      showProbe('bad', relayAccessCopy.denied())
       return
     }
     check.disabled = true

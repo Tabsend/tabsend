@@ -3,7 +3,8 @@ import { ext } from '../lib/ext'
 import type { DevicesView, PendingSwitch, StateView } from '../lib/model'
 import { parsePairingInput } from '../lib/pairing'
 import { shouldWarnSoloGroup } from '../lib/policy'
-import { relaySwitchCopy, soloGroupCopy } from '../lib/strings'
+import { requestRelayAccess } from '../lib/relay-access'
+import { relayAccessCopy, relaySwitchCopy, soloGroupCopy } from '../lib/strings'
 import {
   askNewDeviceName,
   removeIfConfirmed,
@@ -274,6 +275,8 @@ async function joinGroup(): Promise<void> {
       'Paste the complete pairing link. It identifies and securely connects to the relay.',
     )
   }
+  // First await of the click: the browser asks only while the click lasts.
+  if (!(await requestRelayAccess(parsed.relayUrl))) return showError(relayAccessCopy.denied())
   const btn = $<HTMLButtonElement>('join')
   btn.disabled = true
   try {

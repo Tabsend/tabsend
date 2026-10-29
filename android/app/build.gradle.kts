@@ -7,7 +7,7 @@ plugins {
 /**
  * Marketing version. Bump by hand for a real release.
  */
-val appVersion = "0.8.1"
+val appVersion = "0.8.2"
 
 /**
  * Build identity. Builds are installed by downloading the CI artifact — there is no

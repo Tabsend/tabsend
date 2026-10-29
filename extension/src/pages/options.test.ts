@@ -18,10 +18,19 @@ vi.mock('./rpc-client', () => ({
     return answer(req)
   }),
 }))
+/** The browser's permission to reach the relay: held already, and the prompt's answer. */
+const permission = { held: true, answer: true, asked: [] as string[][] }
 vi.mock('../lib/ext', () => ({
   ext: {
     tabs: { create: vi.fn(async () => undefined) },
     runtime: { getURL: (path: string) => `chrome-extension://id/${path}` },
+    permissions: {
+      contains: vi.fn(async () => permission.held),
+      request: vi.fn(async (p: { origins: string[] }) => {
+        permission.asked.push(p.origins)
+        return permission.answer
+      }),
+    },
   },
 }))
 
@@ -82,6 +91,7 @@ const removals = () => requests.filter((r) => r.type === 'removeEndpoint')
 
 beforeEach(() => {
   requests.length = 0
+  Object.assign(permission, { held: true, answer: true, asked: [] })
 })
 afterEach(() => {
   uninstallFakePage()
@@ -117,5 +127,46 @@ describe('Settings: removing a device', () => {
     await openPage()
     expect(page.buttons('device-list', 'Remove Chrome · Mac')).toEqual([])
     expect(page.buttons('device-list', 'Remove')).toHaveLength(1)
+  })
+})
+
+describe("Settings: the browser's permission to reach the relay (Chrome Web Store review)", () => {
+  const probes = () => requests.filter((r) => r.type === 'probeRelay')
+
+  it("asks for a new address's host before checking it", async () => {
+    await openPage()
+    page.byId('new-address').value = 'https://new-relay.example:8443'
+    page.byId('relay-check').click()
+
+    await vi.waitFor(() => expect(probes()).toHaveLength(1))
+    expect(permission.asked).toEqual([['https://new-relay.example/*']])
+  })
+
+  it('checks nothing, and says why, when the user says no', async () => {
+    permission.answer = false
+    await openPage()
+    page.byId('new-address').value = 'https://new-relay.example'
+    page.byId('relay-check').click()
+
+    await vi.waitFor(() => expect(page.byId('probe-note').textContent).toContain('choose Allow'))
+    expect(probes()).toEqual([])
+  })
+
+  it('says so, and offers to ask again, when the paired relay has lost it', async () => {
+    permission.held = false
+    await openPage()
+    await vi.waitFor(() =>
+      expect(page.byId('relay-status').textContent).toContain('needs your permission'),
+    )
+    const [allow] = page.buttons('relay-access-actions', 'Allow access')
+    allow?.click()
+    await vi.waitFor(() => expect(permission.asked).toEqual([['https://relay.example/*']]))
+  })
+
+  it('shows nothing extra while the permission is held', async () => {
+    await openPage()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(page.buttons('relay-access-actions', 'Allow access')).toEqual([])
+    expect(page.byId('relay-status').textContent).not.toContain('permission')
   })
 })

@@ -53,6 +53,7 @@ export async function buildExtension(): Promise<void> {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
     version: string
     background?: { service_worker?: string }
+    host_permissions?: string[]
   }
   const now = Date.now()
   // Four dot-separated integers, each < 65536, strictly increasing across runs.
@@ -67,6 +68,11 @@ export async function buildExtension(): Promise<void> {
     join(EXTENSION_DIST, swName),
     `\n;globalThis.__tabsendBuild=${JSON.stringify(manifest.version)};\n`,
   )
+  // The rig's relay and test pages are on 127.0.0.1. A user grants their relay's
+  // address at pairing, in a browser prompt a test can't click, so the rig's
+  // build is granted it up front, as it would be after a "yes". The prompt itself
+  // is covered by the unit tests (relay-access, firstrun, options).
+  manifest.host_permissions = [...(manifest.host_permissions ?? []), 'http://127.0.0.1/*']
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 }
 

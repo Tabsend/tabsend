@@ -19,10 +19,18 @@ vi.mock('./rpc-client', () => ({
     return answer(req)
   }),
 }))
+/** The browser's permission prompt: what it was asked for, and the user's answer. */
+const permission = { asked: [] as string[][], answer: true }
 vi.mock('../lib/ext', () => ({
   ext: {
     tabs: { create: vi.fn(async () => undefined) },
     runtime: { getURL: (path: string) => `chrome-extension://id/${path}` },
+    permissions: {
+      request: vi.fn(async (p: { origins: string[] }) => {
+        permission.asked.push(p.origins)
+        return permission.answer
+      }),
+    },
   },
 }))
 
@@ -195,5 +203,42 @@ describe('first run, pair screen: the hosted-service offer', () => {
   it('is not shown to a paired browser', async () => {
     await openPairScreen()
     expect(offerShown()).toBe(false)
+  })
+})
+
+describe('first run, pair screen: the relay permission (Chrome Web Store review)', () => {
+  const link = 'http://192.168.1.20:8080/pair#c=ABCD-1234'
+
+  async function pairWith(answer: boolean): Promise<void> {
+    state.registered = false
+    permission.asked.length = 0
+    permission.answer = answer
+    page = installFakePage('firstrun.html')
+    vi.resetModules()
+    await import('./firstrun')
+    await vi.waitFor(() => expect(document.body.dataset.ready).toBe('1'))
+    page.byId('browser-name').value = 'Chrome'
+    page.byId('pairing-link-input').value = link
+    page.byId('join').click()
+  }
+  const joins = () => requests.filter((r) => r.type === 'joinGroup')
+
+  afterEach(() => {
+    state.registered = true
+    permission.answer = true
+  })
+
+  it("asks for the relay's host, any port, before joining", async () => {
+    await pairWith(true)
+    await vi.waitFor(() => expect(joins()).toHaveLength(1))
+    expect(permission.asked).toEqual([['http://192.168.1.20/*']])
+  })
+
+  it('does not join, and says why, when the user says no', async () => {
+    await pairWith(false)
+    await vi.waitFor(() => expect(page.byId('error').classList.contains('visible')).toBe(true))
+    expect(page.byId('error').textContent).toContain('choose Allow')
+    expect(joins()).toEqual([])
+    expect(page.byId('join').disabled).toBe(false)
   })
 })

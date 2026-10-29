@@ -44,9 +44,11 @@
     "alarms",
     "offscreen",
     "scripting",
+    "activeTab",
     "notifications"
   ],
-  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*", "http://*/*", "https://*/*"],
+  "host_permissions": ["https://app.tabsend.org/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }

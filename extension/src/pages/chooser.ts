@@ -2,12 +2,14 @@ import type { Endpoint } from '@tabsend/shared'
 import { ext } from '../lib/ext'
 import { isRelayDown } from '../lib/health'
 import type { ChooserRow, ChooserView, HeldTab, SendResult, StateView } from '../lib/model'
+import { hasRelayAccess } from '../lib/relay-access'
 import {
   goneTargetCopy,
   heldTabLabel,
   heldTabsHeading,
   multiSelectionLine,
   pendingRow,
+  relayAccessCopy,
   relayDownLine,
   sendBanner,
   sendFailureLine,
@@ -314,6 +316,25 @@ function renderRelayHealth(view: ChooserView): void {
 }
 
 /**
+ * Paired, but without the browser's permission to reach the relay, so every
+ * call fails and the outage line would blame the relay. Say what is actually
+ * missing. The browser asks from Settings: a permission prompt opened from the
+ * popup can close the popup and lose the answer.
+ */
+async function renderRelayAccess(state: StateView): Promise<void> {
+  if (!state.registered || !state.relayUrl || (await hasRelayAccess(state.relayUrl))) return
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = 'btn-secondary'
+  btn.textContent = relayAccessCopy.openSettings
+  btn.addEventListener('click', openSettings)
+  const line = document.createElement('p')
+  line.textContent = relayAccessCopy.missing(state.relayUrl)
+  relayEl.replaceChildren(line, btn)
+  show(relayEl, true)
+}
+
+/**
  * "New device: X. Was this you?" (PLANS.md P-10). Removing needs a confirmation
  * dialog, which a popup cannot hold open, so "Remove it" hands over to the
  * manage screen and asks there.
@@ -353,6 +374,7 @@ function renderChooser(view: ChooserView, state: StateView): void {
   show(statusEl, false)
   selfLabel.textContent = state.selfLabel ?? ''
   renderRelayHealth(view)
+  void renderRelayAccess(state)
   renderNewDevices(view)
 
   if (!view.registered || view.targets.length === 0) {
