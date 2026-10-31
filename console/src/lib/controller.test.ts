@@ -1,5 +1,11 @@
-import type { Endpoint, EndpointId, GroupKeyRecord } from '@tabsend/shared'
-import { beforeAll, describe, expect, it } from 'vitest'
+import {
+  type Endpoint,
+  type EndpointId,
+  type GroupKeyRecord,
+  type GroupResetState,
+  vouchTag,
+} from '@tabsend/shared'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { FetchLike } from './api'
 import { Controller } from './controller'
 import { generateKeyPair, type KeyPairB64, keyId } from './crypto'
@@ -12,7 +18,13 @@ import {
 } from './fixtures'
 import type { ConsoleSession, HistoryEntry } from './model'
 import { InMemoryHistoryStore } from './persist'
-import { loadNewDeviceWatch, MemoryKv, saveSession } from './session'
+import {
+  loadNewDeviceWatch,
+  loadPairingVouch,
+  MemoryKv,
+  savePairingVouch,
+  saveSession,
+} from './session'
 
 /**
  * The controller's group-history wiring [ADR-0028], driven through a fake relay.
@@ -23,6 +35,7 @@ import { loadNewDeviceWatch, MemoryKv, saveSession } from './session'
  */
 
 const NOW = Date.parse('2026-08-05T12:00:00.000Z')
+const NOW_ISO = new Date(NOW).toISOString()
 
 let consoleKp: KeyPairB64
 let senderKp: KeyPairB64
@@ -264,39 +277,44 @@ describe('the new device joined notice (PLANS.md P-10)', () => {
     return { controller, kv }
   }
 
-  it('takes the first list silently, then shows a device that appears later', async () => {
+  it('watches every list, and keeps nothing waiting for an answer (P-23)', async () => {
     const routes: Relay['routes'] = {
       '/v1/config': { vapidPublicKey: '' },
       '/v1/endpoints': endpoints(),
     }
-    const { controller } = await boot(routes)
-    expect(controller.newDevices.get()).toEqual([])
+    const { controller, kv } = await boot(routes)
 
     // Added straight into the relay's list, with no stream event: the fetch alone must catch it.
     const intruder = makeEndpoint({ id: 'x-1' as EndpointId, label: 'Firefox · Linux' })
     routes['/v1/endpoints'] = [...endpoints(), intruder]
     await controller.refresh()
-    expect(controller.newDevices.get().map((n) => n.label)).toEqual(['Firefox · Linux'])
+    expect(loadNewDeviceWatch(kv)?.known).toContain('x-1')
+    // A phone or a browser tells the user; a console has no notifications.
+    expect(loadNewDeviceWatch(kv)?.unconfirmed).toEqual([])
+    expect(controller.newDevices.get()).toEqual([])
   })
 
-  it('keeps the banner across a reload until answered, and forgets it on unpair', async () => {
+  it('settles a record left by an earlier build, and forgets it on unpair', async () => {
     const routes: Relay['routes'] = {
       '/v1/config': { vapidPublicKey: '' },
       '/v1/endpoints': endpoints(),
     }
-    const first = await boot(routes)
-    routes['/v1/endpoints'] = [...endpoints(), makeEndpoint({ id: 'x-1' as EndpointId })]
-    await first.controller.refresh()
-
-    const reloaded = await boot(routes, first.kv)
-    expect(reloaded.controller.newDevices.get().map((n) => n.id)).toEqual(['x-1'])
-    reloaded.controller.confirmNewDevice('x-1')
-    expect(reloaded.controller.newDevices.get()).toEqual([])
-
-    const again = await boot(routes, first.kv)
-    expect(again.controller.newDevices.get()).toEqual([])
-    again.controller.unpair()
-    expect(again.kv.getItem('tabsend.console.newdevices.v1')).toBeNull()
+    const kv = new MemoryKv()
+    const notice = { id: 'target-1', label: 'Pixel · Phone', createdAt: NOW_ISO }
+    kv.setItem(
+      'tabsend.console.newdevices.v1',
+      JSON.stringify({
+        selfId: 'console-1',
+        known: endpoints().map((e) => e.id),
+        unconfirmed: [notice],
+        review: [notice],
+      }),
+    )
+    const { controller } = await boot(routes, kv)
+    expect(controller.newDevices.get()).toEqual([])
+    expect(controller.review.get()).toEqual([])
+    controller.unpair()
+    expect(kv.getItem('tabsend.console.newdevices.v1')).toBeNull()
   })
 
   it('refuses a list without this console: keeps the last list, announces nothing', async () => {
@@ -313,45 +331,41 @@ describe('the new device joined notice (PLANS.md P-10)', () => {
     expect(controller.connection.get()).not.toBe('offline')
   })
 
-  it('asks once about the first list, keeps asking across a reload, and stops when answered (GH6)', async () => {
+  it('spends the tags the pairing link carried on the first list (P-23)', async () => {
     const routes: Relay['routes'] = {
       '/v1/config': { vapidPublicKey: '' },
       '/v1/endpoints': endpoints(),
     }
-    const first = await boot(routes)
-    expect(first.controller.review.get().map((n) => n.label)).toEqual([
-      'Chrome · Work',
-      'Pixel · Phone',
-    ])
-    expect(first.controller.newDevices.get()).toEqual([])
-
-    const reloaded = await boot(routes, first.kv)
-    expect(reloaded.controller.review.get()).toHaveLength(2)
-    reloaded.controller.confirmReview()
-    expect(reloaded.controller.review.get()).toEqual([])
-
-    const again = await boot(routes, first.kv)
-    expect(again.controller.review.get()).toEqual([])
-    again.controller.unpair()
-    expect(again.controller.review.get()).toEqual([])
+    const kv = new MemoryKv()
+    savePairingVouch(
+      {
+        endpointId: 'console-1',
+        tags: [vouchTag(senderKp.publicKey), vouchTag(consoleKp.publicKey)],
+      },
+      kv,
+    )
+    const first = await boot(routes, kv)
+    expect(loadPairingVouch(kv)).toBeNull()
+    expect(loadNewDeviceWatch(kv)?.known).toEqual(endpoints().map((e) => e.id))
+    expect(first.controller.review.get()).toEqual([])
   })
 
-  it('keeps a device that joined and then disappeared on screen until dismissed (GH7)', async () => {
+  it('keeps a "joined, then disappeared" notice from an earlier build until dismissed (GH7)', async () => {
     const routes: Relay['routes'] = {
       '/v1/config': { vapidPublicKey: '' },
       '/v1/endpoints': endpoints(),
     }
-    const { controller, kv } = await boot(routes)
-    routes['/v1/endpoints'] = [
-      ...endpoints(),
-      makeEndpoint({ id: 'x-1' as EndpointId, label: 'Firefox · Linux', e2ePubkey: 'pk-x1' }),
-    ]
-    await controller.refresh()
-    expect(controller.newDevices.get().map((n) => n.id)).toEqual(['x-1'])
-
-    routes['/v1/endpoints'] = endpoints()
-    await controller.refresh()
-    expect(controller.newDevices.get()).toEqual([])
+    const kv = new MemoryKv()
+    kv.setItem(
+      'tabsend.console.newdevices.v1',
+      JSON.stringify({
+        selfId: 'console-1',
+        known: endpoints().map((e) => e.id),
+        unconfirmed: [],
+        vanished: [{ id: 'x-1', label: 'Firefox · Linux', createdAt: NOW_ISO }],
+      }),
+    )
+    const { controller } = await boot(routes, kv)
     expect(controller.vanished.get().map((n) => n.label)).toEqual(['Firefox · Linux'])
 
     const reloaded = await boot(routes, kv)
@@ -393,8 +407,8 @@ describe('the new device joined notice (PLANS.md P-10)', () => {
     expect(controller.newDevices.get()).toEqual([])
 
     await controller.remove('x-1')
-    // The refresh that follows still shows it, so it is announced as a new device.
-    expect(controller.newDevices.get().map((n) => n.id)).toEqual(['x-1'])
+    // The refresh that follows still shows it, so it is watched again as a new device.
+    expect(loadNewDeviceWatch(kv)?.known).toContain('x-1')
     expect(loadNewDeviceWatch(kv)?.removed).toEqual(['x-1'])
     expect(loadNewDeviceWatch(kv)?.rotateFor).toEqual(['x-1'])
 
@@ -438,7 +452,7 @@ describe('the new device joined notice (PLANS.md P-10)', () => {
       '/v1/config': { vapidPublicKey: '' },
       '/v1/endpoints': endpoints(),
     }
-    const { controller } = await boot(routes)
+    const { controller, kv } = await boot(routes)
     let fetches = 0
     routes['/v1/endpoints'] = () => (++fetches === 1 ? endpoints() : [...endpoints(), intruder])
     routes['/v1/group-keys'] = [
@@ -452,6 +466,127 @@ describe('the new device joined notice (PLANS.md P-10)', () => {
     ]
     await controller.refresh()
     expect(fetches).toBe(2)
-    expect(controller.newDevices.get().map((n) => n.id)).toEqual(['x-1'])
+    expect(loadNewDeviceWatch(kv)?.known).toContain('x-1')
+  })
+})
+
+describe('a reset that waits (PLANS.md P-18 item 12)', () => {
+  const RESET = {
+    requestedAt: '2026-10-27T12:00:00.000Z',
+    resetsAt: '2026-10-30T12:00:00.000Z',
+  } as unknown as GroupResetState
+
+  /** A socket the test can speak through: the stream event is part of what is checked. */
+  class FakeSocket {
+    static last: FakeSocket | null = null
+    readonly OPEN = 1
+    readyState = 0
+    onopen: (() => void) | null = null
+    onmessage: ((ev: { data: string }) => void) | null = null
+    onclose: (() => void) | null = null
+    onerror: (() => void) | null = null
+    constructor(readonly url: string) {
+      FakeSocket.last = this
+    }
+    send(): void {}
+    close(): void {}
+  }
+
+  async function boot(routes: Relay['routes'], kv = new MemoryKv()) {
+    // The same object, so a test can change what the relay answers between reads.
+    routes['/v1/config'] ??= { vapidPublicKey: '' }
+    const relay = fakeRelay(routes)
+    saveSession(session, kv)
+    const controller = new Controller({
+      kv,
+      store: new InMemoryHistoryStore(),
+      fetchImpl: relay.fetchImpl,
+      WebSocketImpl: FakeSocket as unknown as new (url: string) => WebSocket,
+      now: () => NOW,
+      detectPlatform: () => 'macos',
+    })
+    await controller.init()
+    return { controller, kv, calls: relay.calls }
+  }
+
+  it('shows the card while one is waiting, and nothing when none is', async () => {
+    const routes: Relay['routes'] = { '/v1/endpoints': endpoints(), '/v1/group': { reset: RESET } }
+    const { controller } = await boot(routes)
+    controller.teardown()
+    expect(controller.groupReset.get()).toEqual(RESET)
+    routes['/v1/group'] = { reset: null }
+    await controller.refresh()
+    expect(controller.groupReset.get()).toBeNull()
+  })
+
+  it('reads an older relay (404) as no reset, quietly', async () => {
+    const { controller } = await boot({
+      '/v1/endpoints': endpoints(),
+      '/v1/group': { status: 404, code: 'not_found' },
+    })
+    controller.teardown()
+    expect(controller.groupReset.get()).toBeNull()
+    expect(controller.status.get().kind).toBe('idle')
+    expect(controller.connection.get()).not.toBe('offline')
+  })
+
+  it('"It was me" hides this request only, across a reload; a new request shows again', async () => {
+    const routes: Relay['routes'] = { '/v1/endpoints': endpoints(), '/v1/group': { reset: RESET } }
+    const first = await boot(routes)
+    first.controller.teardown()
+    first.controller.dismissGroupReset()
+    expect(first.controller.groupReset.get()).toBeNull()
+
+    const reloaded = await boot(routes, first.kv)
+    reloaded.controller.teardown()
+    expect(reloaded.controller.groupReset.get()).toBeNull()
+
+    const next = { ...RESET, requestedAt: '2026-11-02T08:00:00.000Z' } as GroupResetState
+    routes['/v1/group'] = { reset: next }
+    await reloaded.controller.refresh()
+    expect(reloaded.controller.groupReset.get()).toEqual(next)
+  })
+
+  it('Stop clears the card and says so; a failed Stop keeps it and says why', async () => {
+    const routes: Relay['routes'] = {
+      '/v1/endpoints': endpoints(),
+      '/v1/group': { reset: RESET },
+      '/v1/group/reset/stop': { status: 500, code: 'internal' },
+    }
+    const { controller, calls } = await boot(routes)
+    controller.teardown()
+
+    await controller.stopGroupReset()
+    expect(controller.groupReset.get()).toEqual(RESET)
+    expect(controller.status.get()).toEqual({
+      kind: 'error',
+      message: "Couldn't stop the reset: internal. The reset is still waiting. Try again.",
+    })
+
+    routes['/v1/group/reset/stop'] = { reset: null }
+    await controller.stopGroupReset()
+    expect(calls.filter((c) => c === '/v1/group/reset/stop')).toHaveLength(2)
+    expect(controller.groupReset.get()).toBeNull()
+    expect(controller.status.get()).toEqual({
+      kind: 'info',
+      message: 'Reset stopped. Nothing was removed.',
+    })
+  })
+
+  it('reads the group again on group_updated', async () => {
+    // A same-origin console builds its socket address from the page's own.
+    vi.stubGlobal('location', { protocol: 'http:', host: 'relay.test' })
+    const routes: Relay['routes'] = { '/v1/endpoints': endpoints(), '/v1/group': { reset: null } }
+    const { controller, calls } = await boot(routes)
+    vi.unstubAllGlobals()
+    expect(FakeSocket.last?.url).toBe('ws://relay.test/v1/stream')
+    expect(controller.groupReset.get()).toBeNull()
+    const before = calls.filter((c) => c === '/v1/group').length
+
+    routes['/v1/group'] = { reset: RESET }
+    FakeSocket.last?.onmessage?.({ data: JSON.stringify({ type: 'group_updated' }) })
+    await vi.waitFor(() => expect(controller.groupReset.get()).toEqual(RESET))
+    expect(calls.filter((c) => c === '/v1/group').length).toBe(before + 1)
+    controller.teardown()
   })
 })

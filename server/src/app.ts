@@ -13,6 +13,7 @@ import { createPushSender, type PushSender } from './push'
 import { RateLimiter } from './ratelimit'
 import { registerConfigRoute } from './routes/config'
 import { registerEndpointRoutes } from './routes/endpoints'
+import { registerGroupRoutes } from './routes/group'
 import { registerGroupKeyRoutes } from './routes/group-keys'
 import { registerMessageRoutes } from './routes/messages'
 import { registerPairPageRoute } from './routes/pair-page'
@@ -195,6 +196,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   registerPairingRoutes(app, ctx)
   registerMessageRoutes(app, ctx)
   registerGroupKeyRoutes(app, ctx)
+  registerGroupRoutes(app, ctx)
   registerStreamRoute(app, ctx)
 
   return app

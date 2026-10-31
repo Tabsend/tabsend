@@ -58,15 +58,15 @@
 
     <!-- Pairing / onboarding: the first-run pairing screen, the app's one
          signature moment (docs/APP_UI.md "Phones: native-leaning"). -->
-    <string name="pairing_headline">Link this phone to your browsers</string>
-    <string name="pairing_body">On your computer, click the Tabsend button and choose New browser. Then scan the code it shows.</string>
+    <string name="pairing_headline">Link this phone to Tabsend</string>
+    <string name="pairing_body">On a device already using Tabsend, such as your browser, open Tabsend and choose \"Add a device\". Then scan the code it shows.</string>
     <!-- The primary path: opens the QR scanner, which fills in the pairing link. -->
     <string name="scan_code">Scan code</string>
     <!-- Reveals the pairing-link field, the name field and the Pair button. -->
-    <string name="pairing_paste_instead">Paste a pairing link instead</string>
+    <string name="pairing_paste_instead">Paste a setup link instead</string>
     <string name="pairing_how">How pairing works</string>
     <string name="pairing_how_body">A device that is already paired, usually your browser, asks your Tabsend relay for a one-time pairing code and shows it as a QR code and as a link. Scanning the code, or pasting the link, tells this phone where your relay is and hands it that code. The phone then joins your group of devices.\n\nThe code works once, and only for a limited time. Tabs you send are encrypted on the device that sends them and only your paired devices can read them; the relay passes them on without being able to open them.</string>
-    <string name="pairing_link_label">Pairing link</string>
+    <string name="pairing_link_label">Setup link</string>
     <string name="pairing_link_hint">https://your-relay:8787/pair#c=…</string>
     <string name="device_name_label">Name this device</string>
     <string name="join_button">Pair this phone</string>
@@ -77,7 +77,14 @@
 
     <!-- Paired home -->
     <string name="paired_title">This phone is linked</string>
-    <string name="add_device">Pair a device</string>
+    <string name="add_device">Add a device</string>
+    <!-- The "Pair a device" QR dialog; mirrors the iPhone's pairing sheet. -->
+    <string name="pair_qr_description">Pairing QR code</string>
+    <string name="pair_qr_hint">Scan with a phone\'s camera, or open the link in another browser. If Tabsend isn\'t installed there yet, the link shows how to install it. It works once and expires in about 10 minutes.</string>
+    <string name="pair_qr_hint_no_code">Open the link in another browser or on a phone. If Tabsend isn\'t installed there yet, the link shows how to install it. It works once and expires in about 10 minutes.</string>
+    <string name="pair_copy_link">Copy link</string>
+    <string name="pair_close">Close</string>
+    <string name="pair_qr_expired">That pairing code expired. Tap Add a device for a new one.</string>
     <string name="rename_device">Rename this device</string>
     <string name="unpair">Unpair this phone</string>
     <string name="devices_title">Your devices</string>
@@ -106,11 +113,11 @@
     <string name="relay_move_empty">Enter the relay address.</string>
     <string name="relay_move_same">Same relay. Your devices stay paired.</string>
     <string name="relay_move_same_unverified">Probably the same relay. It\'s too old to confirm, but it accepted this phone\'s login.</string>
-    <string name="relay_move_different">Different relay. No record of your devices, so every one re-pairs.</string>
+    <string name="relay_move_different">This is a different relay. It doesn\'t know your devices, so each one will need to pair again.</string>
     <string name="relay_move_unreachable">Couldn\'t reach %1$s. Check the address and that it\'s running.</string>
     <string name="relay_move_refused">The relay refused the check: %1$s</string>
     <string name="relay_move_switch">Switch to this address</string>
-    <string name="relay_move_start_fresh">Start fresh here</string>
+    <string name="relay_move_start_fresh">Switch to this relay</string>
     <string name="relay_move_start_fresh_confirm_title">Start fresh on %1$s?</string>
     <string name="relay_move_start_fresh_confirm_body">This phone leaves its current device group. Every device you want to keep has to pair again on the new relay.</string>
     <string name="relay_move_done">Now using %1$s.</string>
@@ -191,17 +198,12 @@
          second line where there is one. -->
     <string name="send_toast_sending">Sending to %1$s…</string>
     <string name="send_toast_sent">Sent to %1$s</string>
-    <!-- The relay took it; the target was not online when the send was made. -->
-    <string name="send_toast_asleep">Waiting for %1$s</string>
-    <string name="send_toast_asleep_detail">Opens there when it wakes</string>
     <!-- The relay has NOT taken it; it is held in this phone's outbound queue and
          retries on its own. The muted line is the specific reason (SendFeedback). -->
     <string name="send_toast_held">Saved on this phone, not sent yet</string>
     <string name="send_toast_failed">Couldn\'t send to %1$s</string>
     <!-- Read out for the snackbar's close (X) button. -->
     <string name="send_toast_close">Close</string>
-    <!-- The snackbar action after a send: opens History. -->
-    <string name="send_toast_view">View</string>
 
     <!-- History: day sections and per-row status words. -->
     <string name="history_section_today">Today</string>
@@ -216,31 +218,54 @@
     <!-- ===== New device joined (PLANS.md P-10). Same words on every client. ===== -->
     <string name="channel_devices_name">New devices</string>
     <string name="channel_devices_desc">Tells you when a device joins your Tabsend devices</string>
-    <string name="new_device_title">New device: %1$s</string>
+    <!-- Told once, information only (P-23): a device joined. -->
+    <string name="new_device_title">%1$s was added</string>
     <!-- %1$s is a relative time such as "5m ago" or "just now". -->
-    <string name="new_device_alert_body">Joined your Tabsend devices %1$s. Was this you? If not, remove it.</string>
-    <string name="new_device_alert_body_no_time">Joined your Tabsend devices. Was this you? If not, remove it.</string>
+    <string name="new_device_alert_body">It joined your Tabsend devices %1$s. If that wasn\'t you, remove it in Tabsend.</string>
+    <string name="new_device_alert_body_no_time">It joined your Tabsend devices. If that wasn\'t you, remove it in Tabsend.</string>
     <plurals name="new_devices_alert_title">
-        <item quantity="one">%1$d new device joined</item>
-        <item quantity="other">%1$d new devices joined</item>
+        <item quantity="one">%1$d device was added</item>
+        <item quantity="other">%1$d devices were added</item>
     </plurals>
     <!-- %1$s is the list of device names, e.g. "Pixel 8, iPhone and Console". -->
-    <string name="new_devices_alert_body">%1$s. Were these you? If not, remove them.</string>
+    <string name="new_devices_alert_body">%1$s joined your Tabsend devices. If any wasn\'t you, remove it in Tabsend.</string>
     <!-- Joins device names: %1$s is all but the last, already comma-separated. -->
     <string name="new_devices_list_and">%1$s and %2$s</string>
-    <string name="new_device_banner_body">Joined %1$s. Was this you? If it isn\'t yours, remove it. It could read the links you send.</string>
-    <string name="new_device_banner_body_no_time">Was this you? If it isn\'t yours, remove it. It could read the links you send.</string>
-    <string name="new_device_confirm">Yes, it\'s mine</string>
-    <string name="new_device_remove">Remove it</string>
-    <string name="review_title">Check your devices</string>
-    <string name="review_body">Your group has these devices. A device you don\'t know could read the links you send, so remove it.</string>
+    <!-- Told once, information only (P-23): on a fresh pairing, the first list's devices
+         the setup link did not list. -->
+    <string name="in_group_title">%1$s is in your group</string>
+    <string name="in_group_body">The device you paired with didn\'t list it. If it isn\'t yours, remove it in Tabsend.</string>
+    <plurals name="in_group_several_title">
+        <item quantity="one">%1$d device is in your group</item>
+        <item quantity="other">%1$d devices are in your group</item>
+    </plurals>
+    <!-- %1$s is the list of device names, e.g. "Pixel 8, iPhone and Console". -->
+    <string name="in_group_several_body">%1$s. The device you paired with didn\'t list them. If any isn\'t yours, remove it in Tabsend.</string>
     <string name="review_remove">Remove</string>
     <string name="review_remove_for">Remove %1$s</string>
-    <string name="review_confirm">All of these are mine</string>
     <string name="vanished_title">%1$s joined, then disappeared</string>
     <string name="vanished_body">It joined %1$s and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.</string>
     <string name="vanished_body_no_time">It is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.</string>
     <string name="vanished_dismiss">Dismiss</string>
+
+    <!-- ===== A reset that waits (PLANS.md P-18 item 12). Same words on every client. ===== -->
+    <string name="channel_reset_name">Reset requests</string>
+    <string name="channel_reset_desc">Tells you when someone asks to remove all your devices</string>
+    <string name="reset_alert_title">Tabsend</string>
+    <!-- %1$s is the day the reset was asked for, e.g. "October 27". -->
+    <string name="reset_alert_body">Someone asked to remove all your devices on %1$s. Open Tabsend to stop it.</string>
+    <string name="reset_alert_body_no_time">Someone asked to remove all your devices. Open Tabsend to stop it.</string>
+    <string name="reset_card_title">Someone asked to remove all your devices</string>
+    <!-- %1$s is the day it was asked for ("October 27"), %2$s the day it happens
+         ("October 30"), %3$s the time it happens ("3:05 PM"), in the phone's time zone. -->
+    <string name="reset_card_body">From your account page on %1$s. On %2$s at %3$s, every device is removed, this one too. If it wasn\'t you, stop it now, then change your email password.</string>
+    <string name="reset_card_body_no_time">From your account page. Soon every device is removed, this one too. If it wasn\'t you, stop it now, then change your email password.</string>
+    <string name="reset_stop">Stop the reset</string>
+    <string name="reset_was_me">It was me</string>
+    <string name="reset_stopped">Reset stopped. Nothing was removed.</string>
+    <!-- %1$s is the relay's own reason. -->
+    <string name="reset_stop_refused">Couldn\'t stop the reset: %1$s</string>
+    <string name="reset_stop_offline">Couldn\'t reach the relay to stop the reset. Try again when you\'re online.</string>
 
     <!-- Removing another device. Wording matches the extension and the console. -->
     <string name="remove_device_title">Remove “%1$s” from the group?</string>

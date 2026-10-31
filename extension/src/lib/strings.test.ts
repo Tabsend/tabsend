@@ -71,7 +71,7 @@ describe('pairingErrorLine', () => {
   })
   it('passes a relay-side refusal through', () => {
     expect(pairingErrorLine({ kind: 'relay', detail: 'Rate limited.' })).toBe(
-      "The relay couldn't issue a pairing link: Rate limited.",
+      "The relay couldn't make a setup link: Rate limited.",
     )
   })
   it('never returns an empty line — the silent failure this replaced', () => {

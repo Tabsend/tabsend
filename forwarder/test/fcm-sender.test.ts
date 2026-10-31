@@ -221,7 +221,7 @@ describe('HttpFcmSender', () => {
     for (let i = 0; i < 3; i++) {
       expect(await send.wake({ fcmToken: fakeFcmToken() })).toMatchObject({ reason: 'Timeout' })
     }
-    await vi.waitFor(() => expect(google.connections).toBe(2))
+    await vi.waitFor(() => expect(google.connections).toBe(2), { timeout: 3000 })
 
     google.answer = () => ({ status: 200, body: { name: 'projects/p/messages/1' } })
     expect(await send.wake({ fcmToken: fakeFcmToken() })).toEqual({ ok: true })

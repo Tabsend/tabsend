@@ -23,7 +23,8 @@ final class SendFeedbackTests: XCTestCase {
     func testAnAsleepTargetIsStillASuccess() {
         let banner = Feedback.banner(ok: true, queued: true, targetLabel: label)
         XCTAssertEqual(banner.tone, .success)
-        XCTAssertEqual(banner.detail, "Opens when it wakes")
+        XCTAssertEqual(banner.headline, "Sent to Arc · Mac mini")
+        XCTAssertNil(banner.detail)
     }
 
     /// THE regression: a dead relay used to return ok=true and render as "Sent".

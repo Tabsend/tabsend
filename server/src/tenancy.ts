@@ -1,5 +1,7 @@
+import type { GroupResetState, IsoTimestamp } from '@tabsend/shared'
 import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
+import { leftoverEndpoints } from './bootstrap'
 import {
   CAP_COLUMNS,
   capOverridesFromRow,
@@ -23,7 +25,9 @@ import { iso } from './time'
  *
  *  - **suspension** — the group stops accepting work, and keeps everything it has;
  *  - **usage** — aggregates, and ONLY aggregates (see {@link GroupUsage});
- *  - **deletion** — an idempotent cascade, safe to re-run until everything is gone.
+ *  - **deletion** — an idempotent cascade, safe to re-run until everything is gone;
+ *  - **a reset that waits** [P-18 item 12] — held and shown here, stoppable by any
+ *    device in the group, and never carried out by the relay (see the schema).
  *
  * SUSPENSION SEMANTICS, stated here because they are the part that could be got
  * quietly wrong. HOSTED_PLAN §5 names the failure mode to avoid: somebody's card
@@ -152,6 +156,172 @@ export async function setGroupSuspended(
 }
 
 /**
+ * A pending reset, as the wire carries it [P-18 item 12]: when it was asked for and
+ * when it will happen. Null while none is pending. The shared contract's own type, so
+ * the device route and the usage report cannot drift apart from it.
+ */
+export type GroupReset = GroupResetState
+
+/** The reset columns of one group row. */
+type ResetRow = Pick<Database['groups'], 'reset_requested_at' | 'reset_at' | 'reset_stopped_at'>
+
+const RESET_COLUMNS = ['reset_requested_at', 'reset_at', 'reset_stopped_at'] as const
+
+/**
+ * The pending reset on a row, or null. Pending means BOTH timestamps are set: every
+ * write sets or clears them together, so one without the other is not a state any code
+ * path makes, and reading it as "pending" would show devices a reset with no time.
+ */
+function resetFromRow(row: ResetRow): GroupReset | null {
+  if (row.reset_requested_at === null || row.reset_at === null) return null
+  return {
+    requestedAt: row.reset_requested_at as IsoTimestamp,
+    resetsAt: row.reset_at as IsoTimestamp,
+  }
+}
+
+/** A group's reset state. `exists: false` means there is no such group. */
+export interface GroupResetOutcome {
+  exists: boolean
+  reset: GroupReset | null
+  /** When a device last stopped a reset, or null if none ever has. */
+  stoppedAt: string | null
+}
+
+/**
+ * Schedule a reset that waits [P-18 item 12], or report the one already pending.
+ *
+ * A pending reset is KEPT as it is, time and all: a control-plane call retried after a
+ * timeout must not move the clock the devices are counting down against, the same rule
+ * `setGroupSuspended` keeps for "suspended since". `scheduled` says which happened, so
+ * the caller tells the group and rings its phones only for a reset that is new.
+ *
+ * Under the group row ({@link lockGroup}), so a device's Stop and this are ordered:
+ * whichever lands second sees what the first one left.
+ */
+export async function scheduleGroupReset(
+  db: Kysely<Database>,
+  postgres: boolean,
+  groupId: string,
+  resetsAt: string,
+  now: Date,
+): Promise<GroupResetOutcome & { scheduled: boolean }> {
+  return db.transaction().execute(async (trx) => {
+    if (!(await lockGroup(trx, postgres, groupId))) {
+      return { exists: false, reset: null, stoppedAt: null, scheduled: false }
+    }
+    const row = await trx
+      .selectFrom('groups')
+      .select(RESET_COLUMNS)
+      .where('id', '=', groupId)
+      .executeTakeFirstOrThrow()
+    const pending = resetFromRow(row)
+    if (pending) {
+      return { exists: true, reset: pending, stoppedAt: row.reset_stopped_at, scheduled: false }
+    }
+    const requestedAt = iso(now)
+    await trx
+      .updateTable('groups')
+      .set({ reset_requested_at: requestedAt, reset_at: resetsAt, reset_stopped_at: null })
+      .where('id', '=', groupId)
+      .execute()
+    return {
+      exists: true,
+      reset: { requestedAt, resetsAt: resetsAt as IsoTimestamp },
+      stoppedAt: null,
+      scheduled: true,
+    }
+  })
+}
+
+/**
+ * Clear a pending reset because the ACCOUNT OWNER cancelled it (the control plane).
+ * Leaves `reset_stopped_at` alone: that records what a device did, and the owner
+ * cancelling does not change it. `cleared` is false when nothing was pending.
+ */
+export async function cancelGroupReset(
+  db: Kysely<Database>,
+  postgres: boolean,
+  groupId: string,
+): Promise<GroupResetOutcome & { cleared: boolean }> {
+  return db.transaction().execute(async (trx) => {
+    if (!(await lockGroup(trx, postgres, groupId))) {
+      return { exists: false, reset: null, stoppedAt: null, cleared: false }
+    }
+    const row = await trx
+      .selectFrom('groups')
+      .select(RESET_COLUMNS)
+      .where('id', '=', groupId)
+      .executeTakeFirstOrThrow()
+    const cleared = row.reset_requested_at !== null || row.reset_at !== null
+    if (cleared) {
+      await trx
+        .updateTable('groups')
+        .set({ reset_requested_at: null, reset_at: null })
+        .where('id', '=', groupId)
+        .execute()
+    }
+    return { exists: true, reset: null, stoppedAt: row.reset_stopped_at, cleared }
+  })
+}
+
+/** What a device's Stop did. */
+export type StopResetOutcome = 'stopped' | 'none' | 'gone' | 'caller_gone'
+
+/**
+ * A DEVICE stops a pending reset [P-18 item 12]: any device in the group may, and that
+ * is the whole safeguard. Records when, and clears the pending pair.
+ *
+ * Under the group row, and the caller is re-read under it, the same way a removal
+ * checks it (routes/endpoints.ts): a device removed a moment ago must not get one last
+ * Stop in. `none` when nothing was pending, which the route answers exactly like a
+ * stop, so a retry or two devices pressing Stop at once both read as done.
+ */
+export async function stopGroupReset(
+  db: Kysely<Database>,
+  postgres: boolean,
+  groupId: string,
+  callerEndpointId: string,
+  now: Date,
+): Promise<StopResetOutcome> {
+  return db.transaction().execute(async (trx) => {
+    if (!(await lockGroup(trx, postgres, groupId))) return 'gone'
+    const stillHere = await trx
+      .selectFrom('endpoints')
+      .select('id')
+      .where('id', '=', callerEndpointId)
+      .where('group_id', '=', groupId)
+      .executeTakeFirst()
+    if (!stillHere) return 'caller_gone'
+    const row = await trx
+      .selectFrom('groups')
+      .select(RESET_COLUMNS)
+      .where('id', '=', groupId)
+      .executeTakeFirstOrThrow()
+    if (!resetFromRow(row)) return 'none'
+    await trx
+      .updateTable('groups')
+      .set({ reset_requested_at: null, reset_at: null, reset_stopped_at: iso(now) })
+      .where('id', '=', groupId)
+      .execute()
+    return 'stopped'
+  })
+}
+
+/** The pending reset of a group a device belongs to; null when none (or no group). */
+export async function readGroupReset(
+  db: Kysely<Database>,
+  groupId: string,
+): Promise<GroupReset | null> {
+  const row = await db
+    .selectFrom('groups')
+    .select(RESET_COLUMNS)
+    .where('id', '=', groupId)
+    .executeTakeFirst()
+  return row ? resetFromRow(row) : null
+}
+
+/**
  * Everything the provisioning API may say about one group's usage — AGGREGATES ONLY.
  *
  * This shape is a boundary, not a convenience. HOSTED_PLAN §2.2 promises the control
@@ -167,8 +337,24 @@ export interface GroupUsage {
   createdAt: string
   suspended: boolean
   suspendedAt: SuspendedAt
+  /**
+   * The pending reset [P-18 item 12], or null. Group-level timestamps, set by the
+   * control plane itself, so they name no device and break nothing above.
+   */
+  reset: GroupReset | null
+  /**
+   * When a device last stopped a reset, or null. Says THAT a device did, never which
+   * one: the control plane needs "somebody still holds a paired device", not who.
+   */
+  resetStoppedAt: string | null
   /** Devices in the group. A count, never a list. */
   endpoints: number
+  /**
+   * How many of them are leftovers of a failed first setup (PLANS P-21, `leftoverEndpoints`
+   * in bootstrap.ts). Either 0 or all of `endpoints`: when it is all of them, the account
+   * page may make a new first link, and doing so removes them.
+   */
+  leftoverEndpoints: number
   queue: {
     /** Live queued tabs: unacked, envelope still present, unexpired — the set the
      *  queue caps count, so this number and `caps.remaining` agree by construction. */
@@ -252,7 +438,7 @@ export async function groupUsage(
 ): Promise<GroupUsage | null> {
   const group = await db
     .selectFrom('groups')
-    .select([...CAP_COLUMNS, 'id', 'created_at', 'suspended_at'])
+    .select([...CAP_COLUMNS, ...RESET_COLUMNS, 'id', 'created_at', 'suspended_at'])
     .where('id', '=', groupId)
     .executeTakeFirst()
   if (!group) return null
@@ -320,7 +506,10 @@ export async function groupUsage(
     createdAt: group.created_at,
     suspended: group.suspended_at !== null,
     suspendedAt: group.suspended_at,
+    reset: resetFromRow(group),
+    resetStoppedAt: group.reset_stopped_at,
     endpoints: toNumber(endpoints?.n),
+    leftoverEndpoints: (await leftoverEndpoints(db, groupId, now)).length,
     queue: { messages: queuedMessages, bytes: queuedBytes, oldestPendingSeconds },
     groupKeys: {
       copies: toNumber(keys.rows[0]?.n),
@@ -391,8 +580,8 @@ function deletedRows(result: { numDeletedRows?: bigint } | undefined): number {
  *    token). Nothing else has to be deleted to revoke a token;
  *  - `quota_counters` for `group_sends` — the group's send-window buckets. Keyed by
  *    group id, so a recycled id would otherwise inherit somebody else's spent window;
- *  - the `groups` row itself, which carries the cap overrides and `suspended_at` as
- *    columns, so those need no statement of their own.
+ *  - the `groups` row itself, which carries the cap overrides, `suspended_at` and the
+ *    pending reset as columns, so those need no statement of their own.
  *
  * What deliberately STAYS: `provisioning_idempotency` rows naming this group [0031].
  * They record a CALL the control plane made, not state the group owns, and deleting
@@ -433,57 +622,110 @@ export async function deleteGroupCascade(
     // Held for the rest of the transaction, before anything is deleted: see above.
     // Its answer is also the `existed` this reports, so the read is not an extra one.
     const existed = await lockGroup(trx, postgres, groupId)
-
-    const messages = await trx
-      .deleteFrom('messages')
-      .where('group_id', '=', groupId)
-      .executeTakeFirst()
-    const groupKeys = await trx
-      .deleteFrom('group_keys')
-      .where('group_id', '=', groupId)
-      .executeTakeFirst()
-    const pairingCodes = await trx
-      .deleteFrom('pairing_codes')
-      .where('group_id', '=', groupId)
-      .executeTakeFirst()
-    const removedEndpoints = await trx
-      .deleteFrom('removed_endpoints')
-      .where('group_id', '=', groupId)
-      .executeTakeFirst()
-    // Read before they go, so the caller can retire their wake tokens at the forwarder
-    // once this has committed [2026-10-20, PLANS P-17].
-    const wakeTargets = await trx
-      .selectFrom('endpoints')
-      .select(['id', 'push_subscription'])
-      .where('group_id', '=', groupId)
-      .execute()
-    const endpoints = await trx
-      .deleteFrom('endpoints')
-      .where('group_id', '=', groupId)
-      .executeTakeFirst()
-    const quotaCounters = await trx
-      .deleteFrom('quota_counters')
-      .where('scope', '=', 'group_sends')
-      .where('key', '=', groupId)
-      .executeTakeFirst()
-    await trx.deleteFrom('groups').where('id', '=', groupId).execute()
-
-    return {
-      existed,
-      deleted: {
-        endpoints: deletedRows(endpoints),
-        messages: deletedRows(messages),
-        groupKeys: deletedRows(groupKeys),
-        pairingCodes: deletedRows(pairingCodes),
-        removedEndpoints: deletedRows(removedEndpoints),
-        quotaCounters: deletedRows(quotaCounters),
-      },
-      deletedEndpoints: wakeTargets.map((row) => ({
-        endpointId: row.id,
-        pushSubscription: row.push_subscription,
-      })),
-    }
+    return cascadeUnderHold(trx, groupId, existed)
   })
+}
+
+/** What carrying out a reset did [P-18 item 12]. */
+export type ResetRunOutcome =
+  | { status: 'gone' }
+  | { status: 'not_due' }
+  | { status: 'deleted'; deletion: GroupDeletion }
+
+/**
+ * Carry out a reset that waited, IF it still should be [P-18 item 12]: the group is
+ * deleted only when a reset is pending AND its time has come, and that is decided in
+ * the same transaction, under the same hold on the group row, as the deletion itself.
+ *
+ * That is the point of doing it here rather than in the control plane. A control plane
+ * that read usage and then called the plain DELETE left a window between the two in
+ * which a device's Stop was accepted, reported as done, and then deleted anyway. A
+ * device's Stop takes the same hold ({@link stopGroupReset}), so the two are ordered:
+ * a Stop that lands first clears the reset and this answers `not_due`; a Stop that
+ * lands second finds no group, or no token.
+ *
+ * `gone` when there is no such group, which a caller re-running after a crash part way
+ * through should read as already done.
+ */
+export async function runDueGroupReset(
+  db: Kysely<Database>,
+  postgres: boolean,
+  groupId: string,
+  now: Date,
+): Promise<ResetRunOutcome> {
+  return db.transaction().execute(async (trx) => {
+    if (!(await lockGroup(trx, postgres, groupId))) return { status: 'gone' as const }
+    const row = await trx
+      .selectFrom('groups')
+      .select(RESET_COLUMNS)
+      .where('id', '=', groupId)
+      .executeTakeFirstOrThrow()
+    const pending = resetFromRow(row)
+    if (!pending || Date.parse(pending.resetsAt) > now.getTime()) {
+      return { status: 'not_due' as const }
+    }
+    return { status: 'deleted' as const, deletion: await cascadeUnderHold(trx, groupId, true) }
+  })
+}
+
+/**
+ * The statements of {@link deleteGroupCascade}, for a caller that already holds the
+ * group row inside its own transaction. Order and reasons are documented there.
+ */
+async function cascadeUnderHold(
+  trx: Kysely<Database>,
+  groupId: string,
+  existed: boolean,
+): Promise<GroupDeletion> {
+  const messages = await trx
+    .deleteFrom('messages')
+    .where('group_id', '=', groupId)
+    .executeTakeFirst()
+  const groupKeys = await trx
+    .deleteFrom('group_keys')
+    .where('group_id', '=', groupId)
+    .executeTakeFirst()
+  const pairingCodes = await trx
+    .deleteFrom('pairing_codes')
+    .where('group_id', '=', groupId)
+    .executeTakeFirst()
+  const removedEndpoints = await trx
+    .deleteFrom('removed_endpoints')
+    .where('group_id', '=', groupId)
+    .executeTakeFirst()
+  // Read before they go, so the caller can retire their wake tokens at the forwarder
+  // once this has committed [2026-10-20, PLANS P-17].
+  const wakeTargets = await trx
+    .selectFrom('endpoints')
+    .select(['id', 'push_subscription'])
+    .where('group_id', '=', groupId)
+    .execute()
+  const endpoints = await trx
+    .deleteFrom('endpoints')
+    .where('group_id', '=', groupId)
+    .executeTakeFirst()
+  const quotaCounters = await trx
+    .deleteFrom('quota_counters')
+    .where('scope', '=', 'group_sends')
+    .where('key', '=', groupId)
+    .executeTakeFirst()
+  await trx.deleteFrom('groups').where('id', '=', groupId).execute()
+
+  return {
+    existed,
+    deleted: {
+      endpoints: deletedRows(endpoints),
+      messages: deletedRows(messages),
+      groupKeys: deletedRows(groupKeys),
+      pairingCodes: deletedRows(pairingCodes),
+      removedEndpoints: deletedRows(removedEndpoints),
+      quotaCounters: deletedRows(quotaCounters),
+    },
+    deletedEndpoints: wakeTargets.map((row) => ({
+      endpointId: row.id,
+      pushSubscription: row.push_subscription,
+    })),
+  }
 }
 
 /**

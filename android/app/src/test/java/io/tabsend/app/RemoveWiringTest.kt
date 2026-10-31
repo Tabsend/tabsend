@@ -42,18 +42,31 @@ class RemoveWiringTest {
 
     @Test
     fun `every Remove on the home screen asks first`() {
-        // The device row and the first-look card share one label; the new-device
-        // banner has its own.
-        val rowAndReview = handlers(activity, "review_remove")
-        assertEquals("the device row and the first-look card", 2, rowAndReview.size)
-        val banner = handlers(activity, "new_device_remove")
-        assertEquals("the new-device banner", 1, banner.size)
-        for (handler in rowAndReview + banner) {
+        // Since P-23 the device row's Remove is the only one: the first-look card and
+        // the new-device banner, which had their own, are gone.
+        val removes = handlers(activity, "review_remove")
+        assertEquals("the device row", 1, removes.size)
+        for (handler in removes) {
             assertTrue("a Remove must open the question: $handler", handler.startsWith("confirmRemove("))
         }
+        assertTrue(handlers(activity, "new_device_remove").isEmpty())
         // The device row in particular.
         val rows = body(activity, "private fun renderDevices(")
         assertTrue(handlers(rows, "review_remove").single().startsWith("confirmRemove(ep.id"))
+    }
+
+    @Test
+    fun `a device row asks nothing about a new device`() {
+        // P-23 (owner, 2026-10-30): a joined device is told once, by the system
+        // notification, as information. No "New" tag, no "It's mine", no first-look card.
+        val rows = body(activity, "private fun renderDevices(")
+        assertFalse(rows.contains("tagged("))
+        assertFalse(rows.contains("unanswered"))
+        assertFalse(activity.contains("device_its_mine"))
+        assertFalse(activity.contains("device_new_tag"))
+        assertFalse(activity.contains("confirmMine"))
+        assertFalse(activity.contains("NewDeviceWatcher.confirm("))
+        assertFalse("confirmReview answers every device at once", activity.contains("confirmReview"))
     }
 
     @Test

@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import raw from '../vectors/new-devices.json'
 import {
+  announcesNewDevices,
   confirmNewDevice,
   confirmReview,
   dismissVanished,
   endpointsKnownTo,
   heldTabChoices,
   type NewDeviceWatch,
+  parseVouch,
   removeDevice,
   rotationDeparted,
   rotationDone,
   rotationDue,
+  settleNotices,
+  vouchTag,
+  vouchTags,
   watchDevices,
+  withVouch,
 } from './newdevices'
 import type { Endpoint, GroupId } from './types'
 
@@ -25,6 +31,7 @@ const vectors = raw as unknown as {
     prev: NewDeviceWatch | null
     seed?: (Pick<Endpoint, 'id' | 'label' | 'createdAt'> & { e2ePubkey?: string })[]
     list: (Pick<Endpoint, 'id' | 'label' | 'createdAt'> & { e2ePubkey?: string })[]
+    vouched?: string[]
     watch: NewDeviceWatch | null
     joined: unknown[]
   }[]
@@ -62,10 +69,31 @@ const vectors = raw as unknown as {
       Partial<Pick<Endpoint, 'kind' | 'e2ePubkey'>>)[]
     expect: string[]
   }[]
+  vouchTag: { name: string; key: string; expect: string }[]
+  vouchTags: {
+    name: string
+    selfId: string
+    watch: NewDeviceWatch | null
+    list: (Pick<Endpoint, 'id' | 'label' | 'createdAt'> & { e2ePubkey?: string })[]
+    expect: string[]
+  }[]
+  withVouch: { name: string; link: string; tags: string[]; expect: string }[]
+  parseVouch: { name: string; link: string; expect: string[] | null }[]
+  announces: {
+    name: string
+    selfId: string
+    now: number
+    prev: NewDeviceWatch | null
+    list: (Pick<Endpoint, 'id' | 'label' | 'createdAt'> &
+      Partial<Pick<Endpoint, 'kind' | 'e2ePubkey' | 'lastSeenAt'>>)[]
+    expect: boolean
+  }[]
+  settle: { name: string; watch: NewDeviceWatch; expect: NewDeviceWatch }[]
 }
 
 function endpoint(
-  e: Pick<Endpoint, 'id' | 'label' | 'createdAt'> & Partial<Pick<Endpoint, 'kind' | 'e2ePubkey'>>,
+  e: Pick<Endpoint, 'id' | 'label' | 'createdAt'> &
+    Partial<Pick<Endpoint, 'kind' | 'e2ePubkey' | 'lastSeenAt'>>,
 ): Endpoint {
   return {
     ...e,
@@ -75,7 +103,7 @@ function endpoint(
     platform: 'macos',
     e2ePubkey: e.e2ePubkey ?? 'pk',
     presence: 'online',
-    lastSeenAt: e.createdAt,
+    lastSeenAt: e.lastSeenAt ?? e.createdAt,
   }
 }
 
@@ -89,6 +117,7 @@ describe('watchDevices (P-10 vectors)', () => {
         c.now,
         c.currentKeyCreatedAt,
         c.seed?.map(endpoint),
+        c.vouched,
       )
       expect(result.watch).toEqual(c.watch)
       expect(result.joined).toEqual(c.joined)
@@ -139,6 +168,36 @@ describe('watchDevices (P-10 vectors)', () => {
       expect(heldTabChoices(c.watch, c.list.map(endpoint), c.selfId).map((e) => e.id)).toEqual(
         c.expect,
       )
+    })
+  }
+  for (const c of vectors.vouchTag) {
+    it(`vouchTag: ${c.name}`, () => {
+      expect(vouchTag(c.key)).toBe(c.expect)
+    })
+  }
+  for (const c of vectors.vouchTags) {
+    it(`vouchTags: ${c.name}`, () => {
+      expect(vouchTags(c.watch, c.list.map(endpoint), c.selfId)).toEqual(c.expect)
+    })
+  }
+  for (const c of vectors.withVouch) {
+    it(`withVouch: ${c.name}`, () => {
+      expect(withVouch(c.link, c.tags)).toBe(c.expect)
+    })
+  }
+  for (const c of vectors.parseVouch) {
+    it(`parseVouch: ${c.name}`, () => {
+      expect(parseVouch(c.link) ?? null).toEqual(c.expect)
+    })
+  }
+  for (const c of vectors.announces) {
+    it(`announcesNewDevices: ${c.name}`, () => {
+      expect(announcesNewDevices(c.prev, c.list.map(endpoint), c.selfId, c.now)).toBe(c.expect)
+    })
+  }
+  for (const c of vectors.settle) {
+    it(`settleNotices: ${c.name}`, () => {
+      expect(settleNotices(c.watch)).toEqual(c.expect)
     })
   }
 })

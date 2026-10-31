@@ -11,9 +11,9 @@ public actor Deliverer {
         public var skipped = 0
         public var pending = 0
         public var offline = false
-        /// Devices that joined since the last list this phone saw (PLANS.md P-10).
-        /// The caller announces them; the record is already saved.
-        public var joinedDevices: [NewDeviceNotice] = []
+        /// What to tell the user about new devices, once (PLANS.md P-10, P-23), or nil.
+        /// The caller posts it; the record is already saved, settled.
+        public var newDevices: NewDevices.Announcement?
         /// The device list this drain fetched, once the new-device rule accepted
         /// it. Nil when the fetch failed or the list did not contain this phone.
         /// The group-key pass runs on this and only this, never on the cache.
@@ -66,7 +66,7 @@ public actor Deliverer {
             // failed fetch, so it is neither cached nor trusted to vouch for a
             // sender, and nothing is delivered from it.
             let observed = NewDevices.observe(try await api.listEndpoints(), store: store)
-            summary.joinedDevices = observed.joined
+            summary.newDevices = observed.announcement
             guard let accepted = observed.accepted else { return summary }
             endpoints = accepted
             summary.endpoints = accepted

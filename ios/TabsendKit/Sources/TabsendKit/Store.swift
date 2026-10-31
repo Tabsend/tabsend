@@ -39,12 +39,18 @@ public struct Registration: Codable, Sendable, Equatable {
     /// Kept here because it is a fact about the relay we are registered to, so it is
     /// discarded with the registration and cannot outlive it.
     public var wakeForwarderAdvertised: Bool?
+    /// The device tags the pairing link carried (`NewDevices.parseVouch`, P-23): the
+    /// devices the phone or browser that showed it had accepted. Read once, by the
+    /// device-list fetch that creates this pairing's new-device record, and cleared
+    /// then (`NewDevices.observe`). Nil for a link from an older client, and once used.
+    /// Device-local, like the rest of this record.
+    public var vouched: [String]?
 
     public init(
         endpointId: String, groupId: String, deviceToken: String,
         relayUrl: String, label: String,
         certFingerprint: String? = nil, relayId: String? = nil,
-        wakeForwarderAdvertised: Bool? = nil
+        wakeForwarderAdvertised: Bool? = nil, vouched: [String]? = nil
     ) {
         self.endpointId = endpointId
         self.groupId = groupId
@@ -54,6 +60,7 @@ public struct Registration: Codable, Sendable, Equatable {
         self.certFingerprint = certFingerprint
         self.relayId = relayId
         self.wakeForwarderAdvertised = wakeForwarderAdvertised
+        self.vouched = vouched
     }
 }
 
@@ -195,6 +202,10 @@ public protocol TabsendStore: AnyObject, Sendable {
     /// not yet answered, and a group-key rotation owed since a device left.
     /// Device-local, never sent anywhere.
     var newDeviceWatch: NewDeviceWatch? { get set }
+    /// The reset that waits (PLANS.md P-18 item 12): the last state the relay
+    /// reported, and which resets were already announced or answered "It was me".
+    /// Device-local, never sent anywhere.
+    var groupResetWatch: GroupResetWatch? { get set }
 
     /// Unpair: wipe everything, including the identity.
     func clear()
@@ -218,6 +229,11 @@ public protocol TabsendStore: AnyObject, Sendable {
     /// Read-modify-write the new-device record under the store's lock, so two
     /// device-list fetches landing together cannot both announce one device.
     func updateNewDeviceWatch(_ transform: (NewDeviceWatch?) -> NewDeviceWatch?)
+
+    /// Read-modify-write the reset record under the store's lock, so two fetches
+    /// landing together (a background wake and the foreground) cannot both announce
+    /// the same reset.
+    func updateGroupResetWatch(_ transform: (GroupResetWatch?) -> GroupResetWatch?)
 
     /// Read-modify-write the group keyring under the store's lock. The key sync
     /// runs from the foreground and from background wakes, and two passes that
@@ -270,6 +286,7 @@ public final class MemoryStore: TabsendStore, @unchecked Sendable {
     private var _wakeRegistration: WakeRegistration?
     private var _instantDeliveryOptOut = false
     private var _newDeviceWatch: NewDeviceWatch?
+    private var _groupResetWatch: GroupResetWatch?
 
     public init() {}
 
@@ -341,6 +358,15 @@ public final class MemoryStore: TabsendStore, @unchecked Sendable {
         lock.withLock { _newDeviceWatch = transform(_newDeviceWatch) }
     }
 
+    public var groupResetWatch: GroupResetWatch? {
+        get { lock.withLock { _groupResetWatch } }
+        set { lock.withLock { _groupResetWatch = newValue } }
+    }
+
+    public func updateGroupResetWatch(_ transform: (GroupResetWatch?) -> GroupResetWatch?) {
+        lock.withLock { _groupResetWatch = transform(_groupResetWatch) }
+    }
+
     public func updateGroupKeyring(_ transform: ([GroupKeyRecord]) -> [GroupKeyRecord]) {
         lock.withLock { _groupKeyring = transform(_groupKeyring) }
     }
@@ -369,6 +395,7 @@ public final class MemoryStore: TabsendStore, @unchecked Sendable {
             _announcedNeverArrived = []
             _wakeRegistration = nil
             _newDeviceWatch = nil
+            _groupResetWatch = nil
             // `_instantDeliveryOptOut` deliberately SURVIVES: it is a standing choice
             // about this phone's background activity, not group data, and re-pairing
             // must not quietly switch a wake path back on that somebody turned off.

@@ -136,6 +136,20 @@ public actor ApiClient {
         try await request("POST", "/v1/group-keys", body: body)
     }
 
+    // MARK: group state [P-18 item 12]
+
+    /// Whether a reset of this phone's group is waiting. 404 on a relay that predates
+    /// the route; `GroupReset.fetch` turns that into "no reset".
+    public func getGroup() async throws -> GroupStateResponse {
+        try await request("GET", "/v1/group")
+    }
+
+    /// Stop a pending reset. Any device in the group may; the answer is always
+    /// `{ "reset": null }`, also when nothing was pending.
+    public func stopGroupReset() async throws -> StopGroupResetResponse {
+        try await request("POST", "/v1/group/reset/stop", body: EmptyBody())
+    }
+
     // MARK: plumbing
 
     private struct EmptyBody: Encodable {}

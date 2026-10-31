@@ -3,7 +3,7 @@
 This document is for **AMO (addons.mozilla.org) reviewers** and anyone reproducing the
 store packages. AMO requires a source-code submission whenever an add-on is built from
 sources or uses minification/bundling — Tabsend does both (Vite + Rollup). These are the
-exact steps to reproduce the reviewed artifact byte-for-behaviour from this repository.
+exact steps to rebuild the uploaded package, file for file, from this repository.
 
 ## What produces the packages
 
@@ -49,7 +49,10 @@ edits.
 - **web-ext** 10.6.0 (pinned devDependency of `@tabsend/extension`).
 - All other deps are locked in `pnpm-lock.yaml`.
 
-## Reproduce from a clean checkout
+## Reproduce from the source archive
+
+Unzip `tabsend-source-<version>.zip` into an empty folder and run these from that folder.
+It needs Node 26 or later, `zip` and `unzip`; no git, no network after `pnpm install`.
 
 ```bash
 npm install --global pnpm@11.13.1   # the pinned package manager
@@ -57,9 +60,29 @@ pnpm install --frozen-lockfile  # exact locked deps
 pnpm package:firefox            # → dist-packages/tabsend-firefox-<version>.zip
 ```
 
+To compare with the uploaded package, unzip both and compare the folders:
+
+```bash
+mkdir built uploaded
+unzip -q dist-packages/tabsend-firefox-<version>.zip -d built
+unzip -q /path/to/uploaded/tabsend-firefox-<version>.zip -d uploaded
+diff -r built uploaded && echo identical
+```
+
+Every file is identical. The two `.zip` files themselves are not: `web-ext` stamps each
+entry with the time of the build, so only the archive's own dates differ.
+
 The build is deterministic given the locked dependency tree: no network fetches happen
 during the build itself (only during `pnpm install`), and no timestamps or machine-specific
 data are baked into the bundle.
+
+Checked for v0.7.2 on 2026-10-22: the archive made at the tag in a clone of the public repo,
+rebuilt in an empty folder on macOS with an empty pnpm store, and again in a fresh `node:26`
+Linux container; `diff -r` found no difference from the uploaded package either time.
+The same two checks passed for v0.8.0 on 2026-10-23 (public tag `v0.8.0`, `707f93d`;
+`tabsend-firefox-0.8.0.zip` sha256 `a01a903f…7163`, `tabsend-source-0.8.0.zip` `7798cb61…9c57`).
+And for v0.8.1 on 2026-10-27 (public tag `v0.8.1`, `b32d815`; `tabsend-firefox-0.8.1.zip`
+`ecf186d7…2f2e`, `tabsend-source-0.8.1.zip` `544a6f8f…96b9`).
 
 ## Notes a reviewer will want
 

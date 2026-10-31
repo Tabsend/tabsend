@@ -34,10 +34,10 @@ import io.tabsend.app.logic.SendTone
 import io.tabsend.app.logic.ShortcutPlan
 import io.tabsend.app.logic.isoOf
 import io.tabsend.app.net.ApiClient
+import io.tabsend.app.receive.GroupResetWatcher
 import io.tabsend.app.receive.NewDeviceWatcher
 import io.tabsend.app.store.Store
 import io.tabsend.app.ui.DeviceRows
-import io.tabsend.app.ui.HistoryActivity
 import io.tabsend.app.ui.MainActivity
 import io.tabsend.app.ui.SystemBars
 import io.tabsend.app.wire.SendPayload
@@ -142,6 +142,14 @@ class ShareActivity : AppCompatActivity() {
             }
 
             ShareShortcuts.sync(this@ShareActivity, endpoints)
+
+            // The reset that waits is asked for wherever the device list is [P-18
+            // item 12]. Off the share's path and on the app's scope: the sheet closes
+            // the moment a device is picked, and this needs no screen.
+            val appContext = applicationContext
+            AppScope.launch(Dispatchers.IO) {
+                GroupResetWatcher.check(appContext, ApiClient.forRegistration(reg), reg)
+            }
 
             if (wanted == null && cachedRows.isNotEmpty()) return@launch // already showing the cached list
 
@@ -373,32 +381,22 @@ class ShareActivity : AppCompatActivity() {
     }
 
     /**
-     * The snackbar's "View": the app's History, where this send now sits with its
-     * delivery state. Opened in Tabsend's own task (this window lives in the sharing
-     * app's), and this window closes, since the person has left it.
-     */
-    private fun openHistory() {
-        startActivity(Intent(this, HistoryActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        finish()
-    }
-
-    /**
-     * Show what [Sender] actually reported. Four states, each one a distinction
+     * Show what [Sender] actually reported. Three states, each one a distinction
      * [SendOutcome] really carries — nothing here guesses:
      *
-     *  - accepted, target online when sent → "Sent to X" + the tab, then closes;
-     *  - accepted, target not online → "Waiting for X / Opens there when it
-     *    wakes" (the relay holds it for the device), then closes;
+     *  - accepted → "Sent to X" + the tab, then closes after about a second. A
+     *    target that is not online right now is not called out: the relay holds
+     *    the tab for it, so it is sent all the same;
      *  - NOT accepted but held in this phone's queue (a recoverable failure: no
      *    network, relay unreachable or busy, a cap) → "Saved on this phone, not
      *    sent yet" + the specific reason; it retries on its own. Stays until closed;
      *  - refused for good → "Couldn't send to X" + the reason. Stays until closed.
      *
      * No Undo: phone sends are not held back, so there is nothing to take back.
-     * The two accepted states carry the snackbar's "View" action (History). The
-     * failures carry none: a held send already retries on its own the moment the
-     * relay answers, and nothing in the send path retries on demand, so a "Retry"
-     * here would promise a reach it doesn't have.
+     * No "View" either: the bar is gone too soon to tap it. The failures carry no
+     * action: a held send already retries on its own the moment the relay
+     * answers, and nothing in the send path retries on demand, so a "Retry" here
+     * would promise a reach it doesn't have.
      * Returns false only when the toast is no longer there to show it.
      */
     private fun showOutcome(outcome: SendOutcome, banner: SendBanner, tabName: String): Boolean {
@@ -406,27 +404,16 @@ class ShareActivity : AppCompatActivity() {
         val label = outcome.targetLabel
         val failure = outcome.failure
         when {
-            failure == null && outcome.ok && !outcome.queued -> {
+            // Accepted is "Sent", whether or not the target is online right now:
+            // the relay has it either way, and that is all the person needs to know.
+            failure == null && outcome.ok -> {
                 renderToast(
                     R.drawable.ic_status_sent,
                     getString(R.string.send_toast_sent, label),
                     tabName,
                     closable = false,
-                    action = R.string.send_toast_view,
-                    onAction = this::openHistory,
                 )
                 finishAfter(SENT_DWELL_MS)
-            }
-            failure == null && outcome.ok -> {
-                renderToast(
-                    R.drawable.ic_status_waiting,
-                    getString(R.string.send_toast_asleep, label),
-                    getString(R.string.send_toast_asleep_detail),
-                    closable = false,
-                    action = R.string.send_toast_view,
-                    onAction = this::openHistory,
-                )
-                finishAfter(ASLEEP_DWELL_MS)
             }
             failure != null && Feedback.isRecoverable(failure) -> {
                 renderToast(
@@ -523,10 +510,7 @@ class ShareActivity : AppCompatActivity() {
     private companion object {
         const val KEY_SEND_STARTED = "io.tabsend.app.send.SEND_STARTED"
 
-        /** "Sent to X": long enough to read one line and the tab's name. */
-        const val SENT_DWELL_MS = 2_500
-
-        /** "Waiting for X": a second line to read, so a little longer. */
-        const val ASLEEP_DWELL_MS = 3_000
+        /** "Sent to X": a glance, no more (stretched by the accessibility timeout). */
+        const val SENT_DWELL_MS = 1_000
     }
 }

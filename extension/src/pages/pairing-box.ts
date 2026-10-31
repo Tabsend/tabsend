@@ -43,7 +43,7 @@ async function openPairingBox(els: PairingBoxEls): Promise<void> {
   els.box.classList.add('visible')
   els.box.classList.remove('failed')
   els.box.classList.add('pending')
-  els.note.replaceChildren('Getting a pairing link…')
+  els.note.replaceChildren('Getting a setup link…')
   els.localOnly.classList.remove('visible')
   els.trigger.disabled = true
   els.copyNote.textContent = ''

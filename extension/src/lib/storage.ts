@@ -10,6 +10,7 @@ import { DEFAULT_CLIENT_SETTINGS } from '@tabsend/shared'
 import { ext } from './ext'
 import type { RelayHealth } from './health'
 import type {
+  GroupResetRecord,
   HistoryRow,
   Identity,
   InboxItem,
@@ -18,6 +19,7 @@ import type {
   Registration,
   SeenMessage,
 } from './model'
+import type { UnreachableDevice } from './unreachable'
 
 /**
  * Typed accessors over ext.storage.local. Every persistent bit of the
@@ -35,6 +37,8 @@ const KEYS = {
   endpoints: 'endpointsCache',
   endpointsAt: 'endpointsCacheAt',
   newDeviceWatch: 'newDeviceWatch',
+  pairingVouch: 'pairingVouch',
+  groupReset: 'groupReset',
   pushSubscription: 'pushSubscription',
   pushVapidKey: 'pushVapidKey',
   settings: 'settings',
@@ -51,6 +55,7 @@ const KEYS = {
   history: 'history',
   historyAnnounced: 'historyAnnounced',
   historyUnsupportedAt: 'historyUnsupportedAt',
+  unreachableDevices: 'unreachableDevices',
 } as const
 
 /** Keep opened-message ids around for twice the default TTL, then prune. */
@@ -172,6 +177,16 @@ export async function getUnreadReceived(): Promise<number> {
 }
 export const setUnreadReceived = (v: number) => set(KEYS.unreadReceived, v)
 
+/**
+ * Devices a send could not reach because the relay no longer has them (P-20).
+ * Relay-scoped: the ids mean nothing on another relay, so a switch drops them.
+ */
+export async function getUnreachableDevices(): Promise<UnreachableDevice[]> {
+  return (await get<UnreachableDevice[]>(KEYS.unreachableDevices)) ?? []
+}
+export const setUnreachableDevices = (v: UnreachableDevice[]) => set(KEYS.unreachableDevices, v)
+export const UNREACHABLE_DEVICES_KEY = KEYS.unreachableDevices
+
 export async function getOutbound(): Promise<OutboundItem[]> {
   return (await get<OutboundItem[]>(KEYS.outbound)) ?? []
 }
@@ -230,6 +245,23 @@ export async function setCachedEndpoints(v: Endpoint[]): Promise<void> {
  */
 export const getNewDeviceWatch = () => get<NewDeviceWatch>(KEYS.newDeviceWatch)
 export const setNewDeviceWatch = (v: NewDeviceWatch) => set(KEYS.newDeviceWatch, v)
+
+/**
+ * The device tags the pairing link this browser joined with carried (P-23), kept
+ * until the first device list of that pairing has been judged against them. Written
+ * by `joinGroup`, read and cleared by background/newdevices.ts.
+ */
+export interface PairingVouch {
+  endpointId: string
+  tags: string[]
+}
+export const getPairingVouch = () => get<PairingVouch>(KEYS.pairingVouch)
+export const setPairingVouch = (v: PairingVouch) => set(KEYS.pairingVouch, v)
+export const clearPairingVouch = () => remove([KEYS.pairingVouch])
+
+/** The reset that waits, as last read, and what this browser did about it (P-18 item 12). */
+export const getGroupResetRecord = () => get<GroupResetRecord>(KEYS.groupReset)
+export const setGroupResetRecord = (v: GroupResetRecord) => set(KEYS.groupReset, v)
 
 /**
  * The real Web Push subscription once we've subscribed (Chunk 4c). Absent until
@@ -442,6 +474,8 @@ export async function clearRegistrationState(): Promise<void> {
     KEYS.endpoints,
     KEYS.endpointsAt,
     KEYS.newDeviceWatch,
+    KEYS.pairingVouch,
+    KEYS.groupReset,
     KEYS.pushSubscription,
     KEYS.pushVapidKey,
     KEYS.outbound,
@@ -452,5 +486,6 @@ export async function clearRegistrationState(): Promise<void> {
     KEYS.history,
     KEYS.historyAnnounced,
     KEYS.historyUnsupportedAt,
+    KEYS.unreachableDevices,
   ])
 }

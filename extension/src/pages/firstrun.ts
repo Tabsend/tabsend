@@ -1,4 +1,4 @@
-import { defaultDeviceName, detectPlatform, resolveBrowserName } from '@tabsend/shared'
+import { defaultDeviceName, detectPlatform, parseVouch, resolveBrowserName } from '@tabsend/shared'
 import { ext } from '../lib/ext'
 import type { DevicesView, PendingSwitch, StateView } from '../lib/model'
 import { parsePairingInput } from '../lib/pairing'
@@ -10,7 +10,12 @@ import {
   removeIfConfirmed,
   renderDeviceList as renderDeviceListRows,
 } from './device-list'
-import { renderDeviceNotices } from './newdevice-banner'
+import {
+  type ResetCardState,
+  renderDeviceNotices,
+  resetNotices,
+  runStopReset,
+} from './newdevice-banner'
 import { wirePairingBox } from './pairing-box'
 import { rpcOk } from './rpc-client'
 
@@ -168,8 +173,17 @@ async function refreshManage(): Promise<DevicesView> {
   return res.devices
 }
 
-/** "New device: X. Was this you?" (PLANS.md P-10). */
+/** The reset card's page-side state (P-18 item 12), kept across re-renders. */
+const resetCard: ResetCardState = { busy: false }
+/** The view the notices were last drawn from, so an answer lands on the current one. */
+let noticesView: DevicesView | undefined
+
+/**
+ * "Joined, then disappeared" (GH7) and the reset that waits (P-18 item 12). A device
+ * that joins is told once as a notification and is otherwise just in the list (P-23).
+ */
 function renderNewDevices(view: DevicesView): void {
+  noticesView = view
   const refreshAfter = (done: Promise<unknown>): void => {
     void done
       .then(() => refreshManage())
@@ -177,11 +191,26 @@ function renderNewDevices(view: DevicesView): void {
   }
   renderDeviceNotices(
     $('new-devices'),
-    { review: view.review ?? [], vanished: view.vanished ?? [], newDevices: view.newDevices ?? [] },
     {
-      confirm: (n) => refreshAfter(rpcOk({ type: 'confirmNewDevice', endpointId: n.id })),
-      remove: (n) => void confirmRemove(n.id, n.label),
-      confirmReview: () => refreshAfter(rpcOk({ type: 'confirmReview' })),
+      vanished: view.vanished ?? [],
+      ...resetNotices(resetCard, view.groupReset),
+    },
+    {
+      stopReset: (reset) => {
+        void runStopReset(
+          resetCard,
+          reset,
+          () => rpcOk({ type: 'stopGroupReset' }),
+          () => renderNewDevices(noticesView ?? view),
+        ).then(() => refreshManage().catch(() => undefined))
+      },
+      dismissReset: (reset) => {
+        resetCard.dismissedFor = reset.requestedAt
+        renderNewDevices(noticesView ?? view)
+        void rpcOk({ type: 'dismissGroupReset', requestedAt: reset.requestedAt }).catch(
+          () => undefined,
+        )
+      },
       dismissVanished: (n) => refreshAfter(rpcOk({ type: 'dismissVanished', endpointId: n.id })),
     },
   )
@@ -272,7 +301,7 @@ async function joinGroup(): Promise<void> {
   if (!browserName) return showError('Give this browser a name first.')
   if (!parsed) {
     return showError(
-      'Paste the complete pairing link. It identifies and securely connects to the relay.',
+      'Paste the complete setup link. It identifies and securely connects to the relay.',
     )
   }
   // First await of the click: the browser asks only while the click lasts.
@@ -280,11 +309,13 @@ async function joinGroup(): Promise<void> {
   const btn = $<HTMLButtonElement>('join')
   btn.disabled = true
   try {
+    const vouched = parseVouch(pairingLinkInput.value)
     await rpcOk<{ ok: true; state: StateView }>({
       type: 'joinGroup',
       relayUrl: parsed.relayUrl,
       code: parsed.code,
       browserName,
+      ...(vouched ? { vouched } : {}),
     })
     // Now in the group → fetch existing devices for the CREATE-or-SELECT step.
     const dv = await rpcOk<{ ok: true; devices: DevicesView }>({ type: 'getDevices' })

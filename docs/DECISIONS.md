@@ -4,6 +4,29 @@ Lightweight ADR-style record of committed decisions. Newest at top. Each entry: 
 
 ---
 
+## 0035 — A hosted group can be reset, but only after a wait every paired device can stop
+
+**Status:** Accepted · 2026-10-27 (owner's picks: the reset that waits, sketch 1B, card layout A; claimed against `origin/main` at merge)
+**Relates to:** ADR-0021 (no recovery credential; its remedy, "create a fresh group", is what this does), ADR-0031 (provisioning: two factors, suspension deletes nothing, one deletion cascade), ADR-0032/0034 (the wake path reused to tell phones), `docs/PLANS.md` P-18 item 12, `HOSTED_PLAN.md` §5; `server/src/routes/group.ts`, `server/src/routes/provisioning.ts` (`/reset`, `/reset/run`), `server/src/tenancy.ts` (`runDueGroupReset`), `server/src/wake.ts`, `control/src/accounts.ts` (`requestReset`, `advanceReset`, `swapGroup`), the four clients' reset cards.
+
+### Context
+The account page mints a pairing link only while the group is empty (ADR-0031 §4), so even someone who takes over a customer's email cannot add a device. The price: a paying customer who loses every device has a paid group nobody can join, and the only way out was deleting the account, which ends the plan with no refund. ADR-0021's answer for a self-hoster ("create a fresh group") works there because the group costs nothing; on the hosted service the plan is tied to the account, not the group.
+
+### Decision
+**The account page may ask for the group to be replaced by a fresh, empty one, keeping the plan. It happens 72 hours later unless any paired device, or the page, stops it first.**
+
+1. **A new group, never a way into the old one.** The swap is the existing cascade plus `POST /groups` plus the first link, run by the control plane. Nothing about the old group's devices, key or history carries over (ADR-0021's reasoning holds unchanged).
+2. **The wait is the security.** The relay holds the pending reset (`groups.reset_requested_at`, `reset_at`, `reset_stopped_at`), shows it to every device (`GET /v1/group`, the `group_updated` stream event, a content-free wake for phones), and lets any device in the group stop it (`POST /v1/group/reset/stop`, not blocked by suspension). Each client shows a card on its main screen and one system notification per reset.
+3. **The relay decides the last moment.** The control plane carries a reset out only through `POST .../reset/run`, which deletes only if the reset is still pending and due, inside the same serialized step a Stop takes. A Stop and a run can never both happen.
+4. **A paused account stays paused.** Its new group is suspended before any link is minted.
+
+### Consequences / follow-ups
+- A device the customer no longer controls (a stolen phone still paired) can stop every reset. The customer is told by email and asked to reply; the owner handles it by hand.
+- An older relay answers 404 to `GET /v1/group`; clients treat that as no reset. An older client simply never shows the card, so the email is then the only warning: ship clients before relying on this.
+- Not yet seen on real phones (P-14's real-device check applies here too).
+
+---
+
 ## 0034 — Android may be rung through Google, as one apk that decides at runtime
 
 **Status:** Accepted · 2026-10-01 (merged to `main` 2026-10-02 as 0034, claimed against `origin/main` at that point)
@@ -750,6 +773,24 @@ defeated by a relay that lies on purpose (`SECURITY_REVIEW.md` X13, X14). Both a
   it is removed and handed over late by a device the relay never told of the removal; a tighter
   future bound was weighed and not adopted (`PLANS.md` P-14 item 9).
 
+### Amendment — 2026-10-30 · a device hands on every key, not only the current one
+
+Decision 6 says a device that has been away "can read the whole window", and the 2026-10-08
+ruling accepts that a new device reads the retained history from before it joined. The code
+did not do it: every client handed on **only the current key**, on the stated grounds that "a
+device that arrived after it was replaced has no history under it to read". That is false
+whenever a rotation happened inside the history window, and the commonest case makes it so:
+replacing a phone removes the old one, which rotates the key, so the new phone was handed
+only the key minted for it and every earlier row showed locked (owner report, 2026-10-30).
+
+**Now:** the extension, Android and iOS hand each member every key in the ring, newest first,
+capped at 16 (`MAX_HANDED_KEYS`, well inside the relay's 64-copies-per-device bound; an older
+key's blobs have left the window anyway). A device named in **any** key's `departed` list is
+handed none of them: it already holds the keys from before it left. Nothing on the wire
+changes (a copy already carried one key record), so no receiver needs an update, and the
+first wake after upgrading hands the older keys to every member once. Each copy still spends
+one unit of `CAP_SENDS_PER_WINDOW` where a relay sets it; a refused copy is retried later.
+
 ---
 
 ## 0027 — Firefox store disclosure treats encrypted relay traffic as transmission
@@ -1024,6 +1065,7 @@ Per ADR-0013 the relay URL lives inside the registration next to relay-issued cr
 - **Deferred, deliberately:** multiple stored routes with automatic failover (LAN first, tunnel second), and group portability *between* relays (touches recovery, ADR-0003). `relayId` is the enabling primitive for both; neither is designed here.
 - The pairing payload still carries exactly one URL; a QR does not enumerate routes.
 - **Amended 2026-07-29 (dogfood): both clients merged into one flow, not one button pair each.** The extension's rewrite (see ADR-0013's 2026-07-29 amendment) replaced its two-button "change address / connect to a different relay" choice with a single field that classifies the address and offers exactly one matching action. Android was carrying the same underlying detection (step 2/3 above, unchanged) but still the old two-button shape (`changeRelayButton` "Change relay address" + a separate Unpair whose confirm dialog explained when to use which). It now mirrors the merged flow: one "Move to another relay…" dialog (`MainActivity.promptMoveRelay`) with a Check step that classifies via `logic/RelayMove.kt` (unit-tested, the pure counterpart of `identity.ts`'s `probeRelay`) and relabels its own button to the one action that fits — "Switch to this address" (re-verifies, then `Store.updateRelay`, now backfilling `relayId` on commit like the extension) or "Start fresh here" (confirmed; re-registers, pre-filling the Join screen with the address just checked rather than the one left behind). Unpair's confirm dialog dropped the paragraph about relay-switching, since that's no longer its job; it kept the pre-fill of the previous address, since re-adding the same phone on the same relay is still a reason to unpair. The console was checked and has no equivalent feature to bring in line — it has never had one, per ADR-0013's original text ("the console... already has unpair → re-pair").
+- **Amended 2026-10-30 (owner): iOS gets the same flow, and the different-relay copy is plainer.** iOS had no way to move relays at all. It now has the same "Move to another relay…" row on the paired screen, opening a sheet (`RelayMoveView.swift`) with one field, a Check, and one matching action, classified by `TabsendKit/RelayMove.swift` (the Swift twin of `RelayMove.kt`, with tests). On all three clients the different-relay line now reads "This is a different relay. It doesn't know your devices, so each one will need to pair again." and its button "Switch to this relay" (was "Set up here" in the extension, "Start fresh here" on Android). iOS leaves the old group through the normal unpair, then shows the pairing screen.
 
 ---
 

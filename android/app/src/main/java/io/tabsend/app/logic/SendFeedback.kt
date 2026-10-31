@@ -228,7 +228,7 @@ object Feedback {
         // RelayUnauthorized before they get here, so this is belt-and-braces.
         "unauthorized", "endpoint_removed" -> UNAUTHORIZED_LINE
         "invalid_pairing_code" ->
-            "That pairing link is no longer valid."
+            "That setup link is no longer valid."
         // Only ever answered to a register/create call [ADR-0022], never to a send;
         // it has a line so the wire set stays fully covered as it grows.
         "group_exists" ->
@@ -309,9 +309,6 @@ object Feedback {
         }
         if (!outcome.ok) {
             return SendBanner(SendTone.ERROR, "Couldn't send to $label", outcome.title, hardError())
-        }
-        if (outcome.queued) {
-            return SendBanner(SendTone.SUCCESS, "Sent to $label", outcome.title, "Opens when it wakes")
         }
         return SendBanner(SendTone.SUCCESS, "Sent to $label", outcome.title)
     }

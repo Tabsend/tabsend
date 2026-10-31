@@ -1,31 +1,60 @@
 name: CI
 
-# Runs on main, on release tags, and on pull requests — NOT on every branch push.
+# Runs once a day on main, on release tags, on pull requests, and by hand
+# ("Run workflow" on the Actions tab). NOT on every push.
 #
-# It used to be a bare `on: push`, which meant each of this repo's many
-# claude/*, codex/* and agent/* worktree branches ran the whole matrix on every
-# push, macOS job included. macOS minutes bill at 10x on the free plan, so a
-# handful of checkpoint pushes in one afternoon exhausted the monthly quota and
-# left main unable to run CI at all (2026-08-19).
+# It used to be a bare `on: push`, which ran the whole matrix for each of this
+# repo's many claude/*, codex/* and agent/* worktree branches and exhausted the
+# monthly quota (2026-08-19). It then ran on every push to main, which on
+# 2026-10-30 was 15+ runs in an afternoon and ran into the spending limit. The
+# owner ruled the same day that main does not need a run per push: one run a day
+# covers everything pushed since the last one, and the local gates
+# (`scripts/check.sh`) are the check before a push.
 #
-# A branch still gets full coverage the moment it opens a pull request, which is
-# when the result is actually being read. To check a branch before that, run the
-# gates locally — README.md and docs/RELEASE_CHECKLIST.md list them, and the
-# Android job needs only JDK 17 plus the commandlinetools SDK.
-# `paths-ignore` skips a run only when EVERY changed file matches, so a commit that
-# touches docs alongside code still gets the full matrix. It exists because the macOS
-# job costs the same for a README typo as for a protocol change.
+# The daily run is skipped (the `changes` job, a few seconds on Linux) when
+# nothing but docs reached main in the last 25 hours; 25, not 24, so a late
+# start of the scheduler cannot leave a gap. The debug APK that the owner
+# installs from is built by the daily run, a manual run and a release tag.
 on:
+  schedule:
+    - cron: '0 8 * * *' # 08:00 UTC, early morning in the US
   push:
-    branches: [main]
     tags: ['v*']
-    paths-ignore: ['docs/**', '**/*.md', 'LICENSE']
   pull_request:
   workflow_dispatch:
 
+# A newer run for the same branch or tag cancels the one still going: only the
+# latest result is read.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    name: anything to check?
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 100
+
+      - name: Decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != schedule ]; then echo run=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          n=$(git log --since='25 hours ago' --format=%h -- . ':!docs' ':!*.md' ':!LICENSE' | wc -l)
+          echo "commits outside docs in the last 25 hours: $n"
+          if [ "$n" -gt 0 ]; then echo run=true >> "$GITHUB_OUTPUT"; else echo run=false >> "$GITHUB_OUTPUT"; fi
+
   check:
     name: lint · typecheck · test (sqlite + postgres)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
 
     # Postgres service for the dialect matrix (server suite runs against both).
@@ -87,6 +116,8 @@ jobs:
   # compose file needs a Linux runner, which is what we have.
   docker:
     name: docker (relay image builds + boots)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -128,6 +159,8 @@ jobs:
   # emulator: these are plain host-JVM tests, so CI stays fast and hermetic.
   android:
     name: android (unit tests — crypto interop)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -150,9 +183,9 @@ jobs:
       # Every claude/* worktree branch in this repo pushes independently, so an
       # unconditional build+upload here was producing a full debug APK artifact
       # per commit on every branch and burning through the free Actions storage
-      # quota. Gate it to main and release tags: those are the only refs anyone
-      # actually downloads a dogfood APK from. Feature branches and PRs still
-      # get the unit-test signal above, just not the APK build/upload cost.
+      # quota. Skip it for pull requests: the daily run on main, a manual run and
+      # release tags are the only runs anyone downloads a dogfood APK from. PRs
+      # still get the unit-test signal above, just not the APK build/upload cost.
       #
       # Restore the stable signing key from repository secrets. Without it every
       # runner invents its own debug keystore, and Android then refuses to install
@@ -161,7 +194,7 @@ jobs:
       # set): the build falls back to the throwaway debug key and just cannot be
       # installed as an update.
       - name: Restore signing keystore
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name != 'pull_request'
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -176,7 +209,7 @@ jobs:
       # android/app/build.gradle.kts) and publish it as a run artifact, so the
       # owner downloads builds from GitHub instead of local adb installs.
       - name: Build debug APK
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name != 'pull_request'
         working-directory: android
         env:
           TABSEND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -187,7 +220,7 @@ jobs:
       # retention-days keeps main-branch APKs from piling up for the repo's
       # default 90 days; overwrite guards against the rare same-run retry.
       - name: Upload APK artifact
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v5
         with:
           name: tabsend-app-debug-apk

@@ -198,6 +198,13 @@ object Deliverer {
         // would be found again by every poll and read as a missed wake each time.
         PushSetup.afterDrain(context, deliveredCreatedAt, fromWake)
 
+        // A reset that waits [P-18 item 12]. Every wake, poll and stream `message`
+        // comes through here, and the relay wakes every phone the same content-free
+        // way when a reset is scheduled, so this is where a phone in a pocket finds
+        // out. After delivery, so it never stands between a tab and its
+        // notification; best effort, and it swallows its own failures.
+        GroupResetWatcher.check(context, api, reg)
+
         // Group history [0028], last. It rides on the endpoint list this drain
         // already fetched, since both the key election and sealing a copy of the
         // key to a newcomer need it — but it goes AFTER delivery so a slow (or

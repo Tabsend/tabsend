@@ -310,6 +310,21 @@ data class GroupKeyResponse(
     val rejected: List<GroupKeyRejection> = emptyList(),
 )
 
+/**
+ * A reset the account site has scheduled and nobody has stopped yet [P-18 item 12].
+ * Mirrors GroupResetState in shared/src/types.ts. `requestedAt` doubles as the
+ * reset's identity on this phone: "notified" and "It was me" are keyed by it.
+ */
+@Serializable
+data class GroupResetState(val requestedAt: String, val resetsAt: String)
+
+/**
+ * GET /v1/group, and the answer to POST /v1/group/reset/stop (always `reset: null`).
+ * An absent `reset` reads as none, like an explicit null.
+ */
+@Serializable
+data class GroupStateResponse(val reset: GroupResetState? = null)
+
 @Serializable
 data class CreatePairingResponse(
     val link: String,

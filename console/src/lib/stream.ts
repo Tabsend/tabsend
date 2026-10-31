@@ -1,5 +1,5 @@
 import type { ClientStreamEvent, DeviceToken, ServerStreamEvent } from '@tabsend/shared'
-import { WS_CLIENT_PING_INTERVAL_SECONDS } from '@tabsend/shared'
+import { WS_CLIENT_PING_INTERVAL_SECONDS, WS_CLIENT_PONG_TIMEOUT_SECONDS } from '@tabsend/shared'
 
 /**
  * WS /v1/stream client — the latency-only fast path (ADR-0001 / §11). Correctness
@@ -9,6 +9,10 @@ import { WS_CLIENT_PING_INTERVAL_SECONDS } from '@tabsend/shared'
  *
  * Lifecycle per the contract: send `{type:'hello', deviceToken}` as the FIRST frame,
  * then ping every WS_CLIENT_PING_INTERVAL_SECONDS; the server replies `pong`.
+ * A ping with no frame of any kind back within WS_CLIENT_PONG_TIMEOUT_SECONDS
+ * means the socket died without closing (a network switch, a NAT that forgot
+ * it): it is dropped and reconnected at once, instead of left to the browser,
+ * which can take minutes to notice [2026-10-27].
  */
 export interface StreamHandlers {
   onEvent(event: ServerStreamEvent): void
@@ -19,6 +23,7 @@ export interface StreamHandlers {
 type WebSocketCtor = new (url: string) => WebSocket
 
 const PING_MS = WS_CLIENT_PING_INTERVAL_SECONDS * 1000
+const PONG_TIMEOUT_MS = WS_CLIENT_PONG_TIMEOUT_SECONDS * 1000
 const BASE_BACKOFF_MS = 1000
 const MAX_BACKOFF_MS = 30_000
 
@@ -26,6 +31,7 @@ export class StreamClient {
   private ws: WebSocket | null = null
   private pingTimer: ReturnType<typeof setInterval> | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private pongTimer: ReturnType<typeof setTimeout> | null = null
   private attempts = 0
   private stopped = false
 
@@ -85,6 +91,8 @@ export class StreamClient {
     }
 
     ws.onmessage = (ev: MessageEvent) => {
+      // Any frame is an answer, not only `pong`.
+      this.clearPong()
       let event: ServerStreamEvent
       try {
         event = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data))
@@ -94,12 +102,7 @@ export class StreamClient {
       this.handlers.onEvent(event)
     }
 
-    ws.onclose = () => {
-      this.clearTimers()
-      this.ws = null
-      this.handlers.onClose?.()
-      this.scheduleReconnect()
-    }
+    ws.onclose = () => this.down()
 
     ws.onerror = () => {
       // onclose follows; reconnect is handled there.
@@ -112,9 +115,47 @@ export class StreamClient {
     }
   }
 
+  /** The socket is gone: tidy up, tell the caller, and try again with backoff. */
+  private down(): void {
+    this.clearTimers()
+    this.ws = null
+    this.handlers.onClose?.()
+    this.scheduleReconnect()
+  }
+
   private startPing(): void {
     this.clearPing()
-    this.pingTimer = setInterval(() => this.send({ type: 'ping' }), PING_MS)
+    this.pingTimer = setInterval(() => this.ping(), PING_MS)
+  }
+
+  private ping(): void {
+    const ws = this.ws
+    if (!ws) return
+    // Armed before the send, and left alone if the previous ping's window is open.
+    if (!this.pongTimer) {
+      this.pongTimer = setTimeout(() => {
+        this.pongTimer = null
+        if (this.ws !== ws) return
+        // Nobody is answering. Detach first: the browser may wait a long time for
+        // the close handshake, and that late close must schedule nothing.
+        ws.onclose = null
+        ws.onmessage = null
+        try {
+          ws.close()
+        } catch {
+          // already closing
+        }
+        this.down()
+      }, PONG_TIMEOUT_MS)
+    }
+    this.send({ type: 'ping' })
+  }
+
+  private clearPong(): void {
+    if (this.pongTimer) {
+      clearTimeout(this.pongTimer)
+      this.pongTimer = null
+    }
   }
 
   private scheduleReconnect(): void {
@@ -137,6 +178,7 @@ export class StreamClient {
 
   private clearTimers(): void {
     this.clearPing()
+    this.clearPong()
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null

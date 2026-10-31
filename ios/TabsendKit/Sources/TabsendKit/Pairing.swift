@@ -3,7 +3,8 @@ import Foundation
 /// Complete pairing-link parsing, mirroring android/.../logic/Pairing.kt plus
 /// the `fp` (certificate fingerprint) fragment parameter (ADR-0019).
 ///
-/// Canonical link: `${relayUrl}/pair#c=CODE` or `${relayUrl}/pair#c=CODE&fp=FINGERPRINT`.
+/// Canonical link: `${relayUrl}/pair#c=CODE` or `${relayUrl}/pair#c=CODE&fp=FINGERPRINT`,
+/// either one optionally followed by `&v=TAG.TAG` (P-23, `NewDevices.withVouch`).
 /// The complete link is the only user-facing pairing credential. Its secret rides
 /// in the fragment so it never reaches a server access log.
 /// Unknown fragment params must be ignored (forward compatibility).
@@ -12,6 +13,10 @@ public enum Pairing {
         public var code: String
         public var relayUrl: String
         public var certFingerprint: String?
+        /// The device tags the link vouches for (`NewDevices.parseVouch`, P-23), read from
+        /// the full link before it is reduced to the code. Nil for a link from an older
+        /// client.
+        public var vouched: [String]? = nil
     }
 
     public static func parse(_ input: String) -> Parsed? {
@@ -48,19 +53,23 @@ public enum Pairing {
         return Parsed(
             code: rawCode.uppercased(),
             relayUrl: relayUrl,
-            certFingerprint: fingerprint?.isEmpty == false ? fingerprint : nil
+            certFingerprint: fingerprint?.isEmpty == false ? fingerprint : nil,
+            vouched: NewDevices.parseVouch(trimmed)
         )
     }
 
-    /// Canonical link for restoring a parsed QR/deep link into the join field.
-    public static func link(relayUrl: String, code: String, certFingerprint: String?) -> String {
+    /// Canonical link for restoring a parsed QR/deep link into the join field. The
+    /// device tags go back on too (P-23), so the join reads them from the field.
+    public static func link(
+        relayUrl: String, code: String, certFingerprint: String?, vouched: [String]? = nil
+    ) -> String {
         var url = relayUrl
         while url.hasSuffix("/") { url = String(url.dropLast()) }
         var link = "\(url)/pair#c=\(code)"
         if let fp = certFingerprint, !fp.isEmpty {
             link += "&fp=\(fp)"
         }
-        return link
+        return NewDevices.withVouch(link, vouched ?? [])
     }
 
     /// Normalise a user-typed relay URL: trim whitespace and trailing slashes.

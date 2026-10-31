@@ -27,9 +27,10 @@ export async function recordSend(targetEndpointId: string): Promise<void> {
 /**
  * Choose the per-source primary target, optionally PINNING it (ADR-0002 §7).
  * Choosing sets `primaryTargetId`; pinning stops it tracking MRU. Unpinning
- * (pinned=false) keeps the choice but lets a later send's MRU move it again.
+ * (pinned=false) keeps the choice but lets a later send's MRU move it again;
+ * null is "unpinned, nothing sent yet", so the next send picks it.
  */
-export async function setPrimary(targetEndpointId: string, pinned: boolean): Promise<void> {
+export async function setPrimary(targetEndpointId: string | null, pinned: boolean): Promise<void> {
   const prefs = await getPrefs()
   await setPrefs({
     ...prefs,

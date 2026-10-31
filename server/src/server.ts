@@ -3,7 +3,7 @@ import { argv } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import type { FastifyInstance } from 'fastify'
 import { buildApp } from './app'
-import { ensureBootstrapGroup, type FirstRunPairing, mintFirstRunPairing } from './bootstrap'
+import { ensureBootstrapGroup, mintFirstRunPairing } from './bootstrap'
 import { deriveBrowserRelayUrl, loadConfig, readProvisioningTokenFile } from './config'
 import { createDatabase, ensureRelayId, migrate } from './db'
 import { GroupWriteQueue } from './group-queue'
@@ -276,13 +276,19 @@ export async function start() {
   // LAST, so it is the thing an operator sees at the bottom of a fresh relay's boot
   // log: how to get the first device in (ADR-0023). Nothing is printed once anyone has
   // joined — from then on, devices pair each other.
-  let firstRun: FirstRunPairing | null = null
+  let firstRun: Awaited<ReturnType<typeof mintFirstRunPairing>> = null
   try {
     firstRun = await mintFirstRunPairing(db, config, certFingerprint, new Date())
   } catch (err) {
     // A relay that boots without this is still a working relay; the operator can pair
     // from any device that is already in the group. Never let it stop startup.
     app.log.warn({ err }, 'Could not mint the first-run pairing link.')
+  }
+  if (firstRun?.clearedLeftovers) {
+    app.log.info(
+      { removedDevices: firstRun.clearedLeftovers },
+      'Removed devices that joined but never finished setting up, so a new first device can join.',
+    )
   }
   if (firstRun) {
     app.log.info(

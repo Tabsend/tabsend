@@ -2,8 +2,8 @@ import SwiftUI
 import TabsendKit
 
 /// Paired state, the home screen: received tabs, your devices, pair a device, and
-/// the same tiny settings surface as Android (instant delivery, rename, refresh,
-/// unpair).
+/// the same tiny settings surface as Android (instant delivery, rename, move to
+/// another relay, refresh, unpair).
 ///
 /// A grouped inset `List` (docs/APP_UI.md, "Phones: native-leaning"): panels on
 /// the tinted ground, standard section headers and separators, SF Symbols on
@@ -16,8 +16,9 @@ struct PairedView: View {
     @State private var showRename = false
     @State private var renameText = ""
     @State private var showUnpairConfirm = false
+    @State private var showRelayMove = false
     @State private var minted: AppModel.MintedPairing?
-    /// The device the remove confirmation is asking about, from its row or its banner.
+    /// The device the remove confirmation is asking about, from its row.
     @State private var removing: RemoveTarget?
 
     struct RemoveTarget: Identifiable {
@@ -50,23 +51,22 @@ struct PairedView: View {
     var body: some View {
         List {
             if let reg = model.registration {
-                // New devices first (PLANS.md P-10): a security notice, and it stays
-                // on the screen the app opens to until it is answered.
-                if !model.reviewDevices.isEmpty {
+                // A reset that waits comes before everything (P-18 item 12, layout A):
+                // if it was not the user, this is the one thing on the screen that
+                // cannot wait, and any one device stopping it is enough.
+                if let reset = model.pendingReset {
                     Section {
-                        reviewCard(model.reviewDevices)
+                        groupResetCard(reset)
                             .panelRow()
                     }
                 }
+                // A device that joined and then disappeared is the one device notice
+                // with a card of its own (GH7): it is no longer in the list below. A
+                // device that joined is told once, by notification, and its row is like
+                // any other (P-23), so nothing repeats the list.
                 ForEach(model.vanishedDevices) { notice in
                     Section {
                         vanishedCard(notice)
-                            .panelRow()
-                    }
-                }
-                ForEach(model.newDeviceNotices) { notice in
-                    Section {
-                        newDeviceCard(notice)
                             .panelRow()
                     }
                 }
@@ -196,49 +196,7 @@ struct PairedView: View {
                             .panelRow()
                     }
                     ForEach(model.endpoints) { endpoint in
-                        HStack(spacing: 8) {
-                            DeviceRow(
-                                name: endpoint.label,
-                                symbol: endpoint.themeSymbol,
-                                kind: endpoint.kindWord,
-                                presence: endpoint.isOnline ? .online : .offline,
-                                note: endpoint.id == reg.endpointId ? "this phone" : nil
-                            )
-                            // A visible Remove, so removing is never a hidden gesture
-                            // or a tap on the name. Borderless, so only the button is
-                            // a tap target and not the whole List row.
-                            if endpoint.id != reg.endpointId {
-                                Button("Remove", role: .destructive) {
-                                    removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
-                                }
-                                .buttonStyle(.borderless)
-                                .accessibilityLabel("Remove \(endpoint.label)")
-                            }
-                        }
-                        .panelRow()
-                        // Every other device can be removed from here; this phone
-                        // leaves through Unpair instead. Swipe and long-press stay as
-                        // shortcuts for the button above. Not `role: .destructive`:
-                        // that makes the List drop the row before the user confirms.
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            if endpoint.id != reg.endpointId {
-                                Button {
-                                    removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
-                                } label: {
-                                    Label("Remove", systemImage: "trash")
-                                }
-                                .tint(Palette.danger)
-                            }
-                        }
-                        .contextMenu {
-                            if endpoint.id != reg.endpointId {
-                                Button(role: .destructive) {
-                                    removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
-                                } label: {
-                                    Label("Remove from group", systemImage: "trash")
-                                }
-                            }
-                        }
+                        deviceRow(endpoint, selfId: reg.endpointId)
                     }
                 } header: {
                     PanelSectionHeader("Your devices")
@@ -254,7 +212,7 @@ struct PairedView: View {
                             }
                         }
                     } label: {
-                        Label("Pair a device", systemImage: "plus")
+                        Label("Add a device", systemImage: "plus")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -317,52 +275,66 @@ struct PairedView: View {
         } message: { target in
             Text("\u{201C}\(target.label)\u{201D} will stop receiving tabs and disappear from every device\u{2019}s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin.")
         }
+        .sheet(isPresented: $showRelayMove) {
+            RelayMoveView(currentUrl: model.registration?.relayUrl ?? "")
+                .environmentObject(model)
+        }
         .sheet(item: $minted) { pairing in
             PairSheetView(pairing: pairing)
                 .presentationDragIndicator(.visible)
         }
     }
 
-    // MARK: first look and vanished devices
+    // MARK: your devices
 
-    /// The first look (GH6): one card for the whole first list, asked once. A row per
-    /// device with its own Remove, and one answer for all of it. Copy is the shared
-    /// design's, word for word.
-    private func reviewCard(_ devices: [NewDeviceNotice]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                SymbolTile(systemName: "exclamationmark.shield", color: Palette.waitingFill)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(NewDevices.reviewTitle)
-                        .font(.body.weight(.semibold))
-                        .foregroundColor(.primary)
-                    Text(NewDevices.reviewBody)
-                        .font(.subheadline)
-                        .foregroundColor(Palette.muted)
-                        .fixedSize(horizontal: false, vertical: true)
+    /// One row of "Your devices". Split out of `body` to keep that expression small
+    /// enough to type-check fast.
+    @ViewBuilder
+    private func deviceRow(_ endpoint: Endpoint, selfId: String) -> some View {
+        HStack(spacing: 8) {
+            DeviceRow(
+                name: endpoint.label,
+                symbol: endpoint.themeSymbol,
+                kind: endpoint.kindWord,
+                presence: endpoint.isOnline ? .online : .offline,
+                note: endpoint.id == selfId ? "this phone" : nil
+            )
+            // A visible Remove, so removing is never a hidden gesture or a tap on the name.
+            // Borderless, so only the button is a tap target and not the whole List row.
+            if endpoint.id != selfId {
+                Button("Remove", role: .destructive) {
+                    removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
                 }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Remove \(endpoint.label)")
             }
-            .accessibilityElement(children: .combine)
-            ForEach(devices) { device in
-                HStack {
-                    Text(device.label)
-                        .font(.body)
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Button(NewDevices.reviewRemove, role: .destructive) {
-                        removing = RemoveTarget(id: device.id, label: device.label)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("\(NewDevices.reviewRemove) \(device.label)")
-                }
-            }
-            Button(NewDevices.reviewConfirm) {
-                model.confirmReview()
-            }
-            .buttonStyle(.bordered)
         }
-        .padding(.vertical, 4)
+        .panelRow()
+        // Every other device can be removed from here; this phone leaves through Unpair
+        // instead. Swipe and long-press stay as shortcuts for the button above. Not
+        // `role: .destructive`: that makes the List drop the row before the user confirms.
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if endpoint.id != selfId {
+                Button {
+                    removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
+                } label: {
+                    Label("Remove", systemImage: "trash")
+                }
+                .tint(Palette.danger)
+            }
+        }
+        .contextMenu {
+            if endpoint.id != selfId {
+                Button(role: .destructive) {
+                    removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
+                } label: {
+                    Label("Remove from group", systemImage: "trash")
+                }
+            }
+        }
     }
+
+    // MARK: vanished devices
 
     /// A device that joined and then disappeared (GH7). Stays until dismissed.
     private func vanishedCard(_ notice: NewDeviceNotice) -> some View {
@@ -388,19 +360,19 @@ struct PairedView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: new device banner
+    // MARK: the reset that waits
 
-    /// One row per device that joined and has not been answered (PLANS.md P-10).
-    /// Copy is the shared design's, word for word.
-    private func newDeviceCard(_ notice: NewDeviceNotice) -> some View {
+    /// A pending reset of the whole group (PLANS.md P-18 item 12). Built like the
+    /// vanished-device card, in the danger colour: it removes every device, this one too.
+    private func groupResetCard(_ reset: GroupResetState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
-                SymbolTile(systemName: "exclamationmark.shield", color: Palette.waitingFill)
+                SymbolTile(systemName: "exclamationmark.triangle.fill", color: Palette.tileDanger)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(NewDevices.bannerTitle(notice))
+                    Text(GroupReset.cardTitle)
                         .font(.body.weight(.semibold))
-                        .foregroundColor(.primary)
-                    Text(NewDevices.bannerBody(notice))
+                        .foregroundColor(Palette.danger)
+                    Text(GroupReset.cardBody(reset))
                         .font(.subheadline)
                         .foregroundColor(Palette.muted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -408,16 +380,19 @@ struct PairedView: View {
             }
             .accessibilityElement(children: .combine)
             HStack(spacing: 10) {
-                Button("Yes, it's mine") {
-                    model.confirmNewDevice(id: notice.id)
+                Button(GroupReset.stopButton, role: .destructive) {
+                    Task { await model.stopGroupReset() }
                 }
-                .buttonStyle(.bordered)
-                Button("Remove it", role: .destructive) {
-                    removing = RemoveTarget(id: notice.id, label: notice.label)
+                .buttonStyle(.borderedProminent)
+                .tint(Palette.danger)
+                .disabled(model.stoppingReset)
+                Button(GroupReset.itWasMeButton) {
+                    model.dismissGroupReset(reset)
                 }
                 // An explicit style keeps each button its own tap target; the
                 // List's default would fire both from anywhere in the row.
                 .buttonStyle(.bordered)
+                .disabled(model.stoppingReset)
             }
         }
         .padding(.vertical, 4)
@@ -476,6 +451,12 @@ struct PairedView: View {
                 showRename = true
             } label: {
                 TileLabel(title: "Rename this device", systemName: "pencil", tile: Palette.tileGrey)
+            }
+            .panelRow()
+            Button {
+                showRelayMove = true
+            } label: {
+                TileLabel(title: RelayMove.button, systemName: "arrow.left.arrow.right", tile: Palette.tileGrey)
             }
             .panelRow()
             Button {

@@ -7,6 +7,38 @@ import { isStaleEndpoint, relativeTime } from './time'
  * Pure view projections shared by the UI and the tests. No DOM here.
  */
 
+/** "October 27", in this browser's time zone. An unreadable time is shown as sent. */
+export function monthDayLine(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+}
+
+/** "3:05 PM", in this browser's time zone. ICU's narrow space before AM/PM made plain. */
+export function clockLine(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, ' ')
+}
+
+/**
+ * The reset that waits (PLANS.md P-18 item 12). Word for word the same as the
+ * extension, Android and iOS. The console has no background, so the card is all.
+ */
+export const groupResetCopy = {
+  title: 'Someone asked to remove all your devices',
+  body: (requestedAt: string, resetsAt: string): string =>
+    `From your account page on ${monthDayLine(requestedAt)}. On ${monthDayLine(resetsAt)} at ${clockLine(resetsAt)}, every device is removed, this one too. If it wasn't you, stop it now, then change your email password.`,
+  stop: 'Stop the reset',
+  dismiss: 'It was me',
+  stopped: 'Reset stopped. Nothing was removed.',
+  stopFailedOffline: "Couldn't reach your relay, so the reset is still waiting. Try again.",
+  stopFailed: (reason: string): string => {
+    const r = reason.trim().replace(/[.!]?$/, '.')
+    return `Couldn't stop the reset: ${r} The reset is still waiting. Try again.`
+  },
+} as const
+
 /**
  * The hover text on the header's connection badge. The console has no outage
  * line of its own; "Offline" and this text are what it says when the relay does
@@ -179,4 +211,49 @@ export function hostOf(url: string): string {
   } catch {
     return url
   }
+}
+
+/**
+ * The front page's words. A visitor who opens app.tabsend.org (a store reviewer, a
+ * person who followed a pairing link) has never seen this product, so the page says
+ * what Tabsend is and what this page is for before it asks for a pairing link. The
+ * word "console" stays, because the device lists on every client call it that;
+ * the intro explains it instead.
+ */
+export const introCopy = {
+  title: 'Tabsend web console',
+  what: "Tabsend sends a web page from one of your devices to another, such as from your computer to your phone. The console is a web page that lists your devices and shows what you sent. It can't send tabs itself. Use the Tabsend browser extension or phone app for that.",
+  newHere: 'New to Tabsend?',
+  newHereLink: 'Learn more at tabsend.org',
+  pairTitle: 'Pair this console',
+  pairBody:
+    'Open Tabsend on a device you already use, choose Add a device, and paste its setup link here.',
+  privacy:
+    'Tabsend encrypts what you send on your devices. The server holds no key to read it, and the console never opens tabs.',
+} as const
+
+export interface ProjectLink {
+  label: string
+  href: string
+}
+
+/** The address of the Tabsend-run service. Its policies cover only this address. */
+export const HOSTED_HOST = 'app.tabsend.org'
+
+/**
+ * Footer links to the project's own pages, which live on tabsend.org. Privacy and
+ * Terms describe the hosted service, so they appear only on its address: a console
+ * served by someone's own relay has a different operator, and pointing its visitors
+ * at our policy would say something untrue.
+ */
+export function projectLinks(hostname: string): ProjectLink[] {
+  const links: ProjectLink[] = [{ label: 'tabsend.org', href: 'https://tabsend.org' }]
+  if (hostname === HOSTED_HOST) {
+    links.push(
+      { label: 'Privacy', href: 'https://tabsend.org/privacy' },
+      { label: 'Terms', href: 'https://tabsend.org/terms' },
+    )
+  }
+  links.push({ label: 'Support', href: 'https://tabsend.org/support' })
+  return links
 }

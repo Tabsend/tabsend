@@ -142,8 +142,11 @@ function accept(list: Endpoint[]): void {
   }
 }
 
+/** Who was handed any key, once each: a device is handed every key the ring holds. */
 function postedTargets(): string[] {
-  return h.state.posted.flatMap((b) => b.items.map((i) => i.targetEndpointId as string))
+  return [
+    ...new Set(h.state.posted.flatMap((b) => b.items.map((i) => i.targetEndpointId as string))),
+  ]
 }
 
 beforeEach(async () => {

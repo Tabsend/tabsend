@@ -330,9 +330,6 @@ extension Feedback {
         if !ok {
             return SendBanner(tone: .error, headline: "Couldn't send to \(label)", title: title, detail: sendFailed)
         }
-        if queued {
-            return SendBanner(tone: .success, headline: "Sent to \(label)", title: title, detail: "Opens when it wakes")
-        }
         return SendBanner(tone: .success, headline: "Sent to \(label)", title: title)
     }
 

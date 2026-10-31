@@ -1,4 +1,10 @@
-import type { CreatePairingResponse, IsoTimestamp, SendPayload } from '@tabsend/shared'
+import {
+  type CreatePairingResponse,
+  type IsoTimestamp,
+  type SendPayload,
+  vouchTags,
+  withVouch,
+} from '@tabsend/shared'
 import { mintPairing } from '../lib/api'
 import { ext } from '../lib/ext'
 import type { PairingView, RpcRequest, RpcResponse } from '../lib/model'
@@ -9,11 +15,12 @@ import {
   parsePairingInput,
 } from '../lib/pairing'
 import { IS_FIREFOX } from '../lib/platform'
-import { getSettings } from '../lib/storage'
+import { getCachedEndpoints, getSettings } from '../lib/storage'
 import { pairingErrorLine, pairingRoutesLine } from '../lib/strings'
 import { clearBadge } from './badge'
 import { buildChooserView, buildDevicesView } from './endpoints'
 import { refreshFirefoxWs } from './fxwake'
+import { dismissGroupReset, stopPendingGroupReset } from './groupreset'
 import { resetRelayHealthCache } from './health'
 import { heartbeatNow } from './heartbeat'
 import { refreshHistory } from './history'
@@ -32,7 +39,12 @@ import {
   switchToRelay,
 } from './identity'
 import { rebuildMenus } from './menus'
-import { confirmNewDeviceNotice, confirmReviewAnswer, dismissVanishedNotice } from './newdevices'
+import {
+  confirmNewDeviceNotice,
+  confirmReviewAnswer,
+  currentDeviceWatch,
+  dismissVanishedNotice,
+} from './newdevices'
 import { ensureOffscreen, pushConfigToOffscreen } from './offscreen'
 import { setPrimary } from './prefs'
 import { ensurePushSubscription } from './push'
@@ -46,6 +58,7 @@ import {
 } from './send'
 import { currentSession } from './session'
 import { updateSettings } from './settings'
+import { dismissUnreachable } from './unreachable'
 
 /**
  * The page <-> service-worker RPC. The popup and first-run pages are thin
@@ -64,7 +77,7 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
         return { ok: true, state }
       }
       case 'joinGroup': {
-        const state = await joinGroup(req.relayUrl, req.code, req.browserName)
+        const state = await joinGroup(req.relayUrl, req.code, req.browserName, req.vouched)
         await afterRegistration()
         return { ok: true, state }
       }
@@ -101,6 +114,18 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
       }
       case 'dismissVanished': {
         await dismissVanishedNotice(req.endpointId)
+        return { ok: true }
+      }
+      case 'dismissUnreachable': {
+        await dismissUnreachable(req.endpointId)
+        return { ok: true }
+      }
+      case 'stopGroupReset': {
+        await stopPendingGroupReset()
+        return { ok: true }
+      }
+      case 'dismissGroupReset': {
+        await dismissGroupReset(req.requestedAt)
         return { ok: true }
       }
       case 'getChooser': {
@@ -168,12 +193,20 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
         } catch (err) {
           throw new Error(pairingErrorLine(classifyMintFailure(err, registration.relayUrl)))
         }
-        const copyLink = res.browserLink ?? res.link
+        // The devices this browser has accepted ride along in the link, so the new
+        // device asks only about the ones that do not match (P-23). The relay
+        // made the link but never sees what is added to its fragment.
+        const tags = vouchTags(
+          await currentDeviceWatch(),
+          await getCachedEndpoints(),
+          registration.endpointId,
+        )
+        const copyLink = withVouch(res.browserLink ?? res.link, tags)
         const parsed = parsePairingInput(copyLink)
-        if (!parsed) throw new Error('The relay returned an invalid pairing link.')
-        const qrLink = res.link
+        if (!parsed) throw new Error('The relay returned an invalid setup link.')
+        const qrLink = withVouch(res.link, tags)
         const qrParsed = parsePairingInput(qrLink)
-        if (!qrParsed) throw new Error('The relay returned an invalid QR pairing link.')
+        if (!qrParsed) throw new Error('The relay returned an invalid QR setup link.')
         const qrRelayUrl = pairingLinkRelayUrl(qrLink)
         if (!qrRelayUrl) throw new Error('The relay returned an invalid QR pairing route.')
         const pairing: PairingView = {

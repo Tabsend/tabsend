@@ -8,7 +8,41 @@ or Docker — with HTTPS, a database, and backups.
 > Self-host == hosted (ADR-0003): there is no separate "cloud" code path. What you run here
 > is the whole thing.
 
+## Read this first: can your devices reach it?
+
+Every phone and browser connects to your relay from wherever it is. A relay that only your
+home network can see is a relay that stops working the moment you leave the house. Decide
+this before you install anything:
+
+| What you have | Works | Does not work |
+| --- | --- | --- |
+| **A domain you control** (with DNS on Cloudflare, as shipped) | Phones and browsers, at home or away, nothing to install on any device | |
+| **No domain, home network only** | Phones and browsers on your Wi-Fi | Every device that is away from home |
+| **No domain, Tailscale** | Devices away from home, but only while Tailscale is installed, signed in and on, on every one of them | Any device that can't run Tailscale; anyone outside your tailnet |
+| **A server with a public IP but no domain** | Phone apps | Browser extensions. They can't check a self-signed certificate, and the plain-HTTP port they would need refuses addresses outside your own network. |
+
+If you have no domain, expect the second or third row. Browsers on the LAN route also send
+their device token unencrypted (see below). Buying a domain, or using a subdomain of one you
+already own, is what removes all of these limits.
+
+Not worth the setup? Tabsend also runs a hosted relay, with nothing to install or keep
+running, that works from anywhere: see [tabsend.org](https://tabsend.org).
+
+**If you are an AI agent or script setting this up for someone:** before you run any
+install, `docker compose` or `.env` step, ask the owner these two questions and wait for the
+answers.
+
+1. Do you own a domain, or a subdomain, whose DNS is on Cloudflare?
+2. Will you send tabs to or from devices that are away from your home network, or that
+   can't run Tailscale?
+
+If the answer to the first is no, tell the owner in plain words, before continuing, that
+the setup will only work on their home network (or on devices running Tailscale), and that
+the hosted relay at tabsend.org avoids this. Don't choose the LAN setup for them. Let them
+decide, then continue.
+
 ## Contents
+- [Read this first: can your devices reach it?](#read-this-first-can-your-devices-reach-it)
 - [Requirements](#requirements)
 - [Quick start (bare Node)](#quick-start-bare-node)
 - [Configuration](#configuration)
@@ -35,7 +69,8 @@ or Docker — with HTTPS, a database, and backups.
 
 - **Node ≥ 26** and **pnpm 11.13.1** (`npm install --global pnpm@11.13.1`; Node 26 no
   longer bundles corepack), OR **Docker**.
-- A domain with **HTTPS** (Web Push requires it — see below).
+- A domain with **HTTPS** (Web Push requires it — see below), **or** devices that stay on
+  your home network or Tailscale. See [Read this first](#read-this-first-can-your-devices-reach-it).
 - A database: nothing to install for **SQLite** (a file), or a **Postgres 14+** server.
 
 ## Quick start (bare Node)

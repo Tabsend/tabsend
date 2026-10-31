@@ -327,6 +327,39 @@ class KeyringTest {
         assertTrue(Keyring.pendingDeliveries(emptyList(), group, "self", emptyList()).isEmpty())
     }
 
+    @Test
+    fun `a newcomer is handed the older keys too, so history from before a rotation opens`() {
+        val rotated = listOf(key("k1", "2026-08-01T00:00:00.000Z"), key("k2", "2026-08-09T00:00:00.000Z"))
+        // Everyone already in the group has both; the new phone has neither.
+        val done = listOf(Keyring.deliveryId("k1", "desk"), Keyring.deliveryId("k2", "desk"))
+        val pending = Keyring.pendingDeliveries(rotated, group, "self", done)
+        assertEquals(
+            listOf("k2" to "phone", "k1" to "phone"),
+            pending.map { it.record.keyId to it.targetEndpointId },
+        )
+    }
+
+    @Test
+    fun `a device any key names as gone is left out of every key, old ones included`() {
+        val rotated = listOf(
+            key("k1", "2026-08-01T00:00:00.000Z"),
+            key("k2", "2026-08-09T00:00:00.000Z").copy(departed = listOf("desk")),
+        )
+        val pending = Keyring.pendingDeliveries(rotated, group, "self", emptyList())
+        assertEquals(setOf("phone"), pending.map { it.targetEndpointId }.toSet())
+        assertEquals(2, pending.size)
+    }
+
+    @Test
+    fun `at most MAX_HANDED_KEYS keys are handed on, newest first`() {
+        val many = (0 until Keyring.MAX_HANDED_KEYS + 4).map {
+            key("k%02d".format(it), "2026-08-%02dT00:00:00.000Z".format(it + 1))
+        }
+        val pending = Keyring.pendingDeliveries(many, listOf(endpoint("self"), endpoint("phone")), "self", emptyList())
+        assertEquals(Keyring.MAX_HANDED_KEYS, pending.size)
+        assertEquals("k%02d".format(Keyring.MAX_HANDED_KEYS + 3), pending.first().record.keyId)
+    }
+
     // --- minting ---
 
     @Test

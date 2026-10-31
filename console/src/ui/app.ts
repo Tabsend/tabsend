@@ -13,8 +13,11 @@ import {
   connectionTitle,
   deliveryBadge,
   groupHistory,
+  groupResetCopy,
   type HistoryGroup,
   hostOf,
+  introCopy,
+  projectLinks,
   resolveEntryLabel,
   SEALED_ROW_NOTE,
   SEALED_ROW_TITLE,
@@ -47,7 +50,7 @@ export function mountApp(root: HTMLElement, controller: Controller): void {
   const statusBar = el('div', { class: 'status', role: 'status', 'aria-live': 'polite' })
   const modalHost = el('div', { class: 'modal-host' })
 
-  replaceChildren(root, header, panel, statusBar, modalHost)
+  replaceChildren(root, header, panel, renderFooter(), statusBar, modalHost)
 
   // --- header ---------------------------------------------------------------
   effect(() => {
@@ -59,6 +62,10 @@ export function mountApp(root: HTMLElement, controller: Controller): void {
       right.append(
         connBadge(conn, session.relayUrl !== '' ? session.relayUrl : window.location.origin),
         el('span', { class: 'self-label', title: 'This console' }, session.label),
+      )
+    } else {
+      right.append(
+        el('a', { class: 'home-link', href: 'https://tabsend.org' }, 'Back to tabsend.org'),
       )
     }
     replaceChildren(header, brand, right)
@@ -77,7 +84,7 @@ export function mountApp(root: HTMLElement, controller: Controller): void {
     }
     replaceChildren(
       panel,
-      renderNewDevices(controller, dialog),
+      renderNewDevices(controller),
       renderTabs(activeTab),
       renderTabBody(controller, activeTab, dialog),
     )
@@ -155,92 +162,93 @@ function renderOnboarding(controller: Controller): HTMLElement {
   })
 
   return el(
-    'section',
-    { class: 'card onboarding' },
-    el('h1', {}, 'Pair this console'),
+    'div',
+    { class: 'onboarding' },
     el(
-      'p',
-      { class: 'muted' },
-      'The console is a device in your Tabsend group. Open Tabsend on an already-paired browser, choose ',
-      el('em', {}, 'Add a device'),
-      ', and paste its pairing link here.',
+      'section',
+      { class: 'intro' },
+      el('h1', {}, introCopy.title),
+      el('p', {}, introCopy.what),
+      el(
+        'p',
+        { class: 'muted' },
+        `${introCopy.newHere} `,
+        el('a', { href: 'https://tabsend.org' }, introCopy.newHereLink),
+        '.',
+      ),
     ),
-    el('label', { class: 'field-label' }, 'Pairing link'),
-    input,
-    el('label', { class: 'field-label' }, 'Console name'),
-    name,
-    el('button', { class: 'btn primary', onClick: submit }, 'Pair console'),
     el(
-      'p',
-      { class: 'note' },
-      'End-to-end encrypted: the console reads your group history with a key the relay never holds. ',
-      'It never opens tabs and is never a send target.',
+      'section',
+      { class: 'card' },
+      el('h2', {}, introCopy.pairTitle),
+      el('p', { class: 'muted' }, introCopy.pairBody),
+      el('label', { class: 'field-label' }, 'Setup link'),
+      input,
+      el('label', { class: 'field-label' }, 'Console name'),
+      name,
+      el('button', { class: 'btn primary', onClick: submit }, 'Pair console'),
+      el('p', { class: 'note' }, introCopy.privacy),
     ),
   )
+}
+
+/** Links to the project's own pages, under every screen. */
+function renderFooter(): HTMLElement {
+  const nav = el('nav', { class: 'app-footer', 'aria-label': 'Tabsend website' })
+  projectLinks(window.location.hostname).forEach((link, i) => {
+    if (i > 0) nav.append(el('span', { class: 'sep', 'aria-hidden': 'true' }, '·'))
+    nav.append(el('a', { href: link.href }, link.label))
+  })
+  return nav
 }
 
 // --- what the new-device watch asks this console to look at (PLANS.md P-10) ---
 
 /**
- * Above the tabs, so it shows whichever tab is open. Top to bottom: the first-look
- * card (one answer for the whole first list), one notice per device that joined and
- * then disappeared, and one banner per joined device not yet answered. The words
- * match every other client.
+ * Above the tabs, so it shows whichever tab is open. Top to bottom: a reset that
+ * waits (P-18 item 12; danger-toned, with Stop and "It was me"), and one notice per
+ * device that joined and then disappeared. A device that joins is told once by a phone or
+ * a browser and is otherwise just in the list (P-23). The words match every other client.
  */
-function renderNewDevices(controller: Controller, dialog: { set(d: Dialog): void }): HTMLElement {
+function renderNewDevices(controller: Controller): HTMLElement {
   const host = el('div', { class: 'new-devices' })
   // A time the relay sent that cannot be read says "recently", like the phones do.
   const when = (iso: string): string => {
     const text = relativeTime(iso)
     return text === 'unknown' ? 'recently' : text
   }
-  const removeButton = (id: string, text: string): HTMLElement => {
-    const endpoint = controller.endpoints.get().find((e) => e.id === id)
-    return endpoint
-      ? el(
-          'button',
-          {
-            class: 'btn small danger',
-            'aria-label': `${text} ${endpoint.label}`,
-            onClick: () => dialog.set({ kind: 'remove', endpoint, isSelf: false }),
-          },
-          text,
-        )
-      : el('span')
-  }
   effect(() => {
-    const review = controller.review.get()
     const vanished = controller.vanished.get()
-    const notices = controller.newDevices.get()
-    // The list the remove buttons look devices up in; read here so a removal redraws.
-    controller.endpoints.get()
+    const reset = controller.groupReset.get()
+    const busy = controller.busy.get()
     const cards: HTMLElement[] = []
-    if (review.length > 0) {
+    if (reset) {
       cards.push(
         el(
           'div',
-          { class: 'new-device', role: 'status' },
-          el('div', { class: 'new-device-title' }, 'Check your devices'),
+          { class: 'new-device group-reset', role: 'alert' },
+          el('div', { class: 'new-device-title' }, groupResetCopy.title),
           el(
             'p',
             { class: 'new-device-body' },
-            "Your group has these devices. A device you don't know could read the links you send, so remove it.",
-          ),
-          ...review.map((n) =>
-            el(
-              'div',
-              { class: 'new-device-row' },
-              el('span', {}, n.label),
-              removeButton(n.id, 'Remove'),
-            ),
+            groupResetCopy.body(reset.requestedAt, reset.resetsAt),
           ),
           el(
             'div',
             { class: 'new-device-actions' },
             el(
               'button',
-              { class: 'btn small', onClick: () => controller.confirmReview() },
-              'All of these are mine',
+              {
+                class: 'btn small danger',
+                disabled: busy,
+                onClick: () => void controller.stopGroupReset(),
+              },
+              groupResetCopy.stop,
+            ),
+            el(
+              'button',
+              { class: 'btn small', disabled: busy, onClick: () => controller.dismissGroupReset() },
+              groupResetCopy.dismiss,
             ),
           ),
         ),
@@ -265,30 +273,6 @@ function renderNewDevices(controller: Controller, dialog: { set(d: Dialog): void
               { class: 'btn small', onClick: () => controller.dismissVanished(n.id) },
               'Dismiss',
             ),
-          ),
-        ),
-      )
-    }
-    for (const n of notices) {
-      cards.push(
-        el(
-          'div',
-          { class: 'new-device', role: 'status' },
-          el('div', { class: 'new-device-title' }, `New device: ${n.label}`),
-          el(
-            'p',
-            { class: 'new-device-body' },
-            `Joined ${when(n.createdAt)}. Was this you? If it isn't yours, remove it. It could read the links you send.`,
-          ),
-          el(
-            'div',
-            { class: 'new-device-actions' },
-            el(
-              'button',
-              { class: 'btn small', onClick: () => controller.confirmNewDevice(n.id) },
-              "Yes, it's mine",
-            ),
-            removeButton(n.id, 'Remove it'),
           ),
         ),
       )
@@ -703,7 +687,7 @@ function renderAccount(controller: Controller, dialog: { set(d: Dialog): void })
     el(
       'p',
       { class: 'muted' },
-      'There is no recovery phrase and no backup credential (ADR-0021). Adding a device — including this console — always works the same way: an already-paired device creates a pairing link.',
+      'There is no recovery phrase and no backup credential (ADR-0021). Adding a device — including this console — always works the same way: an already-paired device creates a setup link.',
     ),
     el(
       'div',
@@ -858,17 +842,13 @@ function renderPairingModal(controller: Controller): HTMLElement {
     el(
       'p',
       { class: 'muted' },
-      'Scan this QR with a phone, or copy the link to a browser extension. It expires soon.',
+      "Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it. It works once and expires soon.",
     ),
     qr,
     el(
       'div',
       { class: 'pair-actions' },
-      el(
-        'button',
-        { class: 'btn small', onClick: (e) => void copy(pairing.link, e) },
-        'Copy pairing link',
-      ),
+      el('button', { class: 'btn small', onClick: (e) => void copy(pairing.link, e) }, 'Copy link'),
     ),
     // A loopback link isn't an error — the mint succeeded — so this sits beside
     // the QR rather than replacing it: pairing a second client on this same
@@ -887,7 +867,7 @@ function renderPairingModal(controller: Controller): HTMLElement {
     el(
       'p',
       { class: 'note muted' },
-      `Expires ${absoluteTime(pairing.expiresAt)}. Mint a new one if it lapses.`,
+      `Expires ${absoluteTime(pairing.expiresAt)}. Make a new one if it does.`,
     ),
     dialogButtons(close, el('button', { class: 'btn primary', onClick: close }, 'Done')),
   )

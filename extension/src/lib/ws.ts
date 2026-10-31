@@ -1,5 +1,5 @@
 import type { ClientStreamEvent, ServerStreamEvent } from '@tabsend/shared'
-import { WS_CLIENT_PING_INTERVAL_SECONDS } from '@tabsend/shared'
+import { WS_CLIENT_PING_INTERVAL_SECONDS, WS_CLIENT_PONG_TIMEOUT_SECONDS } from '@tabsend/shared'
 
 /**
  * The delivery WebSocket client (WS /v1/stream, ADR-0001 / PRD §6.1) — the
@@ -13,6 +13,11 @@ import { WS_CLIENT_PING_INTERVAL_SECONDS } from '@tabsend/shared'
  *    API — spike §3b) and handles events in-process.
  * The caller supplies `onEvent`; this module owns connect / hello / ping /
  * reconnect-with-backoff only.
+ *
+ * Every ping expects an answer: if no frame at all comes back within
+ * WS_CLIENT_PONG_TIMEOUT_SECONDS, the socket is dead though it never closed (a
+ * network switch, laptop sleep, a NAT that forgot it) and is dropped at once
+ * rather than left to the browser, which can take minutes to notice [2026-10-27].
  */
 
 export interface WsClientConfig {
@@ -28,6 +33,7 @@ export interface WsClient {
 }
 
 const PING_MS = WS_CLIENT_PING_INTERVAL_SECONDS * 1000
+const PONG_TIMEOUT_MS = WS_CLIENT_PONG_TIMEOUT_SECONDS * 1000
 const BACKOFF_BASE_MS = 1000
 const BACKOFF_MAX_MS = 30_000
 
@@ -44,6 +50,7 @@ export function createWsClient(opts: { onEvent: (event: ServerStreamEvent) => vo
   let socket: WebSocket | null = null
   let pingTimer: ReturnType<typeof setInterval> | undefined
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined
+  let pongTimer: ReturnType<typeof setTimeout> | undefined
   let attempt = 0
   let currentRelay = ''
   let currentToken = ''
@@ -52,11 +59,37 @@ export function createWsClient(opts: { onEvent: (event: ServerStreamEvent) => vo
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event))
   }
 
+  function ping(ws: WebSocket): void {
+    if (socket !== ws) return
+    // The previous ping's window may still be open; it decides.
+    if (!pongTimer) armPongTimer(ws)
+    send({ type: 'ping' })
+  }
+
+  function armPongTimer(ws: WebSocket): void {
+    pongTimer = setTimeout(() => {
+      pongTimer = undefined
+      if (socket !== ws) return
+      // Nobody is answering. Detach first, so this socket's eventual 'close'
+      // (the browser may wait a long time for a handshake) schedules nothing.
+      socket = null
+      clearTimers()
+      try {
+        ws.close()
+      } catch {
+        // already closing
+      }
+      scheduleReconnect()
+    }, PONG_TIMEOUT_MS)
+  }
+
   function clearTimers(): void {
     if (pingTimer) clearInterval(pingTimer)
     if (reconnectTimer) clearTimeout(reconnectTimer)
+    if (pongTimer) clearTimeout(pongTimer)
     pingTimer = undefined
     reconnectTimer = undefined
+    pongTimer = undefined
   }
 
   function scheduleReconnect(): void {
@@ -88,10 +121,15 @@ export function createWsClient(opts: { onEvent: (event: ServerStreamEvent) => vo
     ws.addEventListener('open', () => {
       attempt = 0
       send({ type: 'hello', deviceToken: currentToken as never })
-      pingTimer = setInterval(() => send({ type: 'ping' }), PING_MS)
+      pingTimer = setInterval(() => ping(ws), PING_MS)
     })
 
     ws.addEventListener('message', (ev: MessageEvent) => {
+      // Any frame is an answer, not only `pong`.
+      if (socket === ws && pongTimer) {
+        clearTimeout(pongTimer)
+        pongTimer = undefined
+      }
       let event: ServerStreamEvent
       try {
         event = JSON.parse(typeof ev.data === 'string' ? ev.data : String(ev.data))

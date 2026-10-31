@@ -8,8 +8,16 @@ import { getOutbox, listEndpoints } from '../lib/api'
 import type { ChooserView, DeviceRow, DevicesView, HeldTab } from '../lib/model'
 import { heldTabsOnly, isTargetGone } from '../lib/outbound'
 import { isOpenableWebUrl, isPresenceFresh, isStaleEndpoint } from '../lib/policy'
-import { getCachedEndpoints, getCachedEndpointsAt, getOutbound, getPrefs } from '../lib/storage'
+import {
+  getCachedEndpoints,
+  getCachedEndpointsAt,
+  getOutbound,
+  getPrefs,
+  getSettings,
+  getUnreachableDevices,
+} from '../lib/storage'
 import { agoLine } from '../lib/strings'
+import { groupResetNotice, refreshGroupReset } from './groupreset'
 import { relayHealth } from './health'
 import {
   currentDeviceWatch,
@@ -20,6 +28,7 @@ import {
 } from './newdevices'
 import { orderTargets } from './prefs'
 import { currentSession } from './session'
+import { pruneUnreachableWith } from './unreachable'
 
 /**
  * A fetch already in flight, shared by anything asking in the same moment.
@@ -51,6 +60,8 @@ export function fetchEndpoints(): Promise<Endpoint[]> {
       session.registration.deviceToken,
     )
     await recordEndpoints(list, session.registration.endpointId)
+    // A fresh list is the only one that may clear a "not connected" device (P-20).
+    await pruneUnreachableWith(list).catch(() => undefined)
     return list
   })()
   // Cleared the moment it settles, success or failure — a rejected request must
@@ -101,12 +112,22 @@ export async function buildChooserView(opts: { cached?: boolean } = {}): Promise
       newDevices: [],
       review: [],
       vanished: [],
+      unreachable: [],
     }
+
+  // The reset that waits (P-18 item 12) is read beside the list, never in front of
+  // it; the cached pass shows what was stored, the networked one what is current.
+  const groupResetRead = opts.cached
+    ? Promise.resolve()
+    : refreshGroupReset().then(
+        () => undefined,
+        () => undefined,
+      )
 
   // Independent reads, so the popup waits on the slowest rather than the sum.
   // The outbox call used to run only AFTER the endpoint fetch had resolved,
   // which put two full round trips in front of the first row.
-  const [endpoints, outbox, prefs, outbound, health] = await Promise.all([
+  const [endpoints, outbox, prefs, outbound, health, settings] = await Promise.all([
     opts.cached ? getCachedEndpoints() : fetchEndpoints().catch(() => getCachedEndpoints()),
     opts.cached
       ? Promise.resolve([])
@@ -117,6 +138,7 @@ export async function buildChooserView(opts: { cached?: boolean } = {}): Promise
     getPrefs(),
     getOutbound(),
     relayHealth(),
+    getSettings(),
   ])
 
   const ordered = await targetEndpoints(endpoints)
@@ -183,14 +205,22 @@ export async function buildChooserView(opts: { cached?: boolean } = {}): Promise
   const newDevices = await newDeviceNotices()
   const review = await reviewNotices()
   const vanished = await vanishedNotices()
+  await groupResetRead
+  const groupReset = await groupResetNotice().catch(() => undefined)
+  // After the fetch, which prunes it: a device paired again must not still read as broken.
+  const unreachable = await getUnreachableDevices().catch(() => [])
+  const unreachableIds = new Set(unreachable.map((d) => d.endpointId))
   const view: ChooserView = {
     registered: true,
     targets: ordered.map((endpoint) => ({
       endpoint,
-      isPrimary: endpoint.id === prefs.primaryTargetId,
+      // "Main" marks where a one-click send goes, so it only means something
+      // while one-click sending is on.
+      isPrimary: settings.toolbarClickMode === 'quicksend' && endpoint.id === prefs.primaryTargetId,
       isRecent: recent.has(endpoint.id),
       stale: isStaleEndpoint(endpoint, now),
       presenceKnown,
+      ...(unreachableIds.has(endpoint.id) ? { unreachable: true } : {}),
     })),
     pending: [...pendingCounts].map(([targetEndpointId, count]) => ({ targetEndpointId, count })),
     held,
@@ -198,8 +228,10 @@ export async function buildChooserView(opts: { cached?: boolean } = {}): Promise
     newDevices,
     review,
     vanished,
+    unreachable,
   }
   if (prefs.primaryTargetId) view.primaryTargetId = prefs.primaryTargetId
+  if (groupReset) view.groupReset = groupReset
   // Read alongside the fetch above rather than after it. On the networked build
   // that fetch votes on reachability via the transport handler, so the verdict a
   // cached-first render shows can lag by one pass — the networked render landing
@@ -238,6 +270,11 @@ export async function buildDevicesView(): Promise<DevicesView> {
     }
   }
 
+  // Read beside the list (P-18 item 12); a failure leaves the stored state standing.
+  const groupResetRead = refreshGroupReset().then(
+    () => undefined,
+    () => undefined,
+  )
   let endpoints: Endpoint[]
   try {
     endpoints = await fetchEndpoints()
@@ -274,6 +311,8 @@ export async function buildDevicesView(): Promise<DevicesView> {
     ),
   ].sort((a, b) => a.localeCompare(b))
 
+  await groupResetRead
+  const groupReset = await groupResetNotice().catch(() => undefined)
   return {
     registered: true,
     selfEndpointId: selfId,
@@ -282,5 +321,6 @@ export async function buildDevicesView(): Promise<DevicesView> {
     newDevices: await newDeviceNotices(),
     review: await reviewNotices(),
     vanished: await vanishedNotices(),
+    ...(groupReset ? { groupReset } : {}),
   }
 }

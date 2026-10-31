@@ -11,6 +11,7 @@ import io.tabsend.app.logic.HistoryRow
 import io.tabsend.app.logic.Keyring
 import io.tabsend.app.logic.NewDeviceWatch
 import io.tabsend.app.logic.NewDevices
+import io.tabsend.app.receive.GroupResetWatcher
 import io.tabsend.app.receive.NewDeviceWatcher
 import io.tabsend.app.send.SendNotifications
 import io.tabsend.app.store.Identity
@@ -88,6 +89,8 @@ object GroupHistory {
         } catch (e: Exception) {
             store.cachedEndpoints
         }
+        // Wherever the device list is asked for, the reset that waits is too [P-18 item 12].
+        GroupResetWatcher.check(context, api, reg)
         sync(context, api, reg, identity, endpoints)
     }
 
@@ -296,12 +299,12 @@ object GroupHistory {
         identity: Identity,
         endpoints: List<Endpoint>,
     ) {
-        val ring = store.groupKeys
-        val key = Keyring.current(ring) ?: return
-        val pending = Keyring.pendingDeliveries(ring, endpoints, selfId, store.deliveredGroupKeys)
+        // Older keys go too, not only the current one: a device that arrived after a
+        // rotation has retained history sealed under the key it replaced (ADR-0028
+        // amended 2026-10-30).
+        val pending = Keyring.pendingDeliveries(store.groupKeys, endpoints, selfId, store.deliveredGroupKeys)
         if (pending.isEmpty()) return
 
-        val recordJson = WireJson.encodeToString(GroupKeyRecord.serializer(), key)
         val items = pending.mapNotNull { target ->
             try {
                 GroupKeyItem(
@@ -310,7 +313,7 @@ object GroupHistory {
                     id = target.id,
                     targetEndpointId = target.targetEndpointId,
                     envelope = Sealer.seal(
-                        payloadJson = recordJson,
+                        payloadJson = WireJson.encodeToString(GroupKeyRecord.serializer(), target.record),
                         targetPubB64 = target.targetPubkey,
                         senderPrivB64 = identity.privateKey,
                         senderKeyId = identity.keyId,

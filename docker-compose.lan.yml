@@ -1,5 +1,9 @@
 # Tabsend relay on your own LAN — one container, SQLite, self-signed HTTPS.
 #
+# LIMIT: this setup only works for devices on your home network (or running Tailscale).
+# Devices away from home, and browsers reaching a public IP, will not connect. Without
+# that limit, use a domain: `docker-compose.domain.yml`. Agents: tell the owner first.
+#
 # This is the "mini PC in the corner" setup: no domain, no CA, no reverse proxy, no adb.
 # The relay generates a long-lived self-signed certificate on first boot and serves HTTPS
 # directly; the pairing QR carries that certificate's key fingerprint and the Android app

@@ -92,8 +92,22 @@ async function outboxOf(reg: StoredRegistration): Promise<OutboxMessagesResponse
 
 // --- the story ----------------------------------------------------------------
 
+/** The "device added" notifications the extension has on screen (P-23), from a page of its own. */
+async function deviceNotifications(page: import('playwright').Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const api = (
+      globalThis as unknown as {
+        chrome: { notifications: { getAll(): Promise<Record<string, boolean>> } }
+      }
+    ).chrome.notifications
+    return Object.keys(await api.getAll()).filter((id) => id.startsWith('tabsend-device-'))
+  })
+}
+
 describe('a tab travels Chrome A → Chrome B', () => {
   let pairingLink: string
+  /** The "device added" notifications A had once it was told about B (P-23). */
+  let toldA: string[] = []
   let regA: StoredRegistration
   let regB: StoredRegistration
   let firstrunB: Page
@@ -135,7 +149,8 @@ describe('a tab travels Chrome A → Chrome B', () => {
       () => (document.getElementById('pairing-link') as HTMLInputElement | null)?.value !== '',
     )
     pairingLink = await chooser.inputValue('#pairing-link')
-    expect(pairingLink).toMatch(/^http:\/\/[^/]+\/pair#c=[2-9A-HJKMNP-Z]{8}$/)
+    // A vouches for the one device it has accepted, itself (P-23).
+    expect(pairingLink).toMatch(/^http:\/\/[^/]+\/pair#c=[2-9A-HJKMNP-Z]{8}&v=[A-Za-z0-9_-]{16}$/)
     await chooser.close()
   })
 
@@ -271,32 +286,34 @@ describe('a tab travels Chrome A → Chrome B', () => {
     for (const page of targetTabs(profileB)) await page.close()
   })
 
-  // PLANS.md P-14 item 1: the first list a device sees is taken on trust, so the
-  // user is asked about it once.
-  it('B is asked once to check the devices it joined, and answering clears it on B only', async () => {
+  // PLANS.md P-23 (was P-14 item 1): the first list a device sees is checked against
+  // the devices the pairing link vouched for, and B's link vouched for A.
+  it('B is told nothing about A, whom the pairing link vouched for', async () => {
     const manageB = await openPage(profileB, extUrl(profileB, 'firstrun.html'))
     await manageB.waitForSelector('#screen-manage:not(.hidden)')
-    await manageB.waitForSelector('#new-devices .new-device')
-    const card = await manageB.textContent('#new-devices')
-    expect(card).toContain('Check your devices')
-    expect(card).toContain('Rig A · Mac A')
-    await manageB.click('#new-devices .new-device button:text("All of these are mine")')
-    await manageB.waitForSelector('#new-devices.hidden', { state: 'attached' })
-    await manageB.reload()
-    await manageB.waitForSelector('#screen-manage:not(.hidden)')
+    await manageB.waitForSelector('#device-list li')
+    expect(await manageB.textContent('#device-list')).toContain('Rig A · Mac A')
     expect(await manageB.locator('#new-devices.hidden').count()).toBe(1)
+    expect(await deviceNotifications(manageB)).toEqual([])
     await manageB.close()
   })
 
   // PLANS.md P-10, and the H4 gate in HOSTED_PLAN.md §10: an added device is
-  // noticed by the devices already in the group.
-  it('A is told that B joined, and "Yes, it\'s mine" clears it on A only', async () => {
+  // noticed by the devices already in the group: told once, as information, by a
+  // phone or (as here, with no phone) the browser (P-23).
+  it('A is told once that B joined, and has nothing to answer', async () => {
     const manageA = await openPage(profileA, extUrl(profileA, 'firstrun.html'))
     await manageA.waitForSelector('#screen-manage:not(.hidden)')
-    await manageA.waitForSelector('#new-devices .new-device')
-    expect(await manageA.textContent('#new-devices')).toContain('New device: Rig B · Mac B')
-    await manageA.click('#new-devices .new-device button:text("Yes, it\'s mine")')
-    await manageA.waitForSelector('#new-devices.hidden', { state: 'attached' })
+    await manageA.waitForSelector('#device-list li')
+    expect(await manageA.textContent('#device-list')).toContain('Rig B · Mac B')
+    expect(await manageA.locator('#new-devices.hidden').count()).toBe(1)
+    toldA = await until(
+      async () => {
+        const ids = await deviceNotifications(manageA)
+        return ids.length > 0 ? ids : undefined
+      },
+      { what: 'A to be told that B joined' },
+    )
     await manageA.close()
   })
 
@@ -328,23 +345,30 @@ describe('a tab travels Chrome A → Chrome B', () => {
     }
 
     const manageA = await openPage(profileA, extUrl(profileA, 'firstrun.html'))
-    await manageA.waitForSelector('#new-devices .new-device')
-    const banner = await manageA.textContent('#new-devices')
-    expect(banner).toContain('New device: Firefox · Linux')
-    expect(banner).not.toContain('Rig B')
+    await until(
+      async () => (await manageA.textContent('#device-list'))?.includes('Firefox · Linux'),
+      {
+        what: "A's list to show the added device",
+      },
+    )
+    // A new notification, not the one about B (a notification may also close on its own).
+    await until(
+      async () => (await deviceNotifications(manageA)).some((id) => !toldA.includes(id)),
+      { what: 'A to be told about the added device' },
+    )
     await manageA.close()
 
-    // B sees it too: every existing device is told, not only the one that invited.
-    const chooserB = await openPage(profileB, extUrl(profileB, 'chooser.html'))
-    await until(
-      async () => (await chooserB.textContent('#new-devices'))?.includes('Firefox · Linux'),
-      { what: "B's popup to show the added device" },
-    )
-    await chooserB.close()
+    // B is told too: every existing device hears of it, not only the one that invited.
+    const manageB = await openPage(profileB, extUrl(profileB, 'firstrun.html'))
+    await until(async () => (await deviceNotifications(manageB)).length > 0, {
+      what: 'B to be told about the added device',
+    })
+    await manageB.close()
   })
-  // PLANS.md P-14 item 2: a device shown once and then hidden leaves more than a
-  // one-time alert.
-  it('a device shown once and then hidden stays on screen as "joined, then disappeared"', async () => {
+  // PLANS.md P-23: told once, as information. A device shown once and then hidden
+  // leaves the notification it got and nothing more (the owner's call, 2026-10-30; it
+  // replaced P-14 item 2's lasting notice).
+  it('a device shown once and then hidden leaves nothing waiting', async () => {
     const db = new DatabaseSync(relayDbPath)
     try {
       db.prepare('DELETE FROM endpoints WHERE id = ?').run('intruder-1')
@@ -353,15 +377,11 @@ describe('a tab travels Chrome A → Chrome B', () => {
     }
 
     const manageA = await openPage(profileA, extUrl(profileA, 'firstrun.html'))
-    await manageA.waitForSelector('#new-devices .new-device')
-    const notice = await manageA.textContent('#new-devices')
-    expect(notice).toContain('Firefox · Linux joined, then disappeared')
-    expect(notice).not.toContain('New device: Firefox')
-    // Still there after a reload: it waits for an answer, it is not a one-time alert.
-    await manageA.reload()
-    await manageA.waitForSelector('#new-devices .new-device')
-    await manageA.click('#new-devices .new-device button:text("Dismiss")')
-    await manageA.waitForSelector('#new-devices.hidden', { state: 'attached' })
+    await until(
+      async () => !(await manageA.textContent('#device-list'))?.includes('Firefox · Linux'),
+      { what: "A's list to drop the hidden device" },
+    )
+    expect(await manageA.locator('#new-devices.hidden').count()).toBe(1)
     await manageA.close()
   })
 })

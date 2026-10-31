@@ -150,6 +150,12 @@ body {
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--amber) 10%, var(--surface));
 }
+/* The reset that waits (P-18 item 12): the same card in danger, because every
+   device goes unless someone stops it. */
+.new-device.group-reset {
+  border-color: var(--danger-weak);
+  background: color-mix(in srgb, var(--danger-weak) 10%, var(--surface));
+}
 .new-device-title {
   font-weight: 600;
 }
@@ -292,9 +298,57 @@ h3 {
   margin-bottom: 5px;
 }
 
-/* onboarding */
+/* onboarding: what Tabsend is, then the pairing card */
 .onboarding {
-  margin-top: 40px;
+  margin-top: 32px;
+}
+.intro {
+  margin-bottom: 20px;
+}
+.intro p {
+  margin: 0 0 10px;
+  max-width: 62ch;
+}
+.card h2 {
+  margin-bottom: 6px;
+}
+.card h2 + p {
+  margin: 0 0 16px;
+}
+
+/* links to tabsend.org: top right before pairing, and a quiet footer everywhere */
+a {
+  color: var(--accent);
+}
+@media (prefers-color-scheme: dark) {
+  /* the brand blue is too dark for small text on the dark surface */
+  a {
+    color: var(--accent-weak);
+  }
+}
+.home-link {
+  font-size: 13px;
+  text-decoration: none;
+}
+.home-link:hover,
+.app-footer a:hover {
+  text-decoration: underline;
+}
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  margin-top: 36px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.app-footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.app-footer .sep {
+  opacity: 0.6;
 }
 .note {
   font-size: 13px;

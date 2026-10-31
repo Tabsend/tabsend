@@ -43,6 +43,7 @@ import {
   setAuthWarning,
   setIdentity,
   setLastRelayUrl,
+  setPairingVouch,
   setPendingPairingLink,
   setPendingRelayUrl,
   setRegistration,
@@ -197,6 +198,7 @@ async function persistRegistration(
   req: RegisterRequest,
   res: RegisterIds,
   relayId?: string,
+  vouched?: readonly string[],
 ): Promise<Registration> {
   // Read BEFORE anything is written: this is the registration being replaced,
   // and from here on the storage keys it owns are about to be reused.
@@ -227,6 +229,11 @@ async function persistRegistration(
     registeredAt: new Date().toISOString(),
   }
   if (relayId) registration.relayId = relayId
+  // The devices the pairing link vouched for (P-23). After the old pairing's state is
+  // wiped and before this registration exists, so no list of it is judged without them.
+  if (vouched && vouched.length > 0) {
+    await setPairingVouch({ endpointId: res.endpointId, tags: [...vouched] })
+  }
   await setRegistration(registration)
   // A fresh registration supersedes any "removed from your last group" notice,
   // and consumes the move that sent us here (if this run came from one) — both
@@ -292,6 +299,7 @@ export async function joinGroup(
   relayUrl: string,
   code: string,
   browserName: string,
+  vouched?: readonly string[],
 ): Promise<StateView> {
   relayUrl = normalizeRelayUrl(relayUrl)
   const identity = await ensureIdentity()
@@ -308,7 +316,7 @@ export async function joinGroup(
     throw humanRegisterError(err, relayUrl)
   }
   await clearAuthWarning()
-  await persistRegistration(relayUrl, browserName, '', req, res, config.relayId)
+  await persistRegistration(relayUrl, browserName, '', req, res, config.relayId, vouched)
   return getState()
 }
 
@@ -425,14 +433,20 @@ export async function handleRemoval(): Promise<void> {
  * surface it, and let the retry succeed once the relay is itself again. Nothing
  * is lost by waiting; re-pairing is manual work, and on a phone it can be
  * impossible without a second device to hand.
+ *
+ * `token` is the one that was refused. A refusal of any OTHER token is about a
+ * pairing this browser already gave up: moving relays retires the old endpoint,
+ * and a poll or heartbeat sent to the old relay just before the move comes back
+ * "removed" just after it. Acting on that wiped the NEW pairing mid-setup, and
+ * the device step failed with "not registered" (dogfood 2026-10-30).
  */
-export async function handleAuthRejection(definitive: boolean): Promise<void> {
+export async function handleAuthRejection(definitive: boolean, token: string): Promise<void> {
+  const reg = await getRegistration()
+  if (!reg || reg.deviceToken !== token) return
   if (definitive) {
     await handleRemoval()
     return
   }
-  const reg = await getRegistration()
-  if (!reg) return
   await setAuthWarning(true)
 }
 

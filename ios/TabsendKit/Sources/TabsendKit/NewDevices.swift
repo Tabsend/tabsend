@@ -4,7 +4,9 @@ import Foundation
 ///
 /// A line-for-line mirror of `shared/src/newdevices.ts` (`watchDevices`,
 /// `confirmNewDevice`, `listIncludesSelf`, `endpointsKnownTo`, `heldTabChoices`,
-/// `rotationDue`, `rotationDone`). The rule and its reasons are written down there;
+/// `rotationDue`, `rotationDone`, `vouchTag`, `vouchTags`, `withVouch`, `parseVouch`,
+/// `announcesNewDevices`, `settleNotices`).
+/// The rule and its reasons are written down there;
 /// the short version is that each client remembers the device ids in the last list it fetched
 /// and compares every new fetch against them. It never trusts the relay's
 /// `endpoint_added` event, because a compromised relay would simply not send it.
@@ -14,6 +16,17 @@ import Foundation
 /// request and a relay can answer it and keep listing the device; and the rotation a
 /// departure owes is owed FOR named devices (`rotateFor`), so a key that merely arrived
 /// later does not pay it (`rotationDue`, X14).
+///
+/// The pairing link vouches for the first list (P-23): the device that shows a link
+/// appends a short tag of each device it has accepted (`vouchTags`, `withVouch`), and
+/// a device in the joiner's first list under a vouched key is not put on the first
+/// look (`parseVouch`, the `vouched` argument of `watch`). The link goes from the
+/// user's hand to the new device, so the relay cannot add to it.
+///
+/// A device that joined is told once, as information (P-23; owner, 2026-10-30): the
+/// phone posts one notification and stores the record settled (`settleNotices`), so
+/// nothing waits for an answer and no row is marked. A phone always tells
+/// (`announcesNewDevices`); the rule says when a browser does too.
 ///
 /// `NewDevicesTests` runs every case in `shared/vectors/new-devices.json`, the same
 /// file the extension and Android run, so the three cannot drift apart silently.
@@ -38,8 +51,9 @@ public struct NewDeviceWatch: Codable, Sendable, Equatable {
     public var selfId: String
     /// Every device id in the last list that was accepted.
     public var known: [String]
-    /// Joined since the baseline, not yet answered with "Yes, it's mine" or removed.
-    /// Oldest first.
+    /// Joined since the previous list, oldest first. A record this phone stores is
+    /// settled (`NewDevices.settleNotices`, P-23), so this is empty there; the rule
+    /// still reads it, and a record from an earlier build may carry some.
     public var unconfirmed: [NewDeviceNotice]
     /// Each known device's published key (`e2ePubkey`), by id. Optional only because
     /// records written before 2026-10-13 lack it; such a record learns the keys on
@@ -69,15 +83,17 @@ public struct NewDeviceWatch: Codable, Sendable, Equatable {
     public var removed: [String]?
     /// The published keys (`e2ePubkey`) of the devices THIS phone removed, where it knew
     /// them. A device carrying one of these under a NEW id stays out of
-    /// `endpointsKnownTo` until the user answers its notice ("Yes, it's mine"): a relay
+    /// `endpointsKnownTo` until the user answers its notice ("It's mine"): a relay
     /// can otherwise re-list a removed device under a fresh id and be handed the next key
     /// before anyone looks. Held back only until answered, because the extension keeps
     /// its device key when it re-pairs, so an honest re-paired device does come back
-    /// under a new id with the same key: one tap lets it in.
+    /// under a new id with the same key: one tap lets it in. Since P-23 a record this
+    /// phone stores keeps no notice waiting (`NewDevices.settleNotices`), so this holds
+    /// only while a record an earlier build left still has one.
     public var removedKeys: [String]?
-    /// The first look (GH6): the other devices in the first list this phone accepted,
-    /// waiting for ONE answer ("All of these are mine") or for each to be removed. Nil
-    /// once answered, and on a record written before this existed.
+    /// The first look (GH6): the other devices in the first list this phone accepted
+    /// that the pairing link did not vouch for (P-23). Told once and settled, so nil on a
+    /// record this phone stores (`NewDevices.settleNotices`); the rule still reads it.
     public var review: [NewDeviceNotice]?
     /// Devices that were announced as new, never answered, and then left the list
     /// without this phone removing them (GH7). Shown until dismissed. Newest last, at
@@ -109,6 +125,14 @@ public enum NewDevices {
     /// grow the record.
     public static let maxVanished = 20
 
+    /// The most devices a pairing link vouches for (P-23). A larger group's link
+    /// vouches for the first ones; the rest are asked about.
+    public static let maxVouched = 50
+
+    /// Characters of a published key a pairing link carries per device: 96 bits, too
+    /// many to grind a key for.
+    public static let vouchTagLength = 16
+
     public struct WatchResult: Sendable, Equatable {
         /// What to store next. Nil only when there was nothing before and the list
         /// could not be used.
@@ -137,13 +161,19 @@ public enum NewDevices {
     /// record yet it is the baseline, so a device that appeared after it was cached is
     /// announced instead of being taken on trust (GH6). It counts only if it contains
     /// this phone, so a cache left by another pairing is ignored.
+    ///
+    /// `vouched` is the tags the pairing link carried (`parseVouch`), if any (P-23). It
+    /// is used only when this list becomes the baseline: a device in it whose key has a
+    /// vouched tag is not put on the first look. Once a record exists it is never
+    /// consulted again.
     public static func watch(
         prev prevRecord: NewDeviceWatch?,
         list rawList: [Endpoint],
         selfId: String,
         now: String = WireDate.string(from: Date()),
         currentKeyCreatedAt: String? = nil,
-        seed: [Endpoint]? = nil
+        seed: [Endpoint]? = nil,
+        vouched: [String]? = nil
     ) -> WatchResult {
         // A list without this device means it was just removed, or the fetch was
         // wrong. Taking it as the baseline would make the next good fetch announce
@@ -159,7 +189,7 @@ public enum NewDevices {
         } else if let seed, listIncludesSelf(seed, selfId: selfId) {
             prev = baseline(seed, selfId: selfId)
         } else {
-            return WatchResult(watch: baseline(list, selfId: selfId), joined: [])
+            return WatchResult(watch: baseline(list, selfId: selfId, vouched: vouched), joined: [])
         }
 
         let known = Set(prev.known)
@@ -307,7 +337,9 @@ public enum NewDevices {
         (watch?.rotateFor ?? []).sorted()
     }
 
-    /// "All of these are mine": the first look is answered; its card goes on this phone only.
+    /// The whole first look answered at once, on this phone only. No screen offers it since
+    /// P-23 (the first look is told once and settled, `settleNotices`); kept because the
+    /// shared vectors run it on every client.
     public static func confirmReview(_ watch: NewDeviceWatch) -> NewDeviceWatch {
         var next = watch
         next.review = nil
@@ -322,10 +354,15 @@ public enum NewDevices {
         return next
     }
 
-    /// The user said "Yes, it's mine" (or removed it): drop that device's pending notice.
+    /// One device answered: drop its pending notice, or its place on the first look. No
+    /// screen offers it since P-23 (notices are told once and settled, `settleNotices`);
+    /// kept because the shared vectors run it on every client. The rest of the first look
+    /// stays.
     public static func confirm(_ watch: NewDeviceWatch, id: String) -> NewDeviceWatch {
         var next = watch
         next.unconfirmed = watch.unconfirmed.filter { $0.id != id }
+        let review = watch.review?.filter { $0.id != id }
+        next.review = review?.isEmpty == false ? review : nil
         return next
     }
 
@@ -400,16 +437,140 @@ public enum NewDevices {
         return next
     }
 
+    /// A phone not seen for this long no longer counts as the one that tells the user
+    /// (P-23). Milliseconds, as `now` is given to `announcesNewDevices`.
+    public static let announcerStaleMs: Double = 30 * 24 * 60 * 60 * 1000
+
+    /// Should THIS device tell the user that a device joined (P-23; owner, 2026-10-30:
+    /// "show that warning once", information only)? A phone always does. A browser does
+    /// only when the group has no phone this device had accepted before this list and has
+    /// seen in the last 30 days, so a user without a phone still hears, and one with a
+    /// phone hears it once. A console never does: it has no notifications.
+    ///
+    /// Only a phone from the record BEFORE this list counts (`prev`): a phone that arrives
+    /// in the same list as the newcomer, or is the newcomer, silences nobody, so a relay
+    /// cannot hush the browsers by adding a phone along with its device. A `lastSeenAt`
+    /// that cannot be read counts as not seen. `now` is epoch milliseconds. Pure.
+    public static func announcesNewDevices(
+        _ prev: NewDeviceWatch?, _ list: [Endpoint], selfId: String, now: Double
+    ) -> Bool {
+        guard let me = list.first(where: { $0.id == selfId }) else { return false }
+        if me.kind == "mobile" { return true }
+        guard me.kind == "extension" else { return false }
+        let before = prev?.selfId == selfId ? prev : nil
+        return !endpointsKnownTo(before, firstById(list)).contains { endpoint in
+            guard endpoint.id != selfId, endpoint.kind == "mobile",
+                  let seen = WireDate.date(from: endpoint.lastSeenAt)
+            else { return false }
+            return now - seen.timeIntervalSince1970 * 1000 <= announcerStaleMs
+        }
+    }
+
+    /// The notices, once told (P-23): a joined device is reported once, as information,
+    /// and nothing waits for an answer, so nothing is kept on the first look (`review`) or
+    /// pending (`unconfirmed`), with one exception: a device carrying the published key of
+    /// a device THIS phone removed stays pending, so `endpointsKnownTo` keeps it out of key
+    /// handoff. A relay could otherwise list a removed device again under a fresh id and
+    /// have it handed the next key a moment after one notification. Everything else in
+    /// the record stays. Pure.
+    public static func settleNotices(_ watch: NewDeviceWatch) -> NewDeviceWatch {
+        let held = Set(watch.removedKeys ?? [])
+        var next = watch
+        next.unconfirmed = watch.unconfirmed.filter { notice in
+            guard let key = watch.keys?[notice.id] else { return false }
+            return held.contains(key)
+        }
+        next.review = nil
+        return next
+    }
+
+    /// A device's tag in a pairing link (P-23): the first `vouchTagLength` characters of
+    /// its published key, in the URL-safe alphabet so the link needs no escaping. A
+    /// published key is base64, so a character here is a UTF-16 unit in TypeScript.
+    public static func vouchTag(_ e2ePubkey: String) -> String {
+        String(e2ePubkey.prefix(vouchTagLength))
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    /// The tags a pairing link this phone shows vouches for (P-23): every device it has
+    /// accepted (`endpointsKnownTo`, this phone included), never one it has not answered
+    /// yet, a pending notice or one on its own first look. Unique, in list order, at
+    /// most `maxVouched`. Empty when the watch belongs to another pairing or the list is
+    /// not one this phone may use; the link then vouches for nothing.
+    public static func vouchTags(
+        _ watch: NewDeviceWatch?, _ list: [Endpoint], selfId: String
+    ) -> [String] {
+        guard let watch, watch.selfId == selfId, listIncludesSelf(list, selfId: selfId) else { return [] }
+        let unanswered = Set((watch.unconfirmed + (watch.review ?? [])).map(\.id))
+        var seen = Set<String>()
+        let tags = endpointsKnownTo(watch, firstById(list))
+            .filter { !unanswered.contains($0.id) }
+            .map { vouchTag($0.e2ePubkey) }
+            .filter { $0.count == vouchTagLength && seen.insert($0).inserted }
+        return Array(tags.prefix(maxVouched))
+    }
+
+    /// A pairing link with the tags appended to its fragment as `&v=tag.tag` (P-23).
+    /// Unchanged when there are none.
+    public static func withVouch(_ link: String, _ tags: [String]) -> String {
+        // The relay makes the base link, so any `v` already in its fragment goes first,
+        // tags or not: only this device may vouch (v0.9.0 review, finding 1).
+        guard let hash = link.firstIndex(of: "#") else { return link }
+        let kept = link[link.index(after: hash)...]
+            .split(separator: "&", omittingEmptySubsequences: false)
+            .filter { !$0.hasPrefix("v=") }
+        let base = String(link[...hash]) + kept.joined(separator: "&")
+        return tags.isEmpty ? base : "\(base)&v=\(tags.joined(separator: "."))"
+    }
+
+    /// The tags a pairing link carries (P-23), or nil when it carries none (a link from
+    /// an older client, or one whose `v` held nothing usable). A tag that is not exactly
+    /// `vouchTagLength` URL-safe characters is dropped: a shorter one would match more keys.
+    public static func parseVouch(_ link: String) -> [String]? {
+        guard let hash = link.firstIndex(of: "#") else { return nil }
+        // More than one `v` means something other than the showing device wrote one.
+        let params = link[link.index(after: hash)...]
+            .split(separator: "&", omittingEmptySubsequences: false)
+            .filter { $0.hasPrefix("v=") }
+        guard params.count == 1, let param = params.first else { return nil }
+        var seen = Set<String>()
+        let tags = param.dropFirst(2)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: ".", omittingEmptySubsequences: false)
+            .map(String.init)
+            .filter { seen.insert($0).inserted && isVouchTag($0) }
+        let capped = Array(tags.prefix(maxVouched))
+        return capped.isEmpty ? nil : capped
+    }
+
+    /// `^[A-Za-z0-9_-]{vouchTagLength}$`, without a regex.
+    private static func isVouchTag(_ tag: String) -> Bool {
+        tag.utf8.count == vouchTagLength && tag.utf8.allSatisfy { byte in
+            switch byte {
+            case UInt8(ascii: "0")...UInt8(ascii: "9"), UInt8(ascii: "A")...UInt8(ascii: "Z"),
+                 UInt8(ascii: "a")...UInt8(ascii: "z"), UInt8(ascii: "-"), UInt8(ascii: "_"):
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
     /// The list with each id once, in order of first appearance.
     private static func firstById(_ list: [Endpoint]) -> [Endpoint] {
         var seen = Set<String>()
         return list.filter { seen.insert($0.id).inserted }
     }
 
-    private static func baseline(_ raw: [Endpoint], selfId: String) -> NewDeviceWatch {
+    private static func baseline(
+        _ raw: [Endpoint], selfId: String, vouched: [String]? = nil
+    ) -> NewDeviceWatch {
         let list = firstById(raw)
-        // The first look: one card, asked once, when there is anyone else to check.
-        let others = list.filter { $0.id != selfId }
+        let vouchedTags = Set(vouched ?? [])
+        // The first look: asked once, when anyone the pairing link did not vouch for is there (P-23).
+        let others = list.filter { $0.id != selfId && !vouchedTags.contains(vouchTag($0.e2ePubkey)) }
             .map { NewDeviceNotice(id: $0.id, label: $0.label, createdAt: $0.createdAt) }
         return NewDeviceWatch(
             selfId: selfId, known: list.map(\.id), unconfirmed: [], keys: keys(of: list),
@@ -425,14 +586,36 @@ public enum NewDevices {
 
     // MARK: store helpers
 
+    /// What to tell the user about new devices, once, as information (P-23).
+    public struct Announcement: Sendable, Equatable {
+        public enum Kind: Sendable, Equatable {
+            /// Joined since the previous list.
+            case joined
+            /// Already in the group on a fresh pairing, and the pairing link did not
+            /// vouch for them (the first look).
+            case firstList
+        }
+        public var kind: Kind
+        /// Never empty.
+        public var devices: [NewDeviceNotice]
+
+        public init(kind: Kind, devices: [NewDeviceNotice]) {
+            self.kind = kind
+            self.devices = devices
+        }
+    }
+
     /// What `observe` made of a fetched list.
     public struct Observation: Sendable, Equatable {
         /// The list, when the rule accepted it. Nil means "treat the fetch as
         /// failed": the list did not contain this phone (or it is not registered),
         /// so nothing may be cached, trusted or handed a key from it.
         public var accepted: [Endpoint]?
-        /// Devices that joined since the previous fetch: announce these once.
+        /// Devices that joined since the previous fetch.
         public var joined: [NewDeviceNotice] = []
+        /// The one notification to post (P-23), or nil when there is nothing to tell or
+        /// this device is not the one that tells (`announcesNewDevices`).
+        public var announcement: Announcement?
     }
 
     /// Run the rule on a list just fetched from the relay, save the result, and
@@ -447,14 +630,27 @@ public enum NewDevices {
     /// Read-modify-write under the store's lock, so two fetches landing together
     /// (the drain and the foreground refresh do) cannot both announce the same
     /// device.
+    ///
+    /// The tags the pairing link carried (`Registration.vouched`, P-23) go to the call
+    /// that creates this pairing's record, and are cleared once that record is stored:
+    /// the rule never consults them again.
+    ///
+    /// Told once, as information (P-23): the record is stored settled (`settleNotices`),
+    /// so nothing waits for an answer. What to tell is the devices that joined, or, when
+    /// this pairing had no record before, the ones on its first look; whether this phone
+    /// tells is `announcesNewDevices`, against the record as it was before this list.
     @discardableResult
     public static func observe(
         _ list: [Endpoint], store: TabsendStore, now: Date = Date()
     ) -> Observation {
-        guard let selfId = store.registration?.endpointId,
-              listIncludesSelf(list, selfId: selfId)
+        guard let reg = store.registration,
+              listIncludesSelf(list, selfId: reg.endpointId)
         else { return Observation(accepted: nil) }
+        let selfId = reg.endpointId
         var joined: [NewDeviceNotice] = []
+        var firstList: [NewDeviceNotice] = []
+        // This pairing's record as it was before this list: what `announcesNewDevices` reads.
+        var before: NewDeviceWatch?
         let stamp = WireDate.string(from: now)
         // The key a departure in this list leaves to be replaced.
         let currentKey = Keyring.current(store.groupKeyring)?.createdAt
@@ -463,16 +659,40 @@ public enum NewDevices {
         // store's lock (reading it inside the update would wait on that lock for ever).
         let cached = store.cachedEndpoints
         store.updateNewDeviceWatch { prev in
+            let mine = prev?.selfId == selfId ? prev : nil
+            before = mine
             let seed = prev == nil ? cached : nil
+            // Only a call that creates the record gets the link's tags (P-23).
+            let vouched = mine == nil ? reg.vouched : nil
             let result = watch(
                 prev: prev, list: list, selfId: selfId, now: stamp, currentKeyCreatedAt: currentKey,
-                seed: seed
+                seed: seed, vouched: vouched
             )
             joined = result.joined
-            return result.watch
+            // On a fresh pairing, the devices the link did not vouch for are told too.
+            firstList = mine == nil ? (result.watch?.review ?? []) : []
+            // Told once and nothing kept waiting for an answer (P-23).
+            return result.watch.map { settleNotices($0) }
+        }
+        // The record for this pairing is stored now, so the tags have done their one job.
+        // Read again rather than writing `reg` back, so a write made since is kept. A stale
+        // copy written back later can restore them; the rule ignores them then, and the
+        // next list clears them again.
+        if reg.vouched != nil, var current = store.registration,
+           current.endpointId == selfId, current.vouched != nil {
+            current.vouched = nil
+            store.registration = current
         }
         store.cachedEndpoints = list
-        return Observation(accepted: list, joined: joined)
+        var announcement: Announcement?
+        if announcesNewDevices(before, list, selfId: selfId, now: now.timeIntervalSince1970 * 1000) {
+            if !joined.isEmpty {
+                announcement = Announcement(kind: .joined, devices: joined)
+            } else if !firstList.isEmpty {
+                announcement = Announcement(kind: .firstList, devices: firstList)
+            }
+        }
+        return Observation(accepted: list, joined: joined, announcement: announcement)
     }
 
     /// Mark the owed rotation that was read as done, through the store's
@@ -488,12 +708,6 @@ public enum NewDevices {
               watch.selfId == store.registration?.endpointId
         else { return nil }
         return watch
-    }
-
-    /// Drop one device's pending notice: "Yes, it's mine".
-    /// The answer is kept on this phone only (P-10: answers are per device).
-    public static func dismiss(id: String, store: TabsendStore) {
-        store.updateNewDeviceWatch { prev in prev.map { confirm($0, id: id) } }
     }
 
     /// Remove another device from the group, then write the removal into the watch
@@ -527,29 +741,14 @@ public enum NewDevices {
         }
     }
 
-    /// The first look: the other devices in the first list, waiting for one answer (GH6).
-    public static func review(store: TabsendStore) -> [NewDeviceNotice] {
-        current(store: store)?.review ?? []
-    }
-
     /// Announced as new, never answered, then gone from the list (GH7).
     public static func vanished(store: TabsendStore) -> [NewDeviceNotice] {
         current(store: store)?.vanished ?? []
     }
 
-    /// "All of these are mine": answered on this phone only (answers are not synced).
-    public static func answerReview(store: TabsendStore) {
-        store.updateNewDeviceWatch { prev in prev.map { confirmReview($0) } }
-    }
-
     /// Dismiss one "joined, then disappeared" notice on this phone.
     public static func dismissVanished(id: String, store: TabsendStore) {
         store.updateNewDeviceWatch { prev in prev.map { dismissVanished($0, id: id) } }
-    }
-
-    /// The notices still waiting for an answer, oldest first.
-    public static func unconfirmed(store: TabsendStore) -> [NewDeviceNotice] {
-        current(store: store)?.unconfirmed ?? []
     }
 
     // MARK: copy (PLANS.md P-10 "The copy", word for word)
@@ -562,32 +761,41 @@ public enum NewDevices {
         return text == "unknown" ? "recently" : text
     }
 
-    public static func alertTitle(_ joined: [NewDeviceNotice]) -> String {
-        if joined.count == 1 { return "New device: \(joined[0].label)" }
-        return "\(joined.count) new devices joined"
-    }
+    // The one notification, information only (P-23): the same words on every client.
 
-    public static func alertBody(_ joined: [NewDeviceNotice], now: Date = Date()) -> String {
-        if joined.count == 1 {
-            return "Joined your Tabsend devices \(when(joined[0].createdAt, now: now)). Was this you? If not, remove it."
+    public static func alertTitle(_ announcement: Announcement) -> String {
+        let devices = announcement.devices
+        switch announcement.kind {
+        case .joined:
+            if devices.count == 1 { return "\(devices[0].label) was added" }
+            return "\(devices.count) devices were added"
+        case .firstList:
+            if devices.count == 1 { return "\(devices[0].label) is in your group" }
+            return "\(devices.count) devices are in your group"
         }
-        return "\(listLabels(joined.map(\.label))). Were these you? If not, remove them."
     }
 
-    public static func bannerTitle(_ notice: NewDeviceNotice) -> String {
-        "New device: \(notice.label)"
+    public static func alertBody(_ announcement: Announcement, now: Date = Date()) -> String {
+        let devices = announcement.devices
+        switch announcement.kind {
+        case .joined:
+            if devices.count == 1 {
+                // A time that cannot be read is left out rather than guessed.
+                guard WireDate.date(from: devices[0].createdAt) != nil else {
+                    return "It joined your Tabsend devices. If that wasn't you, remove it in Tabsend."
+                }
+                return "It joined your Tabsend devices \(Inbox.relativeTime(devices[0].createdAt, now: now)). If that wasn't you, remove it in Tabsend."
+            }
+            return "\(listLabels(devices.map(\.label))) joined your Tabsend devices. If any wasn't you, remove it in Tabsend."
+        case .firstList:
+            if devices.count == 1 {
+                return "The device you paired with didn't list it. If it isn't yours, remove it in Tabsend."
+            }
+            return "\(listLabels(devices.map(\.label))). The device you paired with didn't list them. If any isn't yours, remove it in Tabsend."
+        }
     }
 
-    public static func bannerBody(_ notice: NewDeviceNotice, now: Date = Date()) -> String {
-        "Joined \(when(notice.createdAt, now: now)). Was this you? If it isn't yours, remove it. It could read the links you send."
-    }
-
-    // The first look and the vanished notice: the same words on every client.
-    public static let reviewTitle = "Check your devices"
-    public static let reviewBody =
-        "Your group has these devices. A device you don't know could read the links you send, so remove it."
-    public static let reviewRemove = "Remove"
-    public static let reviewConfirm = "All of these are mine"
+    // The vanished notice: the same words on every client.
     public static let vanishedDismiss = "Dismiss"
 
     public static func vanishedTitle(_ notice: NewDeviceNotice) -> String {

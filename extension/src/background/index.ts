@@ -23,6 +23,7 @@ import { processOutbound } from './send'
 import { currentSession } from './session'
 import { applyToolbarMode } from './settings'
 import { handleStreamEvent, registerChooserPort } from './stream'
+import { primeUnreachableBadge, registerUnreachableBadgeSync } from './unreachable'
 
 /**
  * Platform split (transport spike). Chrome: Web Push wakes the suspended SW + an
@@ -59,6 +60,7 @@ registerRelayHealthTracking()
 // The badge stays correct even when a page (not this SW) is the one that
 // clears it — see inbox.ts, which writes storage directly.
 registerUnreadBadgeSync()
+registerUnreachableBadgeSync()
 registerNotificationClickHandler()
 
 // --- removed-from-group detection ---------------------------------------
@@ -73,11 +75,11 @@ setAuthorizedHandler(() => {
   authWarned = false
   void clearAuthWarning()
 })
-setUnauthorizedHandler((definitive) => {
+setUnauthorizedHandler((definitive, token) => {
   if (!definitive) authWarned = true
   // Only a proven removal resets local state; an unrecognised token is held so a
   // relay that comes back to itself (restart, restore) finds the pairing intact.
-  void handleAuthRejection(definitive).then(afterReset)
+  void handleAuthRejection(definitive, token).then(afterReset)
 })
 
 // --- messages: RPC from pages, AND forwarded WS events from the offscreen doc -
@@ -194,6 +196,7 @@ async function bootstrap(): Promise<void> {
   if (!session) {
     await applyToolbarMode() // still reflect the icon setting when unregistered
     setUnreadBadge(await getUnreadReceived()) // a fresh SW starts with no in-memory count
+    await primeUnreachableBadge()
     return
   }
   // DELIVERY FIRST — the reliability-critical cold-boot path (spike §6). Nothing
@@ -206,6 +209,7 @@ async function bootstrap(): Promise<void> {
   // pass delivered something new, and a fresh SW's in-memory count always starts
   // at 0 regardless of what was already unread from before it woke.
   setUnreadBadge(await getUnreadReceived())
+  await primeUnreachableBadge()
   if (IS_FIREFOX) {
     await refreshFirefoxWs() // bring up the event-page WS with the current relay/token
   } else {

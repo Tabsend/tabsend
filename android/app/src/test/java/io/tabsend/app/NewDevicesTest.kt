@@ -29,6 +29,7 @@ class NewDevicesTest {
         val createdAt: String,
         val e2ePubkey: String = "pk",
         val kind: String = "extension",
+        val lastSeenAt: String? = null,
     )
 
     @Serializable
@@ -40,6 +41,7 @@ class NewDevicesTest {
         val prev: NewDeviceWatch?,
         val seed: List<ListEntry>? = null,
         val list: List<ListEntry>,
+        val vouched: List<String>? = null,
         val watch: NewDeviceWatch?,
         val joined: List<NewDeviceNotice>,
     )
@@ -119,6 +121,56 @@ class NewDevicesTest {
     )
 
     @Serializable
+    private data class VouchTagCase(
+        val name: String,
+        val key: String,
+        val expect: String,
+    )
+
+    @Serializable
+    private data class VouchTagsCase(
+        val name: String,
+        val selfId: String,
+        val watch: NewDeviceWatch?,
+        val list: List<ListEntry>,
+        val expect: List<String>,
+    )
+
+    @Serializable
+    private data class WithVouchCase(
+        val name: String,
+        val link: String,
+        val tags: List<String>,
+        val expect: String,
+    )
+
+    /** `expect: null` means the link carries no tags. */
+    @Serializable
+    private data class ParseVouchCase(
+        val name: String,
+        val link: String,
+        val expect: List<String>?,
+    )
+
+    /** `now` is epoch milliseconds. */
+    @Serializable
+    private data class AnnouncesCase(
+        val name: String,
+        val selfId: String,
+        val now: Long,
+        val prev: NewDeviceWatch?,
+        val list: List<ListEntry>,
+        val expect: Boolean,
+    )
+
+    @Serializable
+    private data class SettleCase(
+        val name: String,
+        val watch: NewDeviceWatch,
+        val expect: NewDeviceWatch,
+    )
+
+    @Serializable
     private data class Vectors(
         val watch: List<WatchCase>,
         val confirm: List<ConfirmCase>,
@@ -130,6 +182,12 @@ class NewDevicesTest {
         val rotationDone: List<RotationDoneCase>,
         val knownTo: List<KnownToCase>,
         val heldTabChoices: List<HeldTabChoicesCase>,
+        val vouchTag: List<VouchTagCase>,
+        val vouchTags: List<VouchTagsCase>,
+        val withVouch: List<WithVouchCase>,
+        val parseVouch: List<ParseVouchCase>,
+        val announces: List<AnnouncesCase>,
+        val settle: List<SettleCase>,
     )
 
     private val vectors: Vectors by lazy {
@@ -147,7 +205,10 @@ class NewDevicesTest {
         error("shared/vectors/new-devices.json not found above ${File("").absolutePath}")
     }
 
-    /** The rules read id, label, createdAt, e2ePubkey and kind; everything else is a fixture. */
+    /**
+     * The rules read id, label, createdAt, e2ePubkey, kind and lastSeenAt (which defaults
+     * to createdAt, as in the TypeScript test); everything else is a fixture.
+     */
     private fun ep(e: ListEntry) = Endpoint(
         id = e.id,
         groupId = "g",
@@ -157,7 +218,7 @@ class NewDevicesTest {
         label = e.label,
         e2ePubkey = e.e2ePubkey,
         presence = "online",
-        lastSeenAt = "2026-10-08T12:00:00.000Z",
+        lastSeenAt = e.lastSeenAt ?: e.createdAt,
         createdAt = e.createdAt,
     )
 
@@ -172,6 +233,7 @@ class NewDevicesTest {
                 c.now,
                 c.currentKeyCreatedAt,
                 c.seed?.map(::ep),
+                c.vouched,
             )
             assertEquals("${c.name}: watch", c.watch, result.watch)
             assertEquals("${c.name}: joined", c.joined, result.joined)
@@ -254,6 +316,58 @@ class NewDevicesTest {
         }
     }
 
+    // --- P-23: the pairing link vouches for the first list --------------------
+
+    @Test
+    fun `every vouchTag case matches the shared vector`() {
+        assertTrue(vectors.vouchTag.isNotEmpty())
+        for (c in vectors.vouchTag) {
+            assertEquals(c.name, c.expect, NewDevices.vouchTag(c.key))
+        }
+    }
+
+    @Test
+    fun `every vouchTags case matches the shared vector`() {
+        assertTrue(vectors.vouchTags.isNotEmpty())
+        for (c in vectors.vouchTags) {
+            assertEquals(c.name, c.expect, NewDevices.vouchTags(c.watch, c.list.map(::ep), c.selfId))
+        }
+    }
+
+    @Test
+    fun `every withVouch case matches the shared vector`() {
+        assertTrue(vectors.withVouch.isNotEmpty())
+        for (c in vectors.withVouch) {
+            assertEquals(c.name, c.expect, NewDevices.withVouch(c.link, c.tags))
+        }
+    }
+
+    @Test
+    fun `every parseVouch case matches the shared vector`() {
+        assertTrue(vectors.parseVouch.isNotEmpty())
+        for (c in vectors.parseVouch) {
+            assertEquals(c.name, c.expect, NewDevices.parseVouch(c.link))
+        }
+    }
+
+    // --- P-23: told once, information only ------------------------------------
+
+    @Test
+    fun `every announces case matches the shared vector`() {
+        assertTrue(vectors.announces.isNotEmpty())
+        for (c in vectors.announces) {
+            assertEquals(c.name, c.expect, NewDevices.announcesNewDevices(c.prev, c.list.map(::ep), c.selfId, c.now))
+        }
+    }
+
+    @Test
+    fun `every settle case matches the shared vector`() {
+        assertTrue(vectors.settle.isNotEmpty())
+        for (c in vectors.settle) {
+            assertEquals(c.name, c.expect, NewDevices.settleNotices(c.watch))
+        }
+    }
+
     @Test
     fun `the stored record survives a JSON round trip`() {
         val watch = NewDeviceWatch(
@@ -332,8 +446,8 @@ class NewDevicesTest {
     fun `an accepted list is cached and judged`() {
         val store = pairedStore()
         NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
-        val joined = NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
-        assertEquals(listOf("evil"), joined.map { it.id })
+        val told = NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
+        assertEquals(listOf("evil"), told.joined.map { it.id })
         assertEquals(listOf("me", "a", "evil"), store.cachedEndpoints.map { it.id })
     }
 
@@ -390,13 +504,13 @@ class NewDevicesTest {
         NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
         NewDeviceWatcher.removed(store, "evil")
 
-        val joined = NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
+        val told = NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
 
-        assertEquals(listOf("evil"), joined.map { it.id })
+        assertEquals(listOf("evil"), told.joined.map { it.id })
         val trusted = NewDevices.endpointsKnownTo(store.newDeviceWatch, listOf(self, peer, stranger).map(::ep))
         assertEquals(listOf("me", "a"), trusted.map { it.id })
         // Announced once, not on every fetch.
-        assertTrue(NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep)).isEmpty())
+        assertTrue(NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep)).joined.isEmpty())
     }
 
     // --- the device row's Remove (L7): the DELETE, then the watch ---------------
@@ -466,14 +580,17 @@ class NewDevicesTest {
     // --- GH6 and GH7: the first look, and a device that joined then disappeared ---
 
     @Test
-    fun `the first list asks once, and the answer sticks across later lists`() {
+    fun `the first list is told once, and nothing waits for an answer`() {
         val store = pairedStore()
-        NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
-        assertEquals(listOf("a"), store.newDeviceWatch!!.review!!.map { it.id })
-
-        store.updateNewDeviceWatch { prev -> prev?.let { NewDevices.confirmReview(it) } to Unit }
-        NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
+        val first = NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
+        assertEquals(listOf("a"), first.firstList.map { it.id })
+        assertTrue(first.joined.isEmpty())
+        // Stored settled (P-23): nothing is kept on the first look.
         assertNull(store.newDeviceWatch!!.review)
+
+        val next = NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
+        assertTrue(next.firstList.isEmpty())
+        assertTrue(next.joined.isEmpty())
     }
 
     @Test
@@ -482,10 +599,12 @@ class NewDevicesTest {
         // The previous build's cache, and no watch yet.
         store.cachedEndpoints = listOf(self, peer).map(::ep)
 
-        val joined = NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
+        val told = NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
 
-        assertEquals(listOf("evil"), joined.map { it.id })
-        assertEquals(listOf("a"), store.newDeviceWatch!!.review!!.map { it.id })
+        assertEquals(listOf("evil"), told.joined.map { it.id })
+        assertEquals(listOf("a"), told.firstList.map { it.id })
+        assertNull(store.newDeviceWatch!!.review)
+        assertTrue(store.newDeviceWatch!!.unconfirmed.isEmpty())
     }
 
     @Test
@@ -493,28 +612,172 @@ class NewDevicesTest {
         val store = pairedStore()
         store.cachedEndpoints = listOf(ListEntry("other", "Old tablet", "2026-09-01T10:00:00.000Z")).map(::ep)
 
-        val joined = NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
+        val told = NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
 
-        assertTrue(joined.isEmpty())
-        assertEquals(listOf("a"), store.newDeviceWatch!!.review!!.map { it.id })
+        assertTrue(told.joined.isEmpty())
+        assertEquals(listOf("a"), told.firstList.map { it.id })
     }
 
     @Test
-    fun `a device that joined and then disappeared stays until dismissed, unless this phone removed it`() {
+    fun `a notice left in a record from before P-23 still reports the device that then disappeared`() {
         val store = pairedStore()
-        NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
         NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
+        // A record written by the build before P-23: "evil" still waiting for an answer.
+        store.newDeviceWatch = store.newDeviceWatch!!.copy(
+            unconfirmed = listOf(NewDeviceNotice("evil", "Chrome · Mac", "2026-10-13T11:00:00.000Z")),
+        )
+
         NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
         assertEquals(listOf("evil"), store.newDeviceWatch!!.vanished!!.map { it.id })
         assertTrue(store.newDeviceWatch!!.unconfirmed.isEmpty())
 
         store.updateNewDeviceWatch { prev -> prev?.let { NewDevices.dismissVanished(it, "evil") } to Unit }
         assertNull(store.newDeviceWatch!!.vanished)
+    }
 
-        // Removed by this phone: nothing to show afterwards.
+    @Test
+    fun `a device that joined is told once, so leaving later is not reported as hidden`() {
+        // P-23: nothing waits for an answer, so a device that joins and then leaves is a
+        // departure (a rotation is owed), not a "joined, then disappeared" notice.
+        val store = pairedStore()
+        NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
         NewDeviceWatcher.accept(store, listOf(self, peer, stranger).map(::ep))
-        NewDeviceWatcher.removed(store, "evil")
         NewDeviceWatcher.accept(store, listOf(self, peer).map(::ep))
         assertNull(store.newDeviceWatch!!.vanished)
+        assertEquals(listOf("evil"), store.newDeviceWatch!!.rotateFor)
+    }
+
+    // --- P-23: the watcher stores a settled record and tells per announcesNewDevices ---
+
+    private val phoneSelf = ListEntry("me", "Pixel 8", "2026-10-01T10:00:00.000Z", "pk-me", kind = "mobile")
+    private val now = "2026-10-30T12:00:00.000Z"
+
+    @Test
+    fun `a phone tells every join, and keeps nothing pending`() {
+        val store = pairedStore()
+        NewDeviceWatcher.accept(store, listOf(phoneSelf, peer).map(::ep), now = now)
+
+        val told = NewDeviceWatcher.accept(store, listOf(phoneSelf, peer, stranger).map(::ep), now = now)
+
+        assertTrue(told.announces)
+        assertTrue(told.tells)
+        assertEquals(listOf("evil"), told.joined.map { it.id })
+        assertTrue(told.firstList.isEmpty())
+        val stored = store.newDeviceWatch!!
+        assertTrue(stored.unconfirmed.isEmpty())
+        assertNull(stored.review)
+        assertEquals(listOf("me", "a", "evil"), stored.known)
+        // Nothing to tell on the next list.
+        assertTrue(!NewDeviceWatcher.accept(store, listOf(phoneSelf, peer, stranger).map(::ep), now = now).tells)
+    }
+
+    @Test
+    fun `the watcher tells only as announcesNewDevices says`() {
+        // This device as a browser (the rule is shared; the phone always tells).
+        val browserSelf = ListEntry("me", "Chrome · Mac", "2026-10-01T10:00:00.000Z", "pk-me")
+        val phone = ListEntry(
+            "phone", "Pixel 8", "2026-09-01T10:00:00.000Z", "pk-phone",
+            kind = "mobile", lastSeenAt = "2026-10-29T12:00:00.000Z",
+        )
+        val store = pairedStore()
+        NewDeviceWatcher.accept(store, listOf(browserSelf, phone).map(::ep), now = now)
+        val prev = store.newDeviceWatch
+        val list = listOf(browserSelf, phone, stranger).map(::ep)
+
+        val told = NewDeviceWatcher.accept(store, list, now = now)
+
+        assertEquals(listOf("evil"), told.joined.map { it.id })
+        assertEquals(
+            NewDevices.announcesNewDevices(prev, list, "me", io.tabsend.app.logic.parseIsoMillis(now)!!),
+            told.announces,
+        )
+        // A phone it had accepted was seen yesterday: the phone tells, this one stays quiet.
+        assertTrue(!told.announces)
+        assertTrue(!told.tells)
+        assertTrue(store.newDeviceWatch!!.unconfirmed.isEmpty())
+    }
+
+    @Test
+    fun `a record from before P-23 with notices left in it is settled by the next list`() {
+        val store = pairedStore()
+        NewDeviceWatcher.accept(store, listOf(phoneSelf, peer, stranger).map(::ep), now = now)
+        store.newDeviceWatch = store.newDeviceWatch!!.copy(
+            unconfirmed = listOf(NewDeviceNotice("evil", "Chrome · Mac", "2026-10-13T11:00:00.000Z")),
+            review = listOf(NewDeviceNotice("a", "Chrome · Mac", "2026-09-01T10:00:00.000Z")),
+        )
+
+        val told = NewDeviceWatcher.accept(store, listOf(phoneSelf, peer, stranger).map(::ep), now = now)
+
+        assertTrue(!told.tells)
+        assertTrue(store.newDeviceWatch!!.unconfirmed.isEmpty())
+        assertNull(store.newDeviceWatch!!.review)
+    }
+
+    // --- P-23: the pairing link's vouch, read by the first watch only -----------
+
+    // Real-length keys, so each has a full tag ([NewDevices.VOUCH_TAG_LENGTH]).
+    private val selfKeyed =
+        ListEntry("me", "Pixel 8", "2026-10-01T10:00:00.000Z", "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=")
+    private val vouchedMac =
+        ListEntry("a", "Chrome · Mac", "2026-09-01T10:00:00.000Z", "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=")
+    private val unvouchedMac =
+        ListEntry("b", "Arc · Mac", "2026-09-02T10:00:00.000Z", "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4=")
+
+    @Test
+    fun `the first list takes the vouch the pairing link carried, and the vouch is then cleared`() {
+        val store = pairedStore()
+        store.pairingVouch = listOf("Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_")
+
+        val told = NewDeviceWatcher.accept(store, listOf(selfKeyed, vouchedMac, unvouchedMac).map(::ep))
+
+        assertTrue(told.joined.isEmpty())
+        // Only the device the link did not vouch for is told about, once.
+        assertEquals(listOf("b"), told.firstList.map { it.id })
+        assertNull(store.newDeviceWatch!!.review)
+        assertNull(store.pairingVouch)
+    }
+
+    @Test
+    fun `a vouch is not read once a record exists`() {
+        val store = pairedStore()
+        NewDeviceWatcher.accept(store, listOf(selfKeyed).map(::ep))
+        store.pairingVouch = listOf("Pix-el8_Pix-el8_")
+
+        val told = NewDeviceWatcher.accept(store, listOf(selfKeyed, vouchedMac).map(::ep))
+
+        assertEquals(listOf("a"), told.joined.map { it.id })
+        assertTrue(told.firstList.isEmpty())
+    }
+
+    @Test
+    fun `a list without this phone leaves the vouch for the list that has it`() {
+        val store = pairedStore()
+        store.pairingVouch = listOf("Pix-el8_Pix-el8_")
+        assertThrows(NewDeviceWatcher.ListWithoutSelfException::class.java) {
+            NewDeviceWatcher.accept(store, listOf(vouchedMac).map(::ep))
+        }
+        assertEquals(listOf("Pix-el8_Pix-el8_"), store.pairingVouch)
+    }
+
+    @Test
+    fun `a link this phone shows vouches for the devices it accepted, once told`() {
+        val store = pairedStore()
+        NewDeviceWatcher.accept(store, listOf(selfKeyed, vouchedMac, unvouchedMac).map(::ep))
+        // Told once and settled (P-23): every device in the accepted list is vouched for.
+        assertEquals(
+            listOf("Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_", "Mac1Mac1Mac1Mac1"),
+            NewDeviceWatcher.vouchTags(store),
+        )
+
+        // A record from before P-23 still holding one on its first look leaves it out.
+        store.newDeviceWatch = store.newDeviceWatch!!.copy(
+            review = listOf(NewDeviceNotice("b", "Arc · Mac", "2026-09-02T10:00:00.000Z")),
+        )
+        assertEquals(listOf("Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_"), NewDeviceWatcher.vouchTags(store))
+    }
+
+    @Test
+    fun `an unpaired phone vouches for nothing`() {
+        assertTrue(NewDeviceWatcher.vouchTags(Store.over(MemoryPrefs())).isEmpty())
     }
 }

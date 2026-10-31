@@ -1,5 +1,5 @@
 {
-  "//": "Cases for the 'new device joined' rule (PLANS.md P-10). Run by shared/src/newdevices.test.ts, android NewDevicesTest.kt and iOS NewDevicesTests.swift. A list entry carries only the fields the rule reads; each test fills in the rest of the Endpoint, with e2ePubkey 'pk' unless the entry gives one. 'now' is passed to the rule. A 'prev' without 'keys' is a record written before 2026-10-13: it learns the keys and announces nothing for them. 'currentKeyCreatedAt', when given, is passed to the rule as the createdAt of this device's current group key. 'rotateFor' is the ids the owed rotation is for: the key that pays it must name them all. 'removed' is the ids this device removed. 'remove' runs removeDevice (id, now and currentKeyCreatedAt as for 'watch'); 'rotationDeparted' is the ids a key minted for the watch's debt names. 'removedKeys' is the keys of devices this device removed: a device carrying one under a new id is left out of key handoff until its notice is answered. An id a key record cannot carry (empty, over 64 characters) and a repeated id are not owed. 'review' is the first look: the other devices in the first list, answered once. 'vanished' is devices announced as new, never answered, then gone without this device removing them. 'seed' (a watch case) is the device list a build from before the rule cached; it is the baseline when there is no record yet and it contains this device. 'confirmReview' and 'dismissVanished' are the two answers. 'heldTabChoices' is the devices a held tab whose device is gone may be moved to: the accepted ones (knownTo), never selfId or a console (a list entry's 'kind', 'extension' unless given), and none with a pending notice or on the first-look card; ids in list order.",
+  "//": "Cases for the 'new device joined' rule (PLANS.md P-10). Run by shared/src/newdevices.test.ts, android NewDevicesTest.kt and iOS NewDevicesTests.swift. A list entry carries only the fields the rule reads; each test fills in the rest of the Endpoint, with e2ePubkey 'pk' unless the entry gives one. 'now' is passed to the rule. A 'prev' without 'keys' is a record written before 2026-10-13: it learns the keys and announces nothing for them. 'currentKeyCreatedAt', when given, is passed to the rule as the createdAt of this device's current group key. 'rotateFor' is the ids the owed rotation is for: the key that pays it must name them all. 'removed' is the ids this device removed. 'remove' runs removeDevice (id, now and currentKeyCreatedAt as for 'watch'); 'rotationDeparted' is the ids a key minted for the watch's debt names. 'removedKeys' is the keys of devices this device removed: a device carrying one under a new id is left out of key handoff until its notice is answered. An id a key record cannot carry (empty, over 64 characters) and a repeated id are not owed. 'review' is the first look: the other devices in the first list, answered once. 'vanished' is devices announced as new, never answered, then gone without this device removing them. 'seed' (a watch case) is the device list a build from before the rule cached; it is the baseline when there is no record yet and it contains this device. 'confirmReview' and 'dismissVanished' are the two answers. 'heldTabChoices' is the devices a held tab whose device is gone may be moved to: the accepted ones (knownTo), never selfId or a console (a list entry's 'kind', 'extension' unless given), and none with a pending notice or on the first-look card; ids in list order. 'vouched' (a watch case) is the tags the pairing link carried (P-23): on the baseline, a device whose key has a vouched tag is not put on the first look; once a record exists it is ignored. 'vouchTag' is a key's tag (its first 16 characters, URL-safe); 'vouchTags' is the tags a link this device shows carries (accepted devices, this one included, none unanswered); 'withVouch' appends them to a link; 'parseVouch' reads them back, null when there are none. 'confirm' also drops a device from the first look. 'announces' (P-23) is whether this device tells the user a device joined: a phone always, a console never, a browser only when no phone it had accepted before this list ('prev') was seen in the 30 days before 'now' (epoch ms); a list entry's 'lastSeenAt' defaults to its 'createdAt'. 'settle' drops 'review' and empties 'unconfirmed', except a device carrying a key in 'removedKeys', which stays pending.",
   "watch": [
     {
       "name": "first list is the baseline and announces nothing",
@@ -2017,6 +2017,192 @@
         }
       ],
       "now": "2026-10-13T12:00:00.000Z"
+    },
+    {
+      "name": "a first list the pairing link vouched for goes on no first look",
+      "selfId": "me",
+      "prev": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        },
+        {
+          "id": "b",
+          "label": "Arc · Mac",
+          "createdAt": "2026-09-02T10:00:00Z",
+          "e2ePubkey": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4="
+        }
+      ],
+      "vouched": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_", "Mac1Mac1Mac1Mac1"],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+          "b": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4="
+        }
+      },
+      "joined": [],
+      "now": "2026-10-30T12:00:00.000Z"
+    },
+    {
+      "name": "a device the pairing link did not vouch for is still on the first look",
+      "selfId": "me",
+      "prev": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        },
+        {
+          "id": "b",
+          "label": "Arc · Mac",
+          "createdAt": "2026-09-02T10:00:00Z",
+          "e2ePubkey": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4="
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-30T10:05:00Z",
+          "e2ePubkey": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      ],
+      "vouched": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_", "Mac1Mac1Mac1Mac1"],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+          "b": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4=",
+          "x": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        },
+        "review": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-30T10:05:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-30T12:00:00.000Z"
+    },
+    {
+      "name": "a vouch matches the key, not the id or the name",
+      "selfId": "me",
+      "prev": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      ],
+      "vouched": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_"],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "Chrome · Mac",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ]
+      },
+      "joined": [],
+      "now": "2026-10-30T12:00:00.000Z"
+    },
+    {
+      "name": "a vouch is ignored once a record exists",
+      "selfId": "me",
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-30T10:05:00Z",
+          "e2ePubkey": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      ],
+      "vouched": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_", "Evi1Evi1Evi1Evi1"],
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-30T10:05:00Z"
+          }
+        ],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+          "x": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      },
+      "joined": [
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-30T10:05:00Z"
+        }
+      ],
+      "now": "2026-10-30T12:00:00.000Z"
     }
   ],
   "confirm": [
@@ -2049,6 +2235,60 @@
             "createdAt": "2026-10-08T16:00:00Z"
           }
         ]
+      }
+    },
+    {
+      "name": "confirming a device on the first look drops it from there only",
+      "id": "a",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "review": [
+          {
+            "id": "a",
+            "label": "Chrome · Mac",
+            "createdAt": "2026-09-01T10:00:00Z"
+          },
+          {
+            "id": "b",
+            "label": "Arc · Mac",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "a", "b"],
+        "unconfirmed": [],
+        "review": [
+          {
+            "id": "b",
+            "label": "Arc · Mac",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "confirming the last device on the first look answers it",
+      "id": "a",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": [],
+        "review": [
+          {
+            "id": "a",
+            "label": "Chrome · Mac",
+            "createdAt": "2026-09-01T10:00:00Z"
+          }
+        ]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "a"],
+        "unconfirmed": []
       }
     }
   ],
@@ -3150,7 +3390,13 @@
       "watch": {
         "selfId": "me",
         "known": ["me", "a", "n"],
-        "unconfirmed": [{ "id": "n", "label": "n", "createdAt": "2026-10-01T10:00:00Z" }],
+        "unconfirmed": [
+          {
+            "id": "n",
+            "label": "n",
+            "createdAt": "2026-10-01T10:00:00Z"
+          }
+        ],
         "keys": {
           "me": "pk",
           "a": "pk",
@@ -3183,7 +3429,13 @@
         "selfId": "me",
         "known": ["me", "a", "b"],
         "unconfirmed": [],
-        "review": [{ "id": "b", "label": "b", "createdAt": "2026-10-01T10:00:00Z" }],
+        "review": [
+          {
+            "id": "b",
+            "label": "b",
+            "createdAt": "2026-10-01T10:00:00Z"
+          }
+        ],
         "keys": {
           "me": "pk",
           "a": "pk",
@@ -3267,6 +3519,757 @@
         }
       ],
       "expect": ["phone"]
+    }
+  ],
+  "vouchTag": [
+    {
+      "name": "the first 16 characters, URL-safe",
+      "key": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+      "expect": "Pix-el8_Pix-el8_"
+    },
+    {
+      "name": "a plain key is cut and kept",
+      "key": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4=",
+      "expect": "Mac1Mac1Mac1Mac1"
+    }
+  ],
+  "vouchTags": [
+    {
+      "name": "no watch vouches for nothing",
+      "selfId": "me",
+      "watch": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "every accepted device, this one included, in list order",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+          "b": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4=",
+          "x": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        },
+        {
+          "id": "b",
+          "label": "Arc · Mac",
+          "createdAt": "2026-09-02T10:00:00Z",
+          "e2ePubkey": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4="
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-30T10:05:00Z",
+          "e2ePubkey": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      ],
+      "expect": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_", "Mac1Mac1Mac1Mac1", "Evi1Evi1Evi1Evi1"]
+    },
+    {
+      "name": "never a device with a pending notice or on the first look",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "Firefox · Linux",
+            "createdAt": "2026-10-30T10:05:00Z"
+          }
+        ],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+          "b": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4=",
+          "x": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        },
+        "review": [
+          {
+            "id": "b",
+            "label": "Arc · Mac",
+            "createdAt": "2026-09-02T10:00:00Z"
+          }
+        ]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        },
+        {
+          "id": "b",
+          "label": "Arc · Mac",
+          "createdAt": "2026-09-02T10:00:00Z",
+          "e2ePubkey": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4="
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-30T10:05:00Z",
+          "e2ePubkey": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      ],
+      "expect": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_"]
+    },
+    {
+      "name": "never a device this one removed, or one whose key changed",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+          "b": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4=",
+          "x": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        },
+        "removed": ["b"]
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        },
+        {
+          "id": "b",
+          "label": "Arc · Mac",
+          "createdAt": "2026-09-02T10:00:00Z",
+          "e2ePubkey": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4="
+        },
+        {
+          "id": "x",
+          "label": "Firefox · Linux",
+          "createdAt": "2026-10-30T10:05:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        }
+      ],
+      "expect": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_"]
+    },
+    {
+      "name": "a watch for another pairing vouches for nothing",
+      "selfId": "other",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+          "b": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4=",
+          "x": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      },
+      "list": [
+        {
+          "id": "other",
+          "label": "Pixel 9",
+          "createdAt": "2026-10-30T10:00:00Z",
+          "e2ePubkey": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q="
+        },
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "a list without this device vouches for nothing",
+      "selfId": "me",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "b", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Me0Q=",
+          "a": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4=",
+          "b": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4=",
+          "x": "Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Evi1Ev4="
+        }
+      },
+      "list": [
+        {
+          "id": "a",
+          "label": "Chrome · Mac",
+          "createdAt": "2026-09-01T10:00:00Z",
+          "e2ePubkey": "Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pix+el8/Pi4="
+        },
+        {
+          "id": "b",
+          "label": "Arc · Mac",
+          "createdAt": "2026-09-02T10:00:00Z",
+          "e2ePubkey": "Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Mac1Ma4="
+        }
+      ],
+      "expect": []
+    }
+  ],
+  "withVouch": [
+    {
+      "name": "tags go on the end of the fragment",
+      "link": "https://relay.example/pair#c=ABC12345",
+      "tags": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_"],
+      "expect": "https://relay.example/pair#c=ABC12345&v=Me0Me0Me0Me0Me0M.Pix-el8_Pix-el8_"
+    },
+    {
+      "name": "no tags, no change",
+      "link": "https://relay.example/pair#c=ABC12345",
+      "tags": [],
+      "expect": "https://relay.example/pair#c=ABC12345"
+    },
+    {
+      "name": "after a pin",
+      "link": "https://relay.example/pair#c=ABC12345&fp=AbC",
+      "tags": ["Mac1Mac1Mac1Mac1"],
+      "expect": "https://relay.example/pair#c=ABC12345&fp=AbC&v=Mac1Mac1Mac1Mac1"
+    },
+    {
+      "name": "a v the relay put in its link is removed before the tags go on",
+      "link": "https://relay.example/pair#c=ABC12345&v=EVILEVILEVILEVIL&fp=AbC",
+      "tags": ["Mac1Mac1Mac1Mac1"],
+      "expect": "https://relay.example/pair#c=ABC12345&fp=AbC&v=Mac1Mac1Mac1Mac1"
+    },
+    {
+      "name": "a v the relay put in its link is removed even with no tags to add",
+      "link": "https://relay.example/pair#c=ABC12345&v=EVILEVILEVILEVIL",
+      "tags": [],
+      "expect": "https://relay.example/pair#c=ABC12345"
+    }
+  ],
+  "parseVouch": [
+    {
+      "name": "an older link carries none",
+      "link": "https://relay.example/pair#c=ABC12345",
+      "expect": null
+    },
+    {
+      "name": "tags read back in order",
+      "link": "https://relay.example/pair#c=ABC12345&v=Me0Me0Me0Me0Me0M.Pix-el8_Pix-el8_",
+      "expect": ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_"]
+    },
+    {
+      "name": "between other params",
+      "link": "https://relay.example/pair#c=ABC12345&v=Mac1Mac1Mac1Mac1&fp=AbC",
+      "expect": ["Mac1Mac1Mac1Mac1"]
+    },
+    {
+      "name": "a tag of the wrong length or alphabet is dropped",
+      "link": "https://relay.example/pair#c=ABC12345&v=short.Pix-el8_Pix-el8_.Pix+el8/Pix+el8/.Pix-el8_Pix-el8_x",
+      "expect": ["Pix-el8_Pix-el8_"]
+    },
+    {
+      "name": "a repeated tag counts once",
+      "link": "https://relay.example/pair#c=ABC12345&v=Pix-el8_Pix-el8_.Pix-el8_Pix-el8_",
+      "expect": ["Pix-el8_Pix-el8_"]
+    },
+    {
+      "name": "nothing usable is none",
+      "link": "https://relay.example/pair#c=ABC12345&v=",
+      "expect": null
+    },
+    {
+      "name": "two v params trust neither",
+      "link": "https://relay.example/pair#c=ABC12345&v=EVILEVILEVILEVIL&v=Mac1Mac1Mac1Mac1",
+      "expect": null
+    }
+  ],
+  "announces": [
+    {
+      "name": "a phone always tells",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "phone", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "phone": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": true
+    },
+    {
+      "name": "a console never tells",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "console",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": false
+    },
+    {
+      "name": "a browser stays quiet when the group has a phone it accepted",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "phone", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "phone": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": false
+    },
+    {
+      "name": "a browser tells when the group has no phone",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": true
+    },
+    {
+      "name": "a browser tells when the phone was not seen for over 30 days",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "phone", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "phone": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "2026-09-01T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": true
+    },
+    {
+      "name": "a phone in the same list as the newcomer silences nobody",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": true
+    },
+    {
+      "name": "a phone whose key changed silences nobody",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "phone", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "phone": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk-other"
+        },
+        {
+          "id": "b",
+          "label": "b",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": true
+    },
+    {
+      "name": "with no record of this pairing a browser tells",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": null,
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": true
+    },
+    {
+      "name": "a phone seen at a time that cannot be read silences nobody",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "phone", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "phone": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "me",
+          "label": "me",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "extension",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        },
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "not a time",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": true
+    },
+    {
+      "name": "a list without this device tells nothing",
+      "selfId": "me",
+      "now": 1793361600000,
+      "prev": {
+        "selfId": "me",
+        "known": ["me", "phone", "b"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk",
+          "phone": "pk",
+          "b": "pk"
+        }
+      },
+      "list": [
+        {
+          "id": "phone",
+          "label": "phone",
+          "createdAt": "2026-08-01T00:00:00Z",
+          "kind": "mobile",
+          "lastSeenAt": "2026-10-29T12:00:00Z",
+          "e2ePubkey": "pk"
+        }
+      ],
+      "expect": false
+    }
+  ],
+  "settle": [
+    {
+      "name": "nothing is left pending or on the first look, the rest stays",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [
+          {
+            "id": "x",
+            "label": "x",
+            "createdAt": "2026-10-30T10:00:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk"
+        },
+        "review": [
+          {
+            "id": "a",
+            "label": "a",
+            "createdAt": "2026-10-30T10:00:00Z"
+          }
+        ],
+        "vanished": [
+          {
+            "id": "v",
+            "label": "v",
+            "createdAt": "2026-10-30T10:00:00Z"
+          }
+        ],
+        "removed": ["r"]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "a", "x"],
+        "unconfirmed": [],
+        "keys": {
+          "me": "pk"
+        },
+        "vanished": [
+          {
+            "id": "v",
+            "label": "v",
+            "createdAt": "2026-10-30T10:00:00Z"
+          }
+        ],
+        "removed": ["r"]
+      }
+    },
+    {
+      "name": "a device carrying the key of one this device removed stays pending, held out of key handoff",
+      "watch": {
+        "selfId": "me",
+        "known": ["me", "y", "z"],
+        "unconfirmed": [
+          {
+            "id": "y",
+            "label": "y",
+            "createdAt": "2026-10-30T10:00:00Z"
+          },
+          {
+            "id": "z",
+            "label": "z",
+            "createdAt": "2026-10-30T10:00:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "y": "pk-removed",
+          "z": "pk-z"
+        },
+        "removed": ["x"],
+        "removedKeys": ["pk-removed"]
+      },
+      "expect": {
+        "selfId": "me",
+        "known": ["me", "y", "z"],
+        "unconfirmed": [
+          {
+            "id": "y",
+            "label": "y",
+            "createdAt": "2026-10-30T10:00:00Z"
+          }
+        ],
+        "keys": {
+          "me": "pk",
+          "y": "pk-removed",
+          "z": "pk-z"
+        },
+        "removed": ["x"],
+        "removedKeys": ["pk-removed"]
+      }
     }
   ]
 }

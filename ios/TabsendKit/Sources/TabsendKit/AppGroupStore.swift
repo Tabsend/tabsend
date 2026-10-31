@@ -31,6 +31,7 @@ public final class AppGroupStore: TabsendStore, @unchecked Sendable {
         static let announcedNeverArrived = "history.announced"
         static let instantDeliveryOptOut = "wake.optout"
         static let newDeviceWatch = "devices.watch"
+        static let groupResetWatch = "group.reset"
         // Keychain items
         static let identityPrivate = "id.priv"
         static let deviceToken = "reg.token"
@@ -277,6 +278,21 @@ public final class AppGroupStore: TabsendStore, @unchecked Sendable {
         }
     }
 
+    /// JSON in App Group defaults: two timestamps and the ones already answered,
+    /// not a secret.
+    public var groupResetWatch: GroupResetWatch? {
+        get { lock.withLock { read(Key.groupResetWatch) } }
+        set { lock.withLock { writeOrRemove(newValue, Key.groupResetWatch) } }
+    }
+
+    /// Same lock, same honest limit as `updateOutbound`. Only the app writes it.
+    public func updateGroupResetWatch(_ transform: (GroupResetWatch?) -> GroupResetWatch?) {
+        lock.withLock {
+            let current: GroupResetWatch? = read(Key.groupResetWatch)
+            writeOrRemove(transform(current), Key.groupResetWatch)
+        }
+    }
+
     public var relayHealth: RelayHealth? {
         get { lock.withLock { read(Key.relayHealth) } }
         set {
@@ -316,7 +332,8 @@ public final class AppGroupStore: TabsendStore, @unchecked Sendable {
             for key in [Key.identityPublic, Key.identityKeyId, Key.registration,
                         Key.sourcePrefs, Key.seenSet, Key.endpointsCache, Key.outboundQueue,
                         Key.inbox, Key.relayHealth, Key.deliveredGroupKeys,
-                        Key.history, Key.announcedNeverArrived, Key.newDeviceWatch] {
+                        Key.history, Key.announcedNeverArrived, Key.newDeviceWatch,
+                        Key.groupResetWatch] {
                 defaults.removeObject(forKey: key)
             }
             keychain.remove(Key.identityPrivate)

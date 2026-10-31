@@ -101,7 +101,7 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
 
     private func showDenied() {
         let label = UILabel()
-        label.text = "Camera unavailable.\nAllow camera access in Settings, or paste the pairing link instead."
+        label.text = "Camera unavailable.\nAllow camera access in Settings, or paste the setup link instead."
         label.numberOfLines = 0
         label.textAlignment = .center
         label.textColor = .white

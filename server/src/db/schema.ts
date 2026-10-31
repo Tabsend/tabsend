@@ -50,6 +50,29 @@ export interface GroupsTable {
    * does can change it.
    */
   suspended_at: string | null
+  /**
+   * A RESET THAT WAITS (PLANS P-18 item 12): the control plane has scheduled this
+   * group to be replaced by a fresh, empty one, and every paired device gets the
+   * wait to see it and stop it. All three NULL on a group nobody ever asked to reset.
+   *
+   * A reset is PENDING exactly while `reset_requested_at` and `reset_at` are both
+   * set: `reset_requested_at` is when the control plane asked, `reset_at` is when it
+   * means to carry it out. Set only through the provisioning API; cleared by the
+   * control plane (the account owner cancelled) or by any device in the group (Stop).
+   *
+   * `reset_stopped_at` is when a DEVICE last stopped one, kept after the pending pair
+   * is cleared so the control plane can tell "a device said no" from "nobody acted".
+   * A new schedule clears it; the account owner cancelling leaves it alone.
+   *
+   * The relay never starts a reset on its own. When the time comes the control plane
+   * calls `reset/run`, which deletes the group only if the reset is still pending and
+   * due, then makes a new group and its first link: ADR-0021's own remedy. Nothing
+   * here opens a way into THIS group.
+   * Group-level timestamps, not per-device facts, so they may appear in usage.
+   */
+  reset_requested_at: string | null
+  reset_at: string | null
+  reset_stopped_at: string | null
 }
 
 export interface EndpointsTable {

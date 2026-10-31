@@ -13,6 +13,7 @@ import {
   setInbox,
   setSeen,
 } from '../lib/storage'
+import { refreshGroupReset } from './groupreset'
 import { recordEndpoints } from './newdevices'
 import { type ArrivedTab, notifyDelivered } from './notify'
 import { currentSession, type Session } from './session'
@@ -80,6 +81,11 @@ async function doPollFetch(opts: { ack?: boolean }): Promise<PollSummary> {
   if (!session) return EMPTY
   const { registration } = session
 
+  // A reset that waits (P-18 item 12) is read on every poll too, alongside the list:
+  // a popup may stay closed for the whole 72 hours, and the alarm is what still runs.
+  // Its own failure (or an older relay) never holds up a delivery.
+  const groupReset = refreshGroupReset().catch(() => undefined)
+
   let endpoints: Endpoint[]
   let pending: Message[]
   try {
@@ -88,11 +94,14 @@ async function doPollFetch(opts: { ack?: boolean }): Promise<PollSummary> {
     pending = await getPending(registration.relayUrl, registration.deviceToken)
   } catch {
     // Relay unreachable — nothing to do; the queue holds everything until we're back.
+    await groupReset
     return EMPTY
   }
 
   const senders = await senderKeyIndex(endpoints)
-  return deliverLoop(pending, session, senders, opts)
+  const summary = await deliverLoop(pending, session, senders, opts)
+  await groupReset
+  return summary
 }
 
 async function doDeliver(messages: Message[], opts: { ack?: boolean }): Promise<PollSummary> {

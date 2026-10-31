@@ -172,8 +172,8 @@
         <aside id="hosted-offer" class="notice accent" aria-labelledby="hosted-offer-title">
           <h2 id="hosted-offer-title">New to Tabsend?</h2>
           <p>
-            Start a free trial of our hosted service, and you get your pairing link in two
-            minutes. 30 days free, no card needed, then $14.99 a year or $49.99 once.
+            Start a free trial of our hosted service, and you get your setup link in two
+            minutes. 14 days free, no card needed, then $14.99 a year or $49.99 once.
           </p>
           <a
             id="hosted-offer-link"
@@ -191,7 +191,7 @@
           best guess. Keep it, or type the real name.
         </aside>
 
-        <label for="pairing-link-input">Pairing link</label>
+        <label for="pairing-link-input">Setup link</label>
         <input
           id="pairing-link-input"
           type="text"
@@ -200,12 +200,13 @@
           placeholder="https://relay.example/pair#c=…"
         />
         <p class="hint">
-          Paste the link from your Tabsend account page or from one of your paired devices. It
-          tells Tabsend which server to use and carries one-time credentials securely.
+          Paste the link from your Tabsend account page or from one of your devices. Came here
+          from the install page? It already copied the link for you. The link tells Tabsend which
+          server to use and carries one-time credentials securely.
         </p>
         <p class="hint" id="switch-link-note"></p>
         <p class="hint">
-          Running your own server? Use the pairing link it printed when it started.
+          Running your own server? Use the link it printed when it started.
         </p>
         <button type="button" id="join" class="btn-primary">Pair this browser</button>
       </section>
@@ -264,16 +265,16 @@
         </div>
 
         <div class="pair-block">
-          <button type="button" id="pair-another" class="btn-primary">Pair another device</button>
+          <button type="button" id="pair-another" class="btn-primary">Add a device</button>
           <div id="pairing-box">
             <div id="pairing-ready">
               <div id="pairing-qr"></div>
-              <input id="pairing-link" type="text" readonly aria-label="Pairing link" />
+              <input id="pairing-link" type="text" readonly aria-label="Setup link" />
               <div class="pair-actions">
-                <button type="button" class="linkish" id="copy-link">Copy pairing link</button>
+                <button type="button" class="linkish" id="copy-link">Copy link</button>
                 <span id="copy-note"></span>
               </div>
-              <p class="pair-hint">Scan the QR with a phone, or copy the pairing link to a browser extension.</p>
+              <p class="pair-hint">Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it.</p>
               <div id="pairing-local-only" role="status"></div>
             </div>
             <div id="pairing-note"></div>

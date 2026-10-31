@@ -53,9 +53,10 @@ import { currentSession } from './session'
  *     **Or rotate, if owed.** A device left the list since the current key was
  *     made (the new-device watch records it), so whatever left may hold that
  *     key. Mint a replacement unless another device already has [ADR-0028 §7].
- *  3. **Hand out.** Seal the current key to every other member that has not had
- *     it yet. This is the ONLY way a key ever travels: to a published X25519 key,
- *     never in a pairing link.
+ *  3. **Hand out.** Seal the group's keys to every other member that has not had
+ *     them yet, the current one and the older ones that still open history.
+ *     This is the ONLY way a key ever travels: to a published X25519 key, never
+ *     in a pairing link.
  *
  * The cost of all this being best-effort is the one ADR-0028 names: a freshly
  * paired device has no history until some other device next wakes. Receiving
@@ -284,7 +285,7 @@ function isGroupKeyLength(keyB64: string): boolean {
 }
 
 /**
- * Seal the current key to everyone who still needs it and post the copies.
+ * Seal the group's keys to everyone who still needs them and post the copies.
  *
  * One POST for the whole batch, mirroring `POST /v1/messages`: per-item outcomes
  * are independent, so one member with a rotated key cannot cost the others their
@@ -297,19 +298,21 @@ async function deliverPending(
   registration: { relayUrl: string; deviceToken: string; endpointId: string },
   identity: { keyId: string; privateKey: string },
 ): Promise<void> {
-  // Only the CURRENT key is handed on. An older one is still held by whoever was
-  // in the group when it was current, and a device that arrived after it was
-  // replaced has no history under it to read.
-  const record = currentKey(ring)
+  // Older keys are handed on too, not only the current one: a device that arrived
+  // after a rotation has retained history sealed under the key it replaced, and
+  // without that key it shows every earlier row locked (ADR-0028 amended 2026-10-30).
   const delivered = await getDeliveredKeys()
   const pending = pendingKeyDeliveries(ring, endpoints, registration.endpointId, delivered)
-  if (!record || pending.length === 0) return
+  if (pending.length === 0) return
 
-  const plaintext = JSON.stringify(record)
   const items: GroupKeyRequest['items'] = []
   for (const target of pending) {
     try {
-      const box = await seal(plaintext, target.targetPubkey, identity.privateKey)
+      const box = await seal(
+        JSON.stringify(target.record),
+        target.targetPubkey,
+        identity.privateKey,
+      )
       items.push({
         id: target.id,
         targetEndpointId: target.targetEndpointId as EndpointId,

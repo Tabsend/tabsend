@@ -17,6 +17,8 @@ private struct Vectors: Decodable {
         var createdAt: String
         var e2ePubkey: String?
         var kind: String?
+        /// Defaults to `createdAt`, as the vector file says.
+        var lastSeenAt: String?
     }
     struct WatchCase: Decodable {
         var name: String
@@ -26,6 +28,7 @@ private struct Vectors: Decodable {
         var prev: NewDeviceWatch?
         var seed: [ListEntry]?
         var list: [ListEntry]
+        var vouched: [String]?
         var watch: NewDeviceWatch?
         var joined: [NewDeviceNotice]
     }
@@ -95,6 +98,52 @@ private struct Vectors: Decodable {
     var rotationDone: [RotationDoneCase]
     var knownTo: [KnownToCase]
     var heldTabChoices: [HeldTabChoicesCase]
+    // The pairing link vouches for the first list (P-23).
+    struct VouchTagCase: Decodable {
+        var name: String
+        var key: String
+        var expect: String
+    }
+    struct VouchTagsCase: Decodable {
+        var name: String
+        var selfId: String
+        var watch: NewDeviceWatch?
+        var list: [ListEntry]
+        var expect: [String]
+    }
+    struct WithVouchCase: Decodable {
+        var name: String
+        var link: String
+        var tags: [String]
+        var expect: String
+    }
+    struct ParseVouchCase: Decodable {
+        var name: String
+        var link: String
+        /// Null in the file means "none".
+        var expect: [String]?
+    }
+    var vouchTag: [VouchTagCase]
+    var vouchTags: [VouchTagsCase]
+    var withVouch: [WithVouchCase]
+    var parseVouch: [ParseVouchCase]
+    // Told once, as information (P-23).
+    struct AnnouncesCase: Decodable {
+        var name: String
+        var selfId: String
+        /// Epoch milliseconds.
+        var now: Double
+        var prev: NewDeviceWatch?
+        var list: [ListEntry]
+        var expect: Bool
+    }
+    struct SettleCase: Decodable {
+        var name: String
+        var watch: NewDeviceWatch
+        var expect: NewDeviceWatch
+    }
+    var announces: [AnnouncesCase]
+    var settle: [SettleCase]
 }
 
 private func loadVectors() throws -> Vectors {
@@ -111,12 +160,13 @@ private func loadVectors() throws -> Vectors {
 }
 
 /// The vectors carry only the fields the rule reads; the rest is filler. The key is
-/// "pk" and the kind "extension" unless the entry names one, as the vector file says.
+/// "pk", the kind "extension" and `lastSeenAt` the `createdAt` unless the entry names
+/// one, as the vector file says.
 private func endpoint(_ entry: Vectors.ListEntry) -> Endpoint {
     Endpoint(
         id: entry.id, groupId: "g", kind: entry.kind ?? "extension", browser: nil, platform: nil,
         label: entry.label, deviceName: nil, e2ePubkey: entry.e2ePubkey ?? "pk",
-        presence: "online", lastSeenAt: entry.createdAt, createdAt: entry.createdAt
+        presence: "online", lastSeenAt: entry.lastSeenAt ?? entry.createdAt, createdAt: entry.createdAt
     )
 }
 
@@ -127,7 +177,8 @@ struct NewDevicesVectorTests {
         for c in vectors.watch {
             let result = NewDevices.watch(
                 prev: c.prev, list: c.list.map(endpoint), selfId: c.selfId, now: c.now,
-                currentKeyCreatedAt: c.currentKeyCreatedAt, seed: c.seed?.map(endpoint)
+                currentKeyCreatedAt: c.currentKeyCreatedAt, seed: c.seed?.map(endpoint),
+                vouched: c.vouched
             )
             #expect(result.watch == c.watch, "\(c.name): watch")
             #expect(result.joined == c.joined, "\(c.name): joined")
@@ -223,6 +274,61 @@ struct NewDevicesVectorTests {
         }
     }
 
+    @Test func everyVouchTagCase() throws {
+        let vectors = try loadVectors()
+        #expect(!vectors.vouchTag.isEmpty)
+        for c in vectors.vouchTag {
+            #expect(NewDevices.vouchTag(c.key) == c.expect, "\(c.name)")
+        }
+    }
+
+    @Test func everyVouchTagsCase() throws {
+        let vectors = try loadVectors()
+        #expect(!vectors.vouchTags.isEmpty)
+        for c in vectors.vouchTags {
+            #expect(
+                NewDevices.vouchTags(c.watch, c.list.map(endpoint), selfId: c.selfId) == c.expect,
+                "\(c.name)"
+            )
+        }
+    }
+
+    @Test func everyWithVouchCase() throws {
+        let vectors = try loadVectors()
+        #expect(!vectors.withVouch.isEmpty)
+        for c in vectors.withVouch {
+            #expect(NewDevices.withVouch(c.link, c.tags) == c.expect, "\(c.name)")
+        }
+    }
+
+    @Test func everyParseVouchCase() throws {
+        let vectors = try loadVectors()
+        #expect(!vectors.parseVouch.isEmpty)
+        for c in vectors.parseVouch {
+            #expect(NewDevices.parseVouch(c.link) == c.expect, "\(c.name)")
+        }
+    }
+
+    @Test func everyAnnouncesCase() throws {
+        let vectors = try loadVectors()
+        #expect(!vectors.announces.isEmpty)
+        for c in vectors.announces {
+            #expect(
+                NewDevices.announcesNewDevices(c.prev, c.list.map(endpoint), selfId: c.selfId, now: c.now)
+                    == c.expect,
+                "\(c.name)"
+            )
+        }
+    }
+
+    @Test func everySettleCase() throws {
+        let vectors = try loadVectors()
+        #expect(!vectors.settle.isEmpty)
+        for c in vectors.settle {
+            #expect(NewDevices.settleNotices(c.watch) == c.expect, "\(c.name)")
+        }
+    }
+
     @Test func aRecordWithAnUnknownFieldStillDecodes() throws {
         // A record written by a later build must not wipe the baseline here.
         let json = #"{"selfId":"me","known":["me"],"unconfirmed":[],"somethingNew":1}"#
@@ -248,12 +354,59 @@ struct NewDevicesStoreTests {
     @Test func observeBaselinesThenAnnouncesOnce() {
         let store = registered("me")
         #expect(NewDevices.observe(list(["me", "a"]), store: store).joined.isEmpty)
-        #expect(NewDevices.observe(list(["me", "a", "x"]), store: store).joined.map(\.id) == ["x"])
-        // The same list again announces nothing, but the notice stays until answered.
-        #expect(NewDevices.observe(list(["me", "a", "x"]), store: store).joined.isEmpty)
-        #expect(NewDevices.unconfirmed(store: store).map(\.id) == ["x"])
-        NewDevices.dismiss(id: "x", store: store)
-        #expect(NewDevices.unconfirmed(store: store).isEmpty)
+        let told = NewDevices.observe(list(["me", "a", "x"]), store: store)
+        #expect(told.joined.map(\.id) == ["x"])
+        #expect(told.announcement == NewDevices.Announcement(kind: .joined, devices: told.joined))
+        // The same list again announces nothing, and nothing waits for an answer (P-23).
+        let again = NewDevices.observe(list(["me", "a", "x"]), store: store)
+        #expect(again.joined.isEmpty)
+        #expect(again.announcement == nil)
+        #expect(NewDevices.current(store: store)?.unconfirmed.isEmpty == true)
+    }
+
+    /// P-23: the record is stored settled, and the one notification follows
+    /// `announcesNewDevices`, read against the record from before the list.
+    @Test func theRecordIsStoredSettledAndOnlyTheDeviceThatTellsAnnounces() {
+        let now = WireDate.date(from: "2026-10-30T12:00:00Z")!
+        func device(_ id: String, _ kind: String) -> Endpoint {
+            endpoint(.init(
+                id: id, label: "Device \(id)", createdAt: "2026-10-01T00:00:00Z", kind: kind,
+                lastSeenAt: "2026-10-30T11:00:00Z"
+            ))
+        }
+
+        // A phone always tells, and keeps nothing waiting for an answer.
+        let phone = registered("me")
+        NewDevices.observe([device("me", "mobile"), device("a", "extension")], store: phone, now: now)
+        let told = NewDevices.observe(
+            [device("me", "mobile"), device("a", "extension"), device("x", "extension")],
+            store: phone, now: now
+        )
+        #expect(told.announcement?.kind == .joined)
+        #expect(told.announcement?.devices.map(\.id) == ["x"])
+        #expect(phone.newDeviceWatch?.unconfirmed.isEmpty == true)
+        #expect(phone.newDeviceWatch?.review == nil)
+        #expect(phone.newDeviceWatch?.known == ["me", "a", "x"])
+
+        // A browser whose group has a phone it accepted and saw lately stays quiet; the
+        // record moves on all the same.
+        let browser = registered("me")
+        let group = [device("me", "extension"), device("p", "mobile")]
+        NewDevices.observe(group, store: browser, now: now)
+        let quiet = NewDevices.observe(group + [device("x", "extension")], store: browser, now: now)
+        #expect(quiet.joined.map(\.id) == ["x"])
+        #expect(quiet.announcement == nil)
+        #expect(browser.newDeviceWatch?.unconfirmed.isEmpty == true)
+        #expect(browser.newDeviceWatch?.known == ["me", "p", "x"])
+
+        // A phone that arrives in the same list as the newcomer silences nobody.
+        let lone = registered("me")
+        NewDevices.observe([device("me", "extension")], store: lone, now: now)
+        let loud = NewDevices.observe(
+            [device("me", "extension"), device("p", "mobile"), device("x", "extension")],
+            store: lone, now: now
+        )
+        #expect(loud.announcement?.devices.map(\.id) == ["p", "x"])
     }
 
     @Test func unregisteredStoreDoesNothing() {
@@ -324,34 +477,49 @@ struct NewDevicesCopyTests {
     private let y = NewDeviceNotice(id: "y", label: "Console", createdAt: "2026-10-08T14:03:00Z")
     private let z = NewDeviceNotice(id: "z", label: "Edge · Windows", createdAt: "2026-10-08T14:04:00Z")
 
-    @Test func oneDevice() {
-        #expect(NewDevices.alertTitle([x]) == "New device: Firefox · Linux")
-        #expect(NewDevices.alertBody([x], now: now)
-            == "Joined your Tabsend devices 3m ago. Was this you? If not, remove it.")
-        #expect(NewDevices.bannerTitle(x) == "New device: Firefox · Linux")
-        #expect(NewDevices.bannerBody(x, now: now)
-            == "Joined 3m ago. Was this you? If it isn't yours, remove it. It could read the links you send.")
+    private func joined(_ devices: [NewDeviceNotice]) -> NewDevices.Announcement {
+        NewDevices.Announcement(kind: .joined, devices: devices)
     }
 
-    @Test func severalDevices() {
-        #expect(NewDevices.alertTitle([x, y, z]) == "3 new devices joined")
-        #expect(NewDevices.alertBody([x, y, z], now: now)
-            == "Firefox · Linux, Console and Edge · Windows. Were these you? If not, remove them.")
-        #expect(NewDevices.alertBody([x, y], now: now)
-            == "Firefox · Linux and Console. Were these you? If not, remove them.")
+    private func firstList(_ devices: [NewDeviceNotice]) -> NewDevices.Announcement {
+        NewDevices.Announcement(kind: .firstList, devices: devices)
     }
 
-    @Test func unreadableDateSaysRecently() {
+    // Information only (P-23): the same words on every client.
+
+    @Test func oneDeviceJoined() {
+        #expect(NewDevices.alertTitle(joined([x])) == "Firefox · Linux was added")
+        #expect(NewDevices.alertBody(joined([x]), now: now)
+            == "It joined your Tabsend devices 3m ago. If that wasn't you, remove it in Tabsend.")
+    }
+
+    @Test func severalDevicesJoined() {
+        #expect(NewDevices.alertTitle(joined([x, y, z])) == "3 devices were added")
+        #expect(NewDevices.alertBody(joined([x, y, z]), now: now)
+            == "Firefox · Linux, Console and Edge · Windows joined your Tabsend devices. If any wasn't you, remove it in Tabsend.")
+        #expect(NewDevices.alertBody(joined([x, y]), now: now)
+            == "Firefox · Linux and Console joined your Tabsend devices. If any wasn't you, remove it in Tabsend.")
+    }
+
+    @Test func anUnreadableTimeIsLeftOut() {
         let odd = NewDeviceNotice(id: "o", label: "Odd", createdAt: "not a date")
-        #expect(NewDevices.bannerBody(odd, now: now).hasPrefix("Joined recently."))
+        #expect(NewDevices.alertBody(joined([odd]), now: now)
+            == "It joined your Tabsend devices. If that wasn't you, remove it in Tabsend.")
+    }
+
+    @Test func theFirstList() {
+        #expect(NewDevices.alertTitle(firstList([x])) == "Firefox · Linux is in your group")
+        #expect(NewDevices.alertBody(firstList([x]), now: now)
+            == "The device you paired with didn't list it. If it isn't yours, remove it in Tabsend.")
+        #expect(NewDevices.alertTitle(firstList([x, y])) == "2 devices are in your group")
+        #expect(NewDevices.alertBody(firstList([x, y]), now: now)
+            == "Firefox · Linux and Console. The device you paired with didn't list them. If any isn't yours, remove it in Tabsend.")
     }
 
     @Test func noEmDashesInCopy() {
-        let all = [
-            NewDevices.alertTitle([x]), NewDevices.alertBody([x], now: now),
-            NewDevices.alertTitle([x, y]), NewDevices.alertBody([x, y], now: now),
-            NewDevices.bannerTitle(x), NewDevices.bannerBody(x, now: now),
-        ]
+        let all = [joined([x]), joined([x, y]), firstList([x]), firstList([x, y])].flatMap {
+            [NewDevices.alertTitle($0), NewDevices.alertBody($0, now: now)]
+        }
         #expect(all.allSatisfy { !$0.contains("\u{2014}") })
     }
 }
@@ -454,7 +622,8 @@ struct RemovalRecordTests {
 }
 
 /// GH6 and GH7 through the store: the first look, the cached baseline, and a device
-/// that joined and then disappeared.
+/// that joined and then disappeared. Since P-23 the first look is told once, by the
+/// one notification (`Observation.announcement`), and the record keeps none of it.
 struct FirstLookAndVanishedTests {
     private func list(_ ids: [String]) -> [Endpoint] {
         ids.map {
@@ -475,14 +644,65 @@ struct FirstLookAndVanishedTests {
         return store
     }
 
-    @Test func theFirstListAsksOnceAndTheAnswerSticks() {
+    /// A record an earlier build left with a notice still waiting for an answer.
+    private func leavePending(_ id: String, in store: MemoryStore) {
+        store.updateNewDeviceWatch { prev in
+            prev.map { watch in
+                var pending = watch
+                pending.unconfirmed = [
+                    NewDeviceNotice(id: id, label: id, createdAt: "2026-10-01T10:00:00.000Z"),
+                ]
+                return pending
+            }
+        }
+    }
+
+    @Test func theFirstListIsToldOnce() {
         let store = store()
-        NewDevices.observe(list(["me", "a"]), store: store)
-        #expect(NewDevices.review(store: store).map(\.id) == ["a"])
-        NewDevices.answerReview(store: store)
-        #expect(NewDevices.review(store: store).isEmpty)
-        NewDevices.observe(list(["me", "a"]), store: store)
-        #expect(NewDevices.review(store: store).isEmpty)
+        let first = NewDevices.observe(list(["me", "a", "b"]), store: store)
+        #expect(first.joined.isEmpty)
+        #expect(first.announcement?.kind == .firstList)
+        #expect(first.announcement?.devices.map(\.id) == ["a", "b"])
+        #expect(NewDevices.current(store: store)?.review == nil, "nothing waits for an answer (P-23)")
+        #expect(NewDevices.observe(list(["me", "a", "b"]), store: store).announcement == nil)
+    }
+
+    /// The same list with a full-length key per device, so a link can vouch for each.
+    private func vouchedList(_ ids: [String]) -> [Endpoint] {
+        list(ids).map { endpoint in
+            var keyed = endpoint
+            keyed.e2ePubkey = "Key0\(endpoint.id)".padding(toLength: 44, withPad: "0", startingAt: 0)
+            return keyed
+        }
+    }
+
+    @Test func thePairingLinkVouchesForTheFirstListAndIsUsedOnce() {
+        // P-23: the tags ride on the registration until the first list is checked.
+        let store = store()
+        let devices = vouchedList(["me", "a", "x"])
+        store.registration?.vouched = NewDevices.vouchTags(
+            NewDeviceWatch(
+                selfId: "a", known: ["me", "a"], unconfirmed: [],
+                keys: Dictionary(uniqueKeysWithValues: devices.prefix(2).map { ($0.id, $0.e2ePubkey) })
+            ),
+            Array(devices.prefix(2)), selfId: "a"
+        )
+        #expect(store.registration?.vouched?.count == 2)
+        let observed = NewDevices.observe(devices, store: store)
+        #expect(observed.joined.isEmpty)
+        // "a" was vouched for; "x" was not, so it alone is told about.
+        #expect(observed.announcement?.kind == .firstList)
+        #expect(observed.announcement?.devices.map(\.id) == ["x"])
+        #expect(NewDevices.current(store: store)?.review == nil)
+        #expect(store.registration?.vouched == nil, "the tags are cleared once the record is stored")
+    }
+
+    @Test func aLinkWithoutTagsTellsAboutEveryone() {
+        let store = store()
+        let observed = NewDevices.observe(vouchedList(["me", "a"]), store: store)
+        #expect(observed.announcement?.kind == .firstList)
+        #expect(observed.announcement?.devices.map(\.id) == ["a"])
+        #expect(store.registration?.vouched == nil)
     }
 
     @Test func theListAnEarlierBuildCachedIsTheBaseline() {
@@ -490,7 +710,9 @@ struct FirstLookAndVanishedTests {
         store.cachedEndpoints = list(["me", "a"])
         let observed = NewDevices.observe(list(["me", "a", "x"]), store: store)
         #expect(observed.joined.map(\.id) == ["x"])
-        #expect(NewDevices.review(store: store).map(\.id) == ["a"])
+        // What joined is told; the cached list's own devices are not told on top of it.
+        #expect(observed.announcement == NewDevices.Announcement(kind: .joined, devices: observed.joined))
+        #expect(NewDevices.current(store: store)?.review == nil)
     }
 
     @Test func aCacheFromAnotherPairingIsNotUsed() {
@@ -498,21 +720,25 @@ struct FirstLookAndVanishedTests {
         store.cachedEndpoints = list(["other", "old"])
         let observed = NewDevices.observe(list(["me", "a"]), store: store)
         #expect(observed.joined.isEmpty)
-        #expect(NewDevices.review(store: store).map(\.id) == ["a"])
+        #expect(observed.announcement?.kind == .firstList)
+        #expect(observed.announcement?.devices.map(\.id) == ["a"])
     }
 
-    @Test func aDeviceThatJoinedThenDisappearedStaysUntilDismissedUnlessThisPhoneRemovedIt() {
+    @Test func aPendingDeviceThatDisappearedStaysUntilDismissedUnlessThisPhoneRemovedIt() {
+        // Since P-23 this phone stores no pending notice, but a record an earlier build
+        // left can carry one, and such a device leaving is still reported (GH7).
         let store = store()
-        NewDevices.observe(list(["me", "a"]), store: store)
         NewDevices.observe(list(["me", "a", "x"]), store: store)
+        leavePending("x", in: store)
         NewDevices.observe(list(["me", "a"]), store: store)
         #expect(NewDevices.vanished(store: store).map(\.id) == ["x"])
-        #expect(NewDevices.unconfirmed(store: store).isEmpty)
+        #expect(NewDevices.current(store: store)?.unconfirmed.isEmpty == true)
 
         NewDevices.dismissVanished(id: "x", store: store)
         #expect(NewDevices.vanished(store: store).isEmpty)
 
         NewDevices.observe(list(["me", "a", "y"]), store: store)
+        leavePending("y", in: store)
         NewDevices.recordRemoval(id: "y", store: store)
         NewDevices.observe(list(["me", "a"]), store: store)
         #expect(NewDevices.vanished(store: store).isEmpty)

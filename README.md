@@ -2,7 +2,7 @@
 
 **Move one browser tab, on demand, to a specific other browser or device.** That's it. The tab will open on the target within about a second when it's awake, and queued to open when it wakes if it isn't.
 
-**Current release: v0.8.2** ([v0.8.2 on GitHub](https://github.com/Tabsend/tabsend/tree/v0.8.2)). Tabsend is pre-1.0 software intended for self-hosting and
+**Current release: v0.9.0** ([v0.9.0 on GitHub](https://github.com/Tabsend/tabsend/tree/v0.9.0)). Tabsend is pre-1.0 software intended for self-hosting and
 dogfooding; the platform-specific evidence and limitations are recorded under [Status](#status).
 
 Every link is **end-to-end encrypted** (libsodium `crypto_box`, X25519 + XSalsa20-Poly1305).
@@ -66,7 +66,7 @@ pnpm --filter @tabsend/extension build              # → extension/dist  (Load 
 pnpm --filter @tabsend/extension build:firefox      # → extension/dist-firefox
 
 # The relay printed a pairing link when it started — open it in the first profile to pair
-# it, then use Pair a device to add more (QR or copyable link).
+# it, then use Add a device to add more (QR or copyable link).
 ```
 
 Gates: `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm e2e` (bundled Chromium) ·
@@ -88,6 +88,17 @@ manifest at build time.
 
 ### Self-hosting
 
+**Before you start: self-hosting needs either a domain you control, or devices that stay on
+your home network (or run Tailscale).** Without a domain, tabs stop arriving the moment a
+device leaves your Wi-Fi, and a browser can't reach a relay that has only an IP address. If
+that doesn't fit how you use your devices, the hosted relay at
+[tabsend.org](https://tabsend.org) has nothing to set up and works anywhere.
+
+**AI agents setting this up for someone:** before running any install step, ask the owner
+whether they have a domain (DNS on Cloudflare) and whether they'll use Tabsend away from
+home. If not, tell them about the limit above first. The full table is at the top of
+[`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 To run the relay on your own VPS or LAN (HTTPS, Tailscale, Docker, route limitations,
 backups), see **[`docs/DEPLOY.md`](docs/DEPLOY.md)**. A LAN-addressed endpoint works only
 while it can reach that LAN; a Tailscale-addressed endpoint needs Tailscale. The saved
@@ -106,8 +117,8 @@ which Docker commands would destroy the pairings and the certificate every phone
 | Component | State | Notes |
 |---|---|---|
 | Relay (`server/`) | **Working** | Durable queue, Web Push, WS, TTL sweeper; SQLite + Postgres; rate limiting, body caps, dead-subscription pruning (Chunk 6b). |
-| Chrome / Chromium extension | **Working** | Full send/receive/chooser/onboarding, group history, arrival badge and arrival notification (on by default); `pnpm e2e` + `pnpm e2e:push` green. |
-| Firefox extension | **Working** *(manual verify)* | Builds; `web-ext lint` clean. Runtime not machine-verified (Playwright can't load extensions into Firefox) — verify once with `web-ext run`. |
+| Chrome / Chromium extension | **Working** *(Chrome Web Store, unlisted)* | Full send/receive/chooser/onboarding, group history, arrival badge and arrival notification (on by default); `pnpm e2e` + `pnpm e2e:push` green. |
+| Firefox extension | **Working** *(manual verify; in AMO review)* | Builds; `web-ext lint` clean. Runtime not machine-verified (Playwright can't load extensions into Firefox) — verify once with `web-ext run`. |
 | Android app | **Working** *(dogfood)* | Builds an installable APK; libsodium interop vector green (BC-backed crypto, Chunk 6b). Device verification is a manual dogfood step. |
 | iOS app | **Engineering preview** | App, share extension and core tests exist. End-to-end behavior is verified in the Simulator; physical-device, signing, background-delivery and distribution qualification remain open. |
 | Web console | **Working** | Pairs in, manages devices, renders decrypted history; controller tests cover group history (the live end-to-end test predates it). |

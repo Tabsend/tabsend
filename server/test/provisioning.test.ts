@@ -86,6 +86,13 @@ async function mintFirstLink(base: string, groupId: string): Promise<MintedPairi
   return res.body
 }
 
+/** Mint a pairing link the ordinary way, from a device that is already in the group. */
+async function mintPairingFromDevice(base: string, token: string): Promise<string> {
+  const res = await http.post<{ link: string }>(base, '/v1/pairing', undefined, token)
+  expect(res.status).toBe(201)
+  return pairingCodeFromLink(res.body.link)
+}
+
 const usageOf = (base: string, groupId: string) =>
   http.get<GroupUsage>(base, `/admin/provisioning/groups/${groupId}/usage`, TOKEN)
 
@@ -394,13 +401,6 @@ describe('provisioning API: the tenancy lifecycle', () => {
     })
   })
 
-  /** Mint a pairing link the ordinary way, from a device that is already in the group. */
-  async function mintPairingFromDevice(base: string, token: string): Promise<string> {
-    const res = await http.post<{ link: string }>(base, '/v1/pairing', undefined, token)
-    expect(res.status).toBe(201)
-    return pairingCodeFromLink(res.body.link)
-  }
-
   /**
    * A pairing code that already existed when the group was suspended. Written straight
    * to the store because the route that mints one is (correctly) refused by then.
@@ -561,6 +561,100 @@ describe('provisioning API: the first link is only ever the FIRST', () => {
     )
     expect(res.status).toBe(403)
     expect(res.body.error.message).toContain('suspended')
+  })
+})
+
+/**
+ * PLANS P-21. A first device that joined and lost its pairing before choosing its device
+ * name stays in the group, and the rule above then locked the account out of its own first
+ * link with no device to pair from. The account page may clear such LEFTOVERS, but only
+ * under the strict rule (`leftoverEndpoints`): every device nameless, silent for an hour,
+ * and no message ever in the group. Each case below breaks exactly one part of it.
+ */
+describe('provisioning API: leftovers of a failed first setup', () => {
+  const HOUR = 60 * 60 * 1000
+  const mintStatus = async (groupId: string) =>
+    (
+      await http.post<ApiError>(
+        server.baseUrl,
+        `/admin/provisioning/groups/${groupId}/pairing`,
+        undefined,
+        TOKEN,
+      )
+    ).status
+
+  it('clears a nameless device silent for an hour, and mints a new first link', async () => {
+    server = await startHosted()
+    const groupId = await createGroup(server.baseUrl)
+    const first = await mintFirstLink(server.baseUrl, groupId)
+    const ghost = await register(server.baseUrl, { pairingCode: pairingCodeFromLink(first.link) })
+
+    server.clock.advance(HOUR - 1000)
+    expect((await usageOf(server.baseUrl, groupId)).body.leftoverEndpoints).toBe(0)
+    expect(await mintStatus(groupId)).toBe(403)
+
+    server.clock.advance(1000)
+    expect((await usageOf(server.baseUrl, groupId)).body.leftoverEndpoints).toBe(1)
+    await mintFirstLink(server.baseUrl, groupId)
+
+    const after = await usageOf(server.baseUrl, groupId)
+    expect(after.body.endpoints).toBe(0)
+    expect(after.body.leftoverEndpoints).toBe(0)
+    // The leftover gets the definitive answer if it ever calls again.
+    const call = await http.get<ApiError>(server.baseUrl, '/v1/endpoints', ghost.token)
+    expect(call.status).toBe(401)
+    expect(call.body.error.code).toBe('endpoint_removed')
+  })
+
+  it('never clears a device that chose its name', async () => {
+    server = await startHosted()
+    const groupId = await createGroup(server.baseUrl)
+    const first = await mintFirstLink(server.baseUrl, groupId)
+    await register(server.baseUrl, {
+      pairingCode: pairingCodeFromLink(first.link),
+      deviceName: 'iPhone',
+    })
+    server.clock.advance(30 * 24 * HOUR)
+    expect((await usageOf(server.baseUrl, groupId)).body.leftoverEndpoints).toBe(0)
+    expect(await mintStatus(groupId)).toBe(403)
+    expect((await usageOf(server.baseUrl, groupId)).body.endpoints).toBe(1)
+  })
+
+  it('clears nothing when one device of several is real', async () => {
+    server = await startHosted()
+    const groupId = await createGroup(server.baseUrl)
+    const first = await mintFirstLink(server.baseUrl, groupId)
+    const ghost = await register(server.baseUrl, { pairingCode: pairingCodeFromLink(first.link) })
+    await register(server.baseUrl, {
+      pairingCode: await mintPairingFromDevice(server.baseUrl, ghost.token),
+      deviceName: 'Pixel',
+    })
+    server.clock.advance(2 * HOUR)
+    expect((await usageOf(server.baseUrl, groupId)).body.leftoverEndpoints).toBe(0)
+    expect(await mintStatus(groupId)).toBe(403)
+    expect((await usageOf(server.baseUrl, groupId)).body.endpoints).toBe(2)
+  })
+
+  it('clears nothing once the group has carried a message', async () => {
+    server = await startHosted()
+    const groupId = await createGroup(server.baseUrl)
+    const first = await mintFirstLink(server.baseUrl, groupId)
+    const a = await register(server.baseUrl, { pairingCode: pairingCodeFromLink(first.link) })
+    const b = await register(server.baseUrl, {
+      pairingCode: await mintPairingFromDevice(server.baseUrl, a.token),
+    })
+    const sent = await http.post<SendResponse>(
+      server.baseUrl,
+      '/v1/messages',
+      {
+        items: [{ id: 'm-1', targetEndpointId: b.endpointId, envelope: envelopeFor(b.e2ePubkey) }],
+      },
+      a.token,
+    )
+    expect(sent.body.accepted).toEqual(['m-1'])
+    server.clock.advance(2 * HOUR)
+    expect((await usageOf(server.baseUrl, groupId)).body.leftoverEndpoints).toBe(0)
+    expect(await mintStatus(groupId)).toBe(403)
   })
 })
 

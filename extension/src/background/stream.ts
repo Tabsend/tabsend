@@ -1,5 +1,6 @@
 import type { ServerStreamEvent } from '@tabsend/shared'
 import { fetchEndpoints } from './endpoints'
+import { refreshGroupReset } from './groupreset'
 import { rebuildMenus } from './menus'
 import { deliverPushed } from './receive'
 
@@ -51,6 +52,16 @@ export async function handleStreamEvent(event: ServerStreamEvent): Promise<void>
         // offline — the cache stands; the next poll refreshes it
       }
       await rebuildMenus()
+      notifyChooser()
+      break
+    case 'group_updated':
+      // The group's own state changed (a reset scheduled or stopped, P-18 item 12).
+      // The event carries nothing; read the state again, which alerts if it is new.
+      try {
+        await refreshGroupReset()
+      } catch {
+        // offline: the stored state stands; the next poll reads it again
+      }
       notifyChooser()
       break
     case 'pong':

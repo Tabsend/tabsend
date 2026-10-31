@@ -21,7 +21,7 @@ Two private routes, either is fine:
    [Security tab](https://github.com/Tabsend/tabsend/security/advisories) of the repository and
    choose "Report a vulnerability". This keeps the whole thread private, gives you a place to
    attach a proof of concept, and lets a fix and an advisory be published together.
-2. **Email** — <info@zinniadrive.com>, with `Tabsend security` in the subject line so it doesn't
+2. **Email** — <contact@zinniadrive.com>, with `Tabsend security` in the subject line so it doesn't
    get lost.
 
 There is **no PGP key** and no bug bounty. This is a one-person, pre-1.0 project with no

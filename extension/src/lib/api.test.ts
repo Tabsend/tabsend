@@ -38,6 +38,8 @@ describe('setUnauthorizedHandler', () => {
       ApiClientError,
     )
     expect(handler).toHaveBeenCalledTimes(1)
+    // Which token was refused, so a reply about a retired pairing can be ignored.
+    expect(handler).toHaveBeenCalledWith(false, 'dead-token')
   })
 
   it('does not fire on a 401 from the token-less register call', async () => {

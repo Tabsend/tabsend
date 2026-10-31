@@ -106,6 +106,8 @@
          says online right now; "status unknown" when the snapshot is too old to
          claim anything (see policy.ts). */
       .last-seen.online { color: var(--success); font-weight: 600; }
+      /* A device the relay no longer has (P-20): its card above says what to do. */
+      .last-seen.broken { color: var(--danger); font-weight: 600; }
       /* The clicked row, while the send is in flight. A disabled button only
          dims, which on a slow relay reads as a missed click; this keeps the row
          highlighted and its note ("sending…") legible instead of greyed out. */
@@ -271,12 +273,35 @@
       }
       .held-gone-choices .linkish { font-size: 12px; }
       .held-gone-choices select { min-height: 32px; padding: 4px 8px; font-size: 13px; }
-      #pairing-box {
-        border-top: 1.5px solid var(--line);
-        padding: 12px 14px;
+      /* Pairing takes over the whole popup (owner's pick, 2026-10-30): under
+         the list it pushed the QR below the fold and read as part of the list.
+         Everything but the box is hidden while it is open; Back returns. */
+      body.pairing > :not(#pairing-box):not(script) { display: none; }
+      #pairing-box { padding: 0 14px 14px; }
+      .pair-top {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 12px 0 8px;
+        margin-left: -6px;
       }
+      .pair-top h1 { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.2; }
+      #pair-back {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: 0;
+        border-radius: 8px;
+        background: none;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      #pair-back:hover { background: var(--accent-tint); }
+      #pair-back svg { width: 18px; height: 18px; }
       #pairing-qr svg { width: 148px; height: 148px; }
-      #pairing-hint { font-size: 12px; color: var(--muted); text-align: center; }
+      #pairing-hint { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
       #pairing-link { margin-top: 8px; font-size: 11px; }
       #copy-link { margin: 8px auto 0; display: block; font-size: 13px; }
       #copy-note { min-height: 17px; margin-top: 2px; text-align: center; }
@@ -287,9 +312,9 @@
   <body>
     <header>
       <h1>Send to…</h1>
-      <button type="button" id="pair-header" aria-label="Pair a new browser">
+      <button type="button" id="pair-header" aria-label="Add a phone or browser">
         <span class="icon" aria-hidden="true">+</span>
-        <span>New browser</span>
+        <span>Add a device</span>
       </button>
     </header>
     <div id="confirm"></div>
@@ -306,11 +331,19 @@
     <div id="pending" class="hidden"></div>
     <div id="held" class="hidden"></div>
     <div id="pairing-box">
+      <div class="pair-top">
+        <button type="button" id="pair-back" aria-label="Back to your devices">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <h1>Add a device</h1>
+      </div>
+      <div id="pairing-hint">Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it.</div>
       <div id="pairing-ready">
         <div id="pairing-qr"></div>
-        <div id="pairing-hint">Scan the QR with a phone, or copy the pairing link to a browser extension</div>
-        <input id="pairing-link" type="text" readonly aria-label="Pairing link" />
-        <button type="button" class="linkish" id="copy-link">Copy pairing link</button>
+        <input id="pairing-link" type="text" readonly aria-label="Setup link" />
+        <button type="button" class="linkish" id="copy-link">Copy link</button>
         <div id="copy-note"></div>
         <div id="pairing-local-only" role="status"></div>
       </div>

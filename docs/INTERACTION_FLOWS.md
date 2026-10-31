@@ -158,7 +158,7 @@ Every surface funnels here at `n=0` (§2.7). This is the most important empty st
 
 ### 3.3 State — one target (one row, still a click)
 
-The chooser renders normally with a single row: presence dot, label, and the persistent **+ New browser** pill in the header. Selecting the row is required — the popup does not send on open (§2.7 `n=1` amendment). The non-toolbar surfaces still send direct per [0001]: the context menu collapses to a flat `Send tab to X`, and Quick-send mode blind-fires from the icon.
+The chooser renders normally with a single row: presence dot, label, and the persistent **+ Add device** pill in the header, which opens pairing over the whole popup. Selecting the row is required — the popup does not send on open (§2.7 `n=1` amendment). The non-toolbar surfaces still send direct per [0001]: the context menu collapses to a flat `Send tab to X`, and Quick-send mode blind-fires from the icon.
 
 ### 3.4 State — multi-target (the default chooser)
 
@@ -387,7 +387,7 @@ flowchart LR
     subgraph Existing [Paired device / console]
       X[Click 'Add a device'] --> Y[Show QR + copyable complete link\nshort-lived]
     end
-    subgraph New [New browser]
+    subgraph New [Add device]
       A[Install] --> B[Paste complete pairing link]
     end
     Y -. link .-> B
@@ -416,9 +416,9 @@ The console is not a login; it is authorized by a complete pairing link created 
 | Code already consumed | One-time use; second attempt errors ("that code was already used"). |
 | Network drop mid-pair | Resumable; the endpoint is **not** added until pubkey exchange confirms — no half-joined ghosts. |
 | Reinstall / re-pair | Creates a **new** endpoint; the stale one goes offline and is pruned by last-seen [0004]. The new key is new on a phone or after a reinstall, **not** after a re-pair of the extension, which keeps its device key (corrected 2026-10-13; `PLANS.md` P-14 item 8 depends on it). |
-| New device joined | Existing devices show a non-blocking alert and a banner: "New device: Firefox · Linux. Joined just now. Was this you?", with "Yes, it's mine" and "Remove it". Awareness, not a gate. Built 2026-10-08; the rule and copy are in `PLANS.md` P-10. |
-| First list a device sees | A one-time card, "Check your devices", lists the other devices with a Remove each and "All of these are mine". It stays until answered. On upgrade, the list the previous build kept is the starting point, so a device added since gets the alert above. Built 2026-10-13 (`PLANS.md` P-14 item 1). |
-| A new device appears, then disappears | The banner is replaced by "{label} joined, then disappeared" until dismissed, on every device that announced it and did not answer it, except one that removed it itself. Built 2026-10-13 (`PLANS.md` P-14 item 2). |
+| New device joined | One notification, information only: "{label} was added. It joined your Tabsend devices just now. If that wasn't you, remove it in Tabsend." A phone tells; a browser tells only when the group has no recently seen phone; the console never. Nothing to answer; the device is just in the list. On the hosted service the account also gets an email when the device count goes up. Built 2026-10-08 (`PLANS.md` P-10); told once since 2026-10-30 (P-23). |
+| First list a device sees | The pairing link carries a short tag of each device the device that showed it has accepted. Devices in the first list that match are taken without a word; any other is told once, the same way ("{label} is in your group"). A link from an older client vouches for nothing. Built 2026-10-13 as a one-time card (`PLANS.md` P-14 item 1); replaced 2026-10-30 (P-23). |
+| A new device appears, then disappears | Since P-23 (2026-10-30) only the notification it got is left. Before: the banner was replaced by "{label} joined, then disappeared" until dismissed, on every device that announced it and did not answer it, except one that removed it itself. Built 2026-10-13 (`PLANS.md` P-14 item 2). |
 
 ### 6.6 The first-send moment (establishing primary)
 

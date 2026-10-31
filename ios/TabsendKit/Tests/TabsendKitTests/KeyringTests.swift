@@ -155,6 +155,43 @@ struct KeyringDeliveryTests {
         #expect(pending.map(\.id) == ["gk-new-b"])
     }
 
+    @Test func aNewcomerIsHandedTheOlderKeysToo() {
+        // Everyone already in the group has both; the new phone "c" has neither, so
+        // history from before the rotation opens for it as well.
+        let ring = [
+            record("old", "2026-08-01T00:00:00.000Z"),
+            record("new", "2026-08-05T00:00:00.000Z"),
+        ]
+        let pending = Keyring.pendingDeliveries(
+            ring: ring, endpoints: [endpoint("a"), endpoint("b"), endpoint("c")],
+            selfEndpointId: "a", delivered: ["gk-old-b", "gk-new-b"]
+        )
+        #expect(pending.map(\.id) == ["gk-new-c", "gk-old-c"])
+    }
+
+    @Test func aDeviceAnyKeyNamesAsGoneGetsNoKeyAtAll() {
+        var newer = record("new", "2026-08-05T00:00:00.000Z")
+        newer.departed = ["c"]
+        let pending = Keyring.pendingDeliveries(
+            ring: [record("old", "2026-08-01T00:00:00.000Z"), newer],
+            endpoints: [endpoint("a"), endpoint("b"), endpoint("c")],
+            selfEndpointId: "a", delivered: []
+        )
+        #expect(pending.map(\.id) == ["gk-new-b", "gk-old-b"])
+    }
+
+    @Test func atMostMaxHandedKeysAreHandedOn() {
+        let ring = (0..<(Keyring.maxHandedKeys + 4)).map {
+            record(String(format: "k%02d", $0), String(format: "2026-08-%02dT00:00:00.000Z", $0 + 1))
+        }
+        let pending = Keyring.pendingDeliveries(
+            ring: ring, endpoints: [endpoint("a"), endpoint("b")],
+            selfEndpointId: "a", delivered: []
+        )
+        #expect(pending.count == Keyring.maxHandedKeys)
+        #expect(pending.first?.record.keyId == String(format: "k%02d", Keyring.maxHandedKeys + 3))
+    }
+
     @Test func nothingToDeliverWithoutAKey() {
         #expect(
             Keyring.pendingDeliveries(

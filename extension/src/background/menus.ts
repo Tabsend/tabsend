@@ -69,7 +69,7 @@ export async function rebuildMenus(): Promise<void> {
   if (!session || targets.length === 0) {
     ext.contextMenus.create({
       id: PAIR_ID,
-      title: 'Tabsend: pair a device…',
+      title: 'Tabsend: add a device…',
       contexts: [...TAB_CONTEXTS, 'link'],
     })
     return

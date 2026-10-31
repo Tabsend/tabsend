@@ -7,12 +7,18 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -24,6 +30,11 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
+import com.google.zxing.WriterException
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.journeyapps.barcodescanner.BarcodeEncoder
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import io.tabsend.app.AppScope
@@ -32,12 +43,14 @@ import io.tabsend.app.R
 import io.tabsend.app.databinding.ActivityMainBinding
 import io.tabsend.app.logic.Chooser
 import io.tabsend.app.logic.Feedback
+import io.tabsend.app.logic.GroupResets
 import io.tabsend.app.logic.GoneTargetCopy
 import io.tabsend.app.logic.Inbox
 import io.tabsend.app.logic.InboxItem
 import io.tabsend.app.logic.JoinErrors
 import io.tabsend.app.logic.Labels
 import io.tabsend.app.logic.NewDeviceNotice
+import io.tabsend.app.logic.NewDevices
 import io.tabsend.app.logic.OutboundQueue
 import io.tabsend.app.logic.Pairing
 import io.tabsend.app.logic.Protocol
@@ -54,6 +67,7 @@ import io.tabsend.app.push.DeliveryReason
 import io.tabsend.app.push.PushSetup
 import io.tabsend.app.net.Registrar
 import io.tabsend.app.net.StreamManager
+import io.tabsend.app.receive.GroupResetWatcher
 import io.tabsend.app.receive.LinkPolicy
 import io.tabsend.app.receive.NewDeviceWatcher
 import io.tabsend.app.receive.StreamService
@@ -62,12 +76,15 @@ import io.tabsend.app.send.Sender
 import io.tabsend.app.send.ShareShortcuts
 import io.tabsend.app.store.Registration
 import io.tabsend.app.store.Store
+import io.tabsend.app.wire.CreatePairingResponse
 import io.tabsend.app.wire.Endpoint
+import io.tabsend.app.wire.GroupResetState
 import io.tabsend.app.work.Scheduling
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.time.ZoneId
 
 /**
  * Single-activity home: pair this phone with one complete link or, once paired,
@@ -86,13 +103,13 @@ class MainActivity : AppCompatActivity() {
         val contents = result.contents ?: return@registerForActivityResult // cancelled
         val link = Pairing.scannedLink(contents)
         if (link == null) {
-            binding.joinStatus.text = "That QR code isn't a Tabsend pairing link."
+            binding.joinStatus.text = "That QR code isn't a Tabsend setup link."
             return@registerForActivityResult
         }
         // Keep the COMPLETE link. Reducing it to the secret here used to discard
         // the fp= certificate pin before doJoin reparsed the field.
         binding.pairingLinkInput.setText(link)
-        binding.joinStatus.text = "Pairing link ready. Tap Pair this phone."
+        binding.joinStatus.text = "Setup link ready. Tap Pair this phone."
         // The link lands in the paste form, so open it: the Pair button lives there.
         revealPasteForm()
     }
@@ -135,6 +152,11 @@ class MainActivity : AppCompatActivity() {
         handleDeepLink(intent)
     }
 
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) offerCopiedLink()
+    }
+
     override fun onResume() {
         super.onResume()
         // Re-render rather than only re-listing devices: a send from the share
@@ -146,6 +168,18 @@ class MainActivity : AppCompatActivity() {
         // failed earlier gets another try while someone is looking [G8, G10]. A screen in
         // front may start the service; the sync ends by doing so.
         settleDelivery { if (store.isRegistered) renderDeliveryMethod(PushSetup.state(this)) }
+        // A reset scheduled or stopped while this screen is open (the stream's
+        // `group_updated`, a wake) redraws the card at once [P-18 item 12].
+        GroupResetWatcher.onChange = resetChanged
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (GroupResetWatcher.onChange === resetChanged) GroupResetWatcher.onChange = null
+    }
+
+    private val resetChanged: () -> Unit = {
+        runOnUiThread { if (store.isRegistered && !isFinishing) renderGroupReset() }
     }
 
     // --- rendering -----------------------------------------------------------
@@ -165,8 +199,8 @@ class MainActivity : AppCompatActivity() {
         if (binding.deviceNameInput.text.isNullOrBlank()) {
             binding.deviceNameInput.setText(defaultDeviceName())
         }
-        // A link already in the field (a scan or deep link before an unpair, or a
-        // failed attempt) keeps its form open, with the Pair button under it.
+        // A link already in the field (a deep link, or a failed attempt) keeps its
+        // form open, with the Pair button under it. Leaving a group clears it.
         if (!binding.pairingLinkInput.text.isNullOrBlank()) revealPasteForm()
     }
 
@@ -214,38 +248,112 @@ class MainActivity : AppCompatActivity() {
         }
         renderDeliveryMethod(state)
         renderSendState(reg)
+        renderGroupReset()
         renderNewDevices()
         renderReceived()
         loadDevices()
     }
 
     /**
-     * What the new-device watch asks this phone to look at [P-10], top to bottom: the
-     * first-look card (one answer for the whole first list, GH6), one notice per device
-     * that joined and then disappeared (GH7), and one card per device that joined and
-     * has not been answered on this phone. They stay until answered, so a phone with
-     * notifications off still finds out the next time this screen opens.
+     * What the new-device watch asks this phone to look at above the device list [P-10]:
+     * one notice per device that joined and then disappeared (GH7), until dismissed.
+     * A device that joined, or was on the first look (GH6), is told once by the system
+     * notification and asks nothing here (P-23): no card, no tag on its row.
      */
     private fun renderNewDevices() {
-        val review = NewDeviceWatcher.review(this)
         val vanished = NewDeviceWatcher.vanished(this)
-        val pending = NewDeviceWatcher.pending(this)
         binding.newDevicesList.removeAllViews()
-        binding.newDevicesList.visibility =
-            if (review.isEmpty() && vanished.isEmpty() && pending.isEmpty()) View.GONE else View.VISIBLE
-        if (review.isNotEmpty()) binding.newDevicesList.addView(reviewCard(review))
+        binding.newDevicesList.visibility = if (vanished.isEmpty()) View.GONE else View.VISIBLE
         for (notice in vanished) binding.newDevicesList.addView(vanishedCard(notice))
-        for (notice in pending) binding.newDevicesList.addView(newDeviceCard(notice))
+    }
+
+    /**
+     * The reset that waits [P-18 item 12]: one red card while a reset of the whole
+     * group is pending and this phone has not answered "It was me" to it. It stays
+     * until stopped or answered, so a phone with notifications off still finds out
+     * the next time this screen opens.
+     */
+    private fun renderGroupReset() {
+        val reset = GroupResetWatcher.pending(this)
+        binding.groupResetList.removeAllViews()
+        binding.groupResetList.visibility = if (reset == null) View.GONE else View.VISIBLE
+        if (reset != null) binding.groupResetList.addView(groupResetCard(reset))
+    }
+
+    private fun groupResetCard(reset: GroupResetState): View {
+        val danger = getColor(R.color.ts_danger)
+        val card = warningCard(getString(R.string.reset_card_title), R.drawable.bg_danger, danger)
+        val zone = ZoneId.systemDefault()
+        val asked = GroupResets.day(reset.requestedAt, zone)
+        val day = GroupResets.day(reset.resetsAt, zone)
+        val time = GroupResets.time(reset.resetsAt, zone)
+        card.addView(
+            warningBody(
+                if (asked != null && day != null && time != null) {
+                    getString(R.string.reset_card_body, asked, day, time)
+                } else {
+                    getString(R.string.reset_card_body_no_time)
+                },
+                danger,
+            ),
+        )
+        lateinit var stop: MaterialButton
+        stop = cardButton(getString(R.string.reset_stop), danger) { stopGroupReset(reset, stop) }
+        card.addView(
+            buttonRow(
+                stop,
+                cardButton(getString(R.string.reset_was_me), danger) {
+                    GroupResetWatcher.dismiss(this@MainActivity, reset)
+                    renderGroupReset()
+                },
+            ),
+        )
+        return card
+    }
+
+    /**
+     * "Stop the reset": the relay's POST, then the card goes. On a refusal or no
+     * connection the card stays, with the reason, so the user can try again.
+     */
+    private fun stopGroupReset(reset: GroupResetState, button: MaterialButton) {
+        val reg = store.registration ?: return
+        button.isEnabled = false
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val api = ApiClient.forRegistration(reg)
+                    GroupResetWatcher.stop(store) { api.stopGroupReset(reg.deviceToken) }
+                }
+            } catch (e: ApiException) {
+                button.isEnabled = true
+                toastLong(getString(R.string.reset_stop_refused, e.message.orEmpty()))
+                return@launch
+            } catch (e: IOException) {
+                button.isEnabled = true
+                toastLong(getString(R.string.reset_stop_offline))
+                return@launch
+            }
+            GroupResetWatcher.cancelAlert(this@MainActivity, reset)
+            renderGroupReset()
+            Toast.makeText(this@MainActivity, R.string.reset_stopped, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
-    /** The amber card all three share: the waiting amber tint and frame, text in the waiting text colour (light and dark). */
-    private fun warningCard(title: String): LinearLayout {
-        val warning = getColor(R.color.relay_warning)
+    /**
+     * The amber card the device notices share: the waiting amber tint and frame, text in
+     * the waiting text colour (light and dark). The reset card passes the danger red.
+     */
+    private fun warningCard(
+        title: String,
+        background: Int = R.drawable.bg_warning,
+        color: Int = getColor(R.color.relay_warning),
+    ): LinearLayout {
+        val warning = color
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundResource(R.drawable.bg_warning)
+            setBackgroundResource(background)
             setPadding(dp(16), dp(12), dp(16), dp(8))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -262,10 +370,10 @@ class MainActivity : AppCompatActivity() {
         return card
     }
 
-    private fun warningBody(text: String): TextView = TextView(this).apply {
+    private fun warningBody(text: String, color: Int = getColor(R.color.relay_warning)): TextView = TextView(this).apply {
         this.text = text
         setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-        setTextColor(getColor(R.color.relay_warning))
+        setTextColor(color)
         setPadding(0, dp(4), 0, dp(4))
     }
 
@@ -292,45 +400,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** The first look (GH6): one card, one answer. A row per device, each with its own Remove. */
-    private fun reviewCard(devices: List<NewDeviceNotice>): View {
-        val warning = getColor(R.color.relay_warning)
-        val card = warningCard(getString(R.string.review_title))
-        card.addView(warningBody(getString(R.string.review_body)))
-        for (device in devices) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-            }
-            row.addView(
-                TextView(this).apply {
-                    text = device.label
-                    setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
-                    setTextColor(warning)
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                },
-            )
-            row.addView(
-                cardButton(getString(R.string.review_remove), getColor(R.color.ts_danger)) {
-                    confirmRemove(device.id, device.label)
-                }.apply {
-                    // So a screen reader says which device, not "Remove, Remove".
-                    contentDescription = getString(R.string.review_remove_for, device.label)
-                },
-            )
-            card.addView(row)
-        }
-        card.addView(
-            buttonRow(
-                cardButton(getString(R.string.review_confirm), warning) {
-                    NewDeviceWatcher.confirmReview(this@MainActivity)
-                    renderNewDevices()
-                },
-            ),
-        )
-        return card
-    }
-
     /** A device that joined and then disappeared (GH7). Stays until dismissed. */
     private fun vanishedCard(notice: NewDeviceNotice): View {
         val card = warningCard(getString(R.string.vanished_title, notice.label))
@@ -348,32 +417,6 @@ class MainActivity : AppCompatActivity() {
             buttonRow(
                 cardButton(getString(R.string.vanished_dismiss), getColor(R.color.relay_warning)) {
                     NewDeviceWatcher.dismissVanished(this@MainActivity, notice.id)
-                    renderNewDevices()
-                },
-            ),
-        )
-        return card
-    }
-
-    private fun newDeviceCard(notice: NewDeviceNotice): View {
-        val card = warningCard(getString(R.string.new_device_title, notice.label))
-        val time = NewDeviceWatcher.whenText(notice.createdAt)
-        card.addView(
-            warningBody(
-                if (time != null) {
-                    getString(R.string.new_device_banner_body, time)
-                } else {
-                    getString(R.string.new_device_banner_body_no_time)
-                },
-            ),
-        )
-        card.addView(
-            buttonRow(
-                cardButton(getString(R.string.new_device_remove), getColor(R.color.ts_danger)) {
-                    confirmRemove(notice.id, notice.label)
-                },
-                cardButton(getString(R.string.new_device_confirm), getColor(R.color.relay_warning)) {
-                    NewDeviceWatcher.confirm(this@MainActivity, notice.id)
                     renderNewDevices()
                 },
             ),
@@ -640,7 +683,7 @@ class MainActivity : AppCompatActivity() {
     private fun doJoin() {
         val parsed = Pairing.parse(binding.pairingLinkInput.text?.toString() ?: "")
         if (parsed == null) {
-            binding.joinStatus.text = "Paste or scan a complete pairing link."
+            binding.joinStatus.text = "Paste or scan a complete setup link."
             return
         }
         val relay = parsed.relayUrl
@@ -669,6 +712,8 @@ class MainActivity : AppCompatActivity() {
                     this@MainActivity, relay, parsed.code, deviceName,
                     certFingerprint = parsed.certFingerprint,
                     relayId = config.relayId,
+                    // The devices the link vouches for: no first look for them (P-23).
+                    vouched = parsed.vouched,
                 )
                 Scheduling.ensurePeriodicHeartbeat(this@MainActivity)
                 Scheduling.enqueueDrain(this@MainActivity)
@@ -685,7 +730,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: ApiException) {
                 failJoin(
                     when (e.code) {
-                        "invalid_pairing_code" -> "That pairing link is unknown, expired, or already used."
+                        "invalid_pairing_code" -> "That setup link is unknown, expired, or already used."
                         // The group is full [0030]. The relay's own message names the
                         // number, but `message` is written for a log and may change,
                         // and the fix is the same on every client — so this is one of
@@ -737,6 +782,12 @@ class MainActivity : AppCompatActivity() {
             // Share row is built from the same list, so it changes with it.
             ShareShortcuts.sync(this@MainActivity, endpoints)
             renderDevices(endpoints, reg.endpointId)
+            // Wherever the device list is asked for, the reset that waits is too
+            // [P-18 item 12]. Best effort: it keeps the last answer when offline.
+            withContext(Dispatchers.IO) {
+                GroupResetWatcher.check(applicationContext, ApiClient.forRegistration(reg), reg)
+            }
+            renderGroupReset()
             // The fetch may have found a new device, or lost one with a notice.
             renderNewDevices()
             // A device the fetch found removed turns its held tabs into
@@ -762,6 +813,8 @@ class MainActivity : AppCompatActivity() {
                 ep.presence == "online" -> getString(R.string.device_status_online) to R.color.ts_success
                 else -> getString(R.string.device_status_offline) to R.color.ts_phone_muted
             }
+            // No "New" tag and nothing to answer (P-23): a device that joined is told once,
+            // by the system notification, and its row is like any other.
             val row = DeviceRows.row(
                 this,
                 name = ep.label,
@@ -789,8 +842,8 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * Remove another device: the same question the extension and the console
-     * ask, then the relay's DELETE. Used by a device row and by the
-     * new-device banner's "Remove it".
+     * ask, then the relay's DELETE. Used by a device row's Remove, the only one
+     * since the first-look card and the new-device banner went (P-23).
      */
     private fun confirmRemove(endpointId: String, label: String) {
         MaterialAlertDialogBuilder(this)
@@ -839,7 +892,16 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val resp = withContext(Dispatchers.IO) { ApiClient.forRegistration(reg).mintPairing(reg.deviceToken) }
-                showPairingDialog(resp.browserLink ?: resp.link)
+                // The link vouches for the devices this phone has accepted, so the new
+                // device asks about none of them (P-23). Read after the mint, from the
+                // last list the watch passed. Both forms, the QR and the copied link.
+                val tags = NewDeviceWatcher.vouchTags(store)
+                showPairingDialog(
+                    resp.copy(
+                        link = NewDevices.withVouch(resp.link, tags),
+                        browserLink = resp.browserLink?.let { NewDevices.withVouch(it, tags) },
+                    ),
+                )
             } catch (e: ApiException) {
                 // ApiException is an IOException for transport callers, but it means
                 // the relay DID answer. Do not send a stale-token or authorization
@@ -849,7 +911,7 @@ class MainActivity : AppCompatActivity() {
                         "This phone was removed from the group. Pair it again before adding another device."
                     "unauthorized" ->
                         "This phone's relay access is no longer valid. Pair it again before adding another device."
-                    else -> "The relay refused to create a pairing link: ${e.message.orEmpty()}"
+                    else -> "The relay refused to make a setup link: ${e.message.orEmpty()}"
                 }
                 Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
             } catch (e: IOException) {
@@ -861,7 +923,7 @@ class MainActivity : AppCompatActivity() {
                         e,
                         reg.relayUrl,
                         hadPin = reg.certFingerprint != null,
-                        retryAction = "tap Pair a device again",
+                        retryAction = "tap Add a device again",
                     ),
                     Toast.LENGTH_LONG,
                 ).show()
@@ -869,14 +931,75 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showPairingDialog(link: String) {
-        val message = "Browser pairing link:\n$link\n\nPaste this into the Tabsend extension. A phone can also paste it; the app will select the secure phone route automatically."
-        MaterialAlertDialogBuilder(this)
+    /**
+     * The minted link as a QR plus a copy button, like the iPhone's pairing sheet.
+     * The QR carries `link`, the native route a phone needs; "Copy link" gives
+     * `browserLink`, the route an extension needs [ADR-0025]. One credential either way.
+     *
+     * The QR is a live join secret for its lifetime, so the window keeps the screen
+     * on while it shows, refuses screenshots and screen recording, and closes itself
+     * when the link expires.
+     */
+    private fun showPairingDialog(resp: CreatePairingResponse) {
+        val copyLink = resp.browserLink ?: resp.link
+        val density = resources.displayMetrics.density
+        val qrPx = (240 * density).toInt()
+        val qrBitmap = try {
+            BarcodeEncoder().encodeBitmap(
+                resp.link,
+                BarcodeFormat.QR_CODE,
+                qrPx,
+                qrPx,
+                mapOf(EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M, EncodeHintType.MARGIN to 0),
+            )
+        } catch (_: WriterException) {
+            null
+        }
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (20 * density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+        }
+        if (qrBitmap != null) {
+            // White behind the code in both themes, because a scanner wants dark-on-light.
+            container.addView(
+                ImageView(this).apply {
+                    setImageBitmap(qrBitmap)
+                    setBackgroundColor(Color.WHITE)
+                    val quiet = (16 * density).toInt()
+                    setPadding(quiet, quiet, quiet, quiet)
+                    contentDescription = getString(R.string.pair_qr_description)
+                },
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { gravity = Gravity.CENTER_HORIZONTAL },
+            )
+        }
+        container.addView(
+            TextView(this).apply {
+                setPadding(0, (16 * density).toInt(), 0, 0)
+                text = getString(if (qrBitmap != null) R.string.pair_qr_hint else R.string.pair_qr_hint_no_code)
+            },
+        )
+
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.add_device)
-            .setMessage(message)
-            .setPositiveButton("Copy link") { _, _ -> copyToClipboard("Tabsend pairing link", link) }
-            .setNegativeButton("Close", null)
-            .show()
+            .setView(container)
+            .setPositiveButton(R.string.pair_copy_link) { _, _ -> copyToClipboard("Tabsend setup link", copyLink) }
+            .setNegativeButton(R.string.pair_close, null)
+            .create()
+        dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        val timer = Handler(Looper.getMainLooper())
+        val expire = Runnable {
+            if (dialog.isShowing && !isFinishing) {
+                dialog.dismiss()
+                Toast.makeText(this, R.string.pair_qr_expired, Toast.LENGTH_LONG).show()
+            }
+        }
+        dialog.setOnDismissListener { timer.removeCallbacks(expire) }
+        dialog.show()
+        timer.postDelayed(expire, Pairing.qrLifetimeMillis(resp.expiresAt, System.currentTimeMillis()))
     }
 
     private fun promptRename() {
@@ -1112,7 +1235,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton(R.string.relay_move_start_fresh) { _, _ ->
                 leaveGroup()
                 binding.joinStatus.text =
-                    "Paste or scan a pairing link created by that relay."
+                    "Paste or scan a setup link created by that relay."
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
@@ -1236,7 +1359,7 @@ class MainActivity : AppCompatActivity() {
             .setMessage("This phone stops receiving links and leaves the group.")
             .setPositiveButton("Unpair") { _, _ ->
                 leaveGroup()
-                binding.joinStatus.text = "Paste or scan a new pairing link to pair again."
+                binding.joinStatus.text = "Paste or scan a new setup link to pair again."
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -1265,7 +1388,23 @@ class MainActivity : AppCompatActivity() {
         // Fire and forget: nothing on screen depends on the outcome, and what fails now is
         // retried at the next start.
         AppScope.launch { PushSetup.sync(app) }
+        resetJoinForm()
         render()
+    }
+
+    /**
+     * Put the pairing screen back as a first visit shows it. Without this, leaving the group
+     * landed on the screen the last pairing left behind: the old link, already used and so
+     * worthless, still in the field (it read like a way back to the old relay), and the Pair
+     * button still disabled from that pairing, so a fresh scan filled the field and then
+     * nothing could be tapped.
+     */
+    private fun resetJoinForm() {
+        binding.pairingLinkInput.setText("")
+        binding.joinButton.isEnabled = true
+        binding.joinButton.setText(R.string.join_button)
+        binding.pasteForm.visibility = View.GONE
+        binding.pasteLinkButton.visibility = View.VISIBLE
     }
 
     // --- helpers -------------------------------------------------------------
@@ -1303,7 +1442,30 @@ class MainActivity : AppCompatActivity() {
         val data = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.data ?: return
         val link = Pairing.scannedLink(data.toString()) ?: return
         binding.pairingLinkInput.setText(link)
-        binding.joinStatus.text = "Pairing link ready. Tap Pair this phone."
+        binding.joinStatus.text = "Setup link ready. Tap Pair this phone."
+        revealPasteForm()
+    }
+
+    /** Once per launch: [offerCopiedLink] reads the clipboard at most this often. */
+    private var copiedLinkChecked = false
+
+    /**
+     * Fill in a setup link the install page copied. Scanning a code without the app
+     * lands on that page, whose Install button copies the link before it leaves, so the
+     * first launch can pick up where the scan left off. Only on the join screen with an
+     * empty field, once per launch, and only a complete setup link; the person still
+     * taps Pair. Here and not in onCreate because Android 10 and later let only the
+     * app with focus read the clipboard (12 and later then show a "pasted" notice).
+     */
+    private fun offerCopiedLink() {
+        if (copiedLinkChecked || store.isRegistered) return
+        if (!binding.pairingLinkInput.text.isNullOrBlank()) return
+        copiedLinkChecked = true
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val text = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this) ?: return
+        val link = Pairing.scannedLink(text.toString()) ?: return
+        binding.pairingLinkInput.setText(link)
+        binding.joinStatus.text = "Found the setup link you copied. Tap Pair this phone."
         revealPasteForm()
     }
 

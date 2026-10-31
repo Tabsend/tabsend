@@ -53,13 +53,13 @@ async function patch(settings: Partial<ClientSettings>): Promise<void> {
 }
 
 function renderSettings(s: ClientSettings): void {
-  for (const radio of document.querySelectorAll<HTMLInputElement>('input[name="toolbar"]')) {
-    radio.checked = radio.value === s.toolbarClickMode
-    radio.addEventListener('change', () => {
-      if (radio.checked)
-        void patch({ toolbarClickMode: radio.value as ClientSettings['toolbarClickMode'] })
-    })
-  }
+  const oneClick = $<HTMLInputElement>('one-click')
+  oneClick.checked = s.toolbarClickMode === 'quicksend'
+  paintOneClick(oneClick.checked)
+  oneClick.addEventListener('change', () => {
+    paintOneClick(oneClick.checked)
+    void patch({ toolbarClickMode: oneClick.checked ? 'quicksend' : 'chooser' })
+  })
 
   const bind = (
     id: string,
@@ -427,7 +427,7 @@ function wireRelayMove(): void {
         }
         case 'different':
           showProbe('different', relayProbeCopy.different())
-          addProbeAction('Set up here', () => void beginSwitch(p.relayUrl))
+          addProbeAction('Switch to this relay', () => void beginSwitch(p.relayUrl))
           break
         case 'unreachable':
           showProbe(
@@ -494,41 +494,53 @@ function paintPairing(state: StateView): void {
   $('pair-device').style.display = state.registered ? 'inline-block' : 'none'
 }
 
+/** The "Send to" picker only shows while one-click sending is on. */
+function paintOneClick(on: boolean): void {
+  $('one-click-on').style.display = on ? 'block' : 'none'
+  $('one-click-off').style.display = on ? 'none' : 'block'
+}
+
+/** The "Send to" value that means "not pinned: follow the last send". */
+const LAST_USED = ''
+
+/**
+ * One-click's "Send to" picker. "The device I sent to last" is the unpinned
+ * primary (it follows each send); naming a device pins it.
+ */
 function renderPrimary(view: ChooserView): void {
-  const select = $<HTMLSelectElement>('primary')
-  const pinned = $<HTMLInputElement>('primary-pinned')
+  const select = $<HTMLSelectElement>('send-to')
   select.replaceChildren()
 
   if (view.targets.length === 0) {
     const opt = document.createElement('option')
-    opt.textContent = 'No other devices yet — pair one first'
+    opt.textContent = 'No other devices yet. Pair one first.'
     opt.disabled = true
     opt.selected = true
     select.append(opt)
     select.disabled = true
-    pinned.disabled = true
     return
   }
 
+  const last = document.createElement('option')
+  last.value = LAST_USED
+  last.textContent = 'The device I sent to last'
+  last.selected = !view.primaryPinned
+  select.append(last)
   for (const row of view.targets) {
     const opt = document.createElement('option')
     opt.value = row.endpoint.id
     opt.textContent = row.endpoint.label
-    if (row.endpoint.id === view.primaryTargetId) opt.selected = true
+    if (view.primaryPinned && row.endpoint.id === view.primaryTargetId) opt.selected = true
     select.append(opt)
   }
   select.disabled = false
-  pinned.disabled = false
-  pinned.checked = view.primaryPinned
 
-  const apply = (): void => {
-    void rpcOk({ type: 'setPrimary', targetEndpointId: select.value, pinned: pinned.checked }).then(
-      flashSaved,
-    )
-  }
   // Assigned, not added: this runs again after a device is renamed or removed.
-  select.onchange = apply
-  pinned.onchange = apply
+  select.onchange = () => {
+    const pinned = select.value !== LAST_USED
+    const targetEndpointId = pinned ? select.value : (view.primaryTargetId ?? null)
+    void rpcOk({ type: 'setPrimary', targetEndpointId, pinned }).then(flashSaved)
+  }
 }
 
 function openShortcutSettings(): void {

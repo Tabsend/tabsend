@@ -39,10 +39,10 @@
   "commands": {
     "_execute_action": {
       "suggested_key": { "default": "Ctrl+Shift+S", "mac": "Command+Shift+S" },
-      "description": "Open the Tabsend chooser (or quick-send in Quick-send mode)"
+      "description": "Do what clicking the Tabsend icon does"
     },
     "send-to-primary": {
-      "description": "Send this tab to your primary device (blind-fire, with a 4s undo)"
+      "description": "Send this tab in one click to your “Send to” device (4 seconds to undo)"
     }
   },
   "permissions": ["tabs", "storage", "contextMenus", "alarms", "scripting", "notifications"],

@@ -31,7 +31,7 @@ class JoinErrorsTest {
         val msg = JoinErrors.message(SSLPeerUnverifiedException("pin mismatch"), lan, hadPin = true)
         assertFalse(msg.contains("Couldn't reach"))
         assertTrue(msg.contains("doesn't match"))
-        assertTrue(msg.contains("fresh pairing link"))
+        assertTrue(msg.contains("fresh setup link"))
     }
 
     @Test

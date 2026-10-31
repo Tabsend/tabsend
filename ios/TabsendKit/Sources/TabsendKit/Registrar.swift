@@ -26,12 +26,16 @@ public enum Registrar {
     /// The app only ever calls this WITH a code; the create path exists to mirror the
     /// wire contract. A relay that already hosts a group refuses a create with
     /// `group_exists` [0022], surfaced verbatim — its message names the fix.
+    ///
+    /// `vouched` is the device tags the pairing link carried (`Pairing.Parsed.vouched`,
+    /// P-23), kept on the new registration until the first device list is checked.
     public static func join(
         relayUrl rawRelayUrl: String,
         pairingCode: String?,
         label: String,
         deviceName: String?,
         certFingerprint: String?,
+        vouched: [String]? = nil,
         store: TabsendStore
     ) async throws -> JoinOutcome {
         let relayUrl = Pairing.normalizeRelayUrl(rawRelayUrl)
@@ -93,7 +97,8 @@ public enum Registrar {
             label: label,
             certFingerprint: certFingerprint,
             relayId: config.relayId,
-            wakeForwarderAdvertised: advertised
+            wakeForwarderAdvertised: advertised,
+            vouched: vouched
         )
         store.registration = registration
 

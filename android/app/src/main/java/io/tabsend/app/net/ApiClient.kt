@@ -7,6 +7,8 @@ import io.tabsend.app.wire.Endpoint
 import io.tabsend.app.wire.GroupKeyDelivery
 import io.tabsend.app.wire.GroupKeyRequest
 import io.tabsend.app.wire.GroupKeyResponse
+import io.tabsend.app.wire.GroupResetState
+import io.tabsend.app.wire.GroupStateResponse
 import io.tabsend.app.wire.HeartbeatRequest
 import io.tabsend.app.wire.HeartbeatResponse
 import io.tabsend.app.wire.HistoryEntry
@@ -86,6 +88,21 @@ class ApiClient(private val relayUrl: String, certFingerprint: String? = null) {
             build("POST", "/v1/group-keys", token, jsonBody(body, GroupKeyRequest.serializer())),
             GroupKeyResponse.serializer(),
         )
+
+    /**
+     * The reset waiting on this group, or null [P-18 item 12]. A relay predating the
+     * route answers 404, which means it cannot schedule one either: null, quietly.
+     */
+    fun getGroupReset(token: String): GroupResetState? = try {
+        exec(build("GET", "/v1/group", token, null), GroupStateResponse.serializer()).reset
+    } catch (e: ApiException) {
+        if (e.status == 404) null else throw e
+    }
+
+    /** Stop the pending reset. The relay answers `{reset:null}` also when none was pending. */
+    fun stopGroupReset(token: String) {
+        execRaw(build("POST", "/v1/group/reset/stop", token, emptyJsonBody()))
+    }
 
     fun ack(token: String, id: String) {
         execRaw(build("POST", "/v1/messages/${enc(id)}/ack", token, emptyJsonBody()))

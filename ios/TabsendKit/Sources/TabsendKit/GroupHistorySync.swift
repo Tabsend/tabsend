@@ -192,24 +192,25 @@ public enum GroupHistorySync {
         NewDevices.markRotationDone(owedAt: owedAt, store: store)
     }
 
-    /// Hand the current key to every member that has not had it from us.
+    /// Hand the group's keys to every member that has not had them from us: the
+    /// current one and the older ones that still open history, since a device that
+    /// arrived after a rotation has retained history sealed under the key it
+    /// replaced (ADR-0028 amended 2026-10-30).
     private static func deliverKeys(
         store: TabsendStore, api: ApiClient, endpoints: [Endpoint],
         identity: Identity, into report: inout Report
     ) async {
-        let ring = store.groupKeyring
-        guard let current = Keyring.current(ring) else { return }
         let pending = Keyring.pendingDeliveries(
-            ring: ring, endpoints: endpoints,
+            ring: store.groupKeyring, endpoints: endpoints,
             selfEndpointId: store.registration?.endpointId ?? "",
             delivered: store.deliveredGroupKeys
         )
         guard !pending.isEmpty else { return }
-        guard let plaintext = try? Wire.encoder.encode(current) else { return }
 
         var items: [GroupKeyRequest.Item] = []
         for delivery in pending {
-            guard let envelope = try? Sealer.seal(
+            guard let plaintext = try? Wire.encoder.encode(delivery.record),
+                  let envelope = try? Sealer.seal(
                 plaintext: plaintext,
                 targetPublicKeyBase64: delivery.targetPubkey,
                 senderPrivateKeyBase64: identity.privateKey,

@@ -28,7 +28,7 @@ private struct Device {
 }
 
 /// A paired phone ("me") with a group key, whose watch has accepted `devices`: the
-/// first list was its baseline and its first-look card was answered.
+/// first list was its baseline, told once and stored settled (P-23).
 private struct Phone {
     let store = MemoryStore()
     let me = Device("me")
@@ -44,7 +44,6 @@ private struct Phone {
         store.groupKeyring = [groupKey]
         for device in devices { self.devices[device.endpoint.id] = device }
         NewDevices.observe([me.endpoint] + devices.map(\.endpoint), store: store)
-        NewDevices.answerReview(store: store)
     }
 
     /// The relay lists `ids` next; the phone runs its rule on that list.
@@ -346,16 +345,29 @@ struct HeldTabRetargetTests {
     }
 
     @Test func refusedForADeviceWithAPendingNotice() throws {
+        // Since P-23 this phone stores no pending notice (`settleNotices`), but a record an
+        // earlier build left can carry one, and the rule still honours it.
         var phone = Phone([Device("a")])
         let old = try phone.hold("a", targetGone: true)
         let newcomer = Device("n")
         phone.devices["n"] = newcomer
         phone.relayLists(["a", "n"])
-        #expect(NewDevices.unconfirmed(store: phone.store).map(\.id) == ["n"])
+        phone.store.updateNewDeviceWatch { prev in
+            prev.map { watch in
+                var pending = watch
+                pending.unconfirmed = [
+                    NewDeviceNotice(
+                        id: "n", label: newcomer.endpoint.label, createdAt: newcomer.endpoint.createdAt
+                    ),
+                ]
+                return pending
+            }
+        }
         expectRefused(phone, old, to: newcomer.endpoint, "a device with a pending notice")
 
-        // Answered, it may be chosen.
-        NewDevices.dismiss(id: "n", store: phone.store)
+        // The next list settles it: told once, it may be chosen.
+        phone.relayLists(["a", "n"])
+        #expect(phone.store.newDeviceWatch?.unconfirmed.isEmpty == true)
         #expect(Sender.retargetHeld(id: old.id, to: newcomer.endpoint, store: phone.store))
     }
 

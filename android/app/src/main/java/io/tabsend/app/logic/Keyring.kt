@@ -177,16 +177,31 @@ object Keyring {
     fun vouchedDeparted(departed: List<String>?, senderEndpointId: String): List<String>? =
         departed.orEmpty().filter { it != senderEndpointId }.ifEmpty { null }
 
-    /** One copy of the current key that still needs handing to a group member. */
+    /**
+     * How many keys a device hands on, newest first. The mirror of
+     * `MAX_HANDED_KEYS` in extension/src/lib/keyring.ts: every key still in the
+     * ring may open retained history, so a device that joins after a rotation needs
+     * the older ones too, and this keeps a long-lived group well inside the relay's
+     * 64-copies-per-device bound.
+     */
+    const val MAX_HANDED_KEYS = 16
+
+    /** One copy of a group key that still needs handing to a group member. */
     data class PendingDelivery(
         /** Deterministic, so a replay dedupes server-side instead of piling up rows. */
         val id: String,
+        /** The key to seal: the current one, or an older one that still opens history. */
+        val record: GroupKeyRecord,
         val targetEndpointId: String,
         val targetPubkey: String,
     )
 
     /**
-     * Which group members still need the current key.
+     * Which group members still need which keys.
+     *
+     * Every key in the ring, newest first and capped at [MAX_HANDED_KEYS], not only
+     * the current one: the history a newcomer is meant to read (ADR-0028 amended
+     * 2026-10-30) is sealed under whatever key was current when it was sent.
      *
      * Excludes this device, consoles included on purpose (a console reads history
      * like anything else — it is excluded from CHOOSERS, not from the group), and
@@ -200,20 +215,25 @@ object Keyring {
         selfEndpointId: String,
         delivered: List<String>,
     ): List<PendingDelivery> {
-        val key = current(ring) ?: return emptyList()
+        val keys = sort(ring).take(MAX_HANDED_KEYS)
+        if (keys.isEmpty()) return emptyList()
         val done = delivered.toSet()
-        // Never to a device the key itself names as gone: a key minted after a departure
-        // exists to keep that device out, and a relay that lists it again (or shows this
-        // phone a list from before) must not get it handed over (X14).
-        val gone = key.departed.orEmpty().toSet()
-        return endpoints
-            .filter { it.id != selfEndpointId && it.id !in gone }
-            .map {
-                PendingDelivery(
-                    id = deliveryId(key.keyId, it.id),
-                    targetEndpointId = it.id,
-                    targetPubkey = it.e2ePubkey,
-                )
+        // Never to a device ANY key names as gone: a key minted after a departure
+        // exists to keep that device out, and a relay that lists it again (or shows
+        // this phone a list from before) must not get it handed over (X14). It
+        // already holds the keys from before it left, so it loses nothing.
+        val gone = ring.flatMap { it.departed.orEmpty() }.toSet()
+        val targets = endpoints.filter { it.id != selfEndpointId && it.id !in gone }
+        return keys
+            .flatMap { record ->
+                targets.map {
+                    PendingDelivery(
+                        id = deliveryId(record.keyId, it.id),
+                        record = record,
+                        targetEndpointId = it.id,
+                        targetPubkey = it.e2ePubkey,
+                    )
+                }
             }
             .filterNot { done.contains(it.id) }
     }

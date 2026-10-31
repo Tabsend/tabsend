@@ -1,4 +1,5 @@
 import {
+  announcesNewDevices,
   confirmNewDevice,
   confirmReview,
   dismissVanished,
@@ -9,15 +10,18 @@ import {
   type NewDeviceWatch,
   removeDevice,
   rotationDone,
+  settleNotices,
   watchDevices,
 } from '@tabsend/shared'
 import { ext } from '../lib/ext'
 import { currentKey } from '../lib/keyring'
 import { IS_FIREFOX } from '../lib/platform'
 import {
+  clearPairingVouch,
   getCachedEndpoints,
   getGroupKeys,
   getNewDeviceWatch,
+  getPairingVouch,
   setCachedEndpoints,
   setNewDeviceWatch,
 } from '../lib/storage'
@@ -63,19 +67,40 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
  */
 export async function recordEndpoints(list: Endpoint[], selfEndpointId: string): Promise<void> {
   if (!listIncludesSelf(list, selfEndpointId)) throw new ListWithoutSelfError()
-  const joined = await serial(async () => {
+  const told = await serial(async () => {
     const current = currentKey(await getGroupKeys())?.createdAt
     const prev = await getNewDeviceWatch()
     // With no record yet, the list a build from before the notice cached is the
     // baseline, so what appeared after it is announced (GH6). Read before the
     // cache is overwritten below.
     const seed = prev ? undefined : await getCachedEndpoints()
-    const result = watchDevices(prev, list, selfEndpointId, new Date().toISOString(), current, seed)
-    if (result.watch) await setNewDeviceWatch(result.watch)
+    // The devices the pairing link vouched for are not reported (P-23). Read only
+    // while this pairing has no record; spent once its first record is stored.
+    const mine = prev?.selfId === selfEndpointId ? prev : undefined
+    const vouch = mine ? undefined : await getPairingVouch()
+    const vouched = vouch?.endpointId === selfEndpointId ? vouch.tags : undefined
+    const result = watchDevices(
+      prev,
+      list,
+      selfEndpointId,
+      new Date().toISOString(),
+      current,
+      seed,
+      vouched,
+    )
+    // Told once, as information, and nothing waits for an answer (P-23): the record
+    // keeps no pending notice. On a fresh pairing, the devices the link did not
+    // vouch for are told the same way.
+    if (result.watch) await setNewDeviceWatch(settleNotices(result.watch))
+    if (vouched && result.watch?.selfId === selfEndpointId) await clearPairingVouch()
     await setCachedEndpoints(list)
-    return result.joined
+    const firstList = mine ? [] : (result.watch?.review ?? [])
+    if (!announcesNewDevices(mine, list, selfEndpointId, Date.now())) return null
+    if (result.joined.length > 0) return { kind: 'joined' as const, devices: result.joined }
+    if (firstList.length > 0) return { kind: 'firstList' as const, devices: firstList }
+    return null
   })
-  if (joined.length > 0) await notifyNewDevices(joined)
+  if (told) await notifyNewDevices(told.kind, told.devices)
 }
 
 /** The joined devices this browser has not answered yet, oldest first. */
@@ -158,26 +183,31 @@ export function confirmNewDeviceNotice(endpointId: string): Promise<void> {
 /**
  * Deliberately NOT gated on `notifyOnReceive`: that switch is about arrivals,
  * and this is a security notice. The browser's own notification permission
- * still applies, and the banner covers it when alerts are off.
+ * still applies. Information only (P-23): it goes away on its own, and the
+ * device is simply in the list.
  */
-async function notifyNewDevices(joined: NewDeviceNotice[]): Promise<void> {
+async function notifyNewDevices(
+  kind: 'joined' | 'firstList',
+  devices: NewDeviceNotice[],
+): Promise<void> {
   try {
     if (!ext.notifications?.create) return
-    const { title, message } = newDeviceCopy.alert(joined, Date.now())
+    const { title, message } =
+      kind === 'joined'
+        ? newDeviceCopy.alert(devices, Date.now())
+        : newDeviceCopy.firstListAlert(devices)
     await ext.notifications.create(`${NOTIFICATION_ID_PREFIX}${Date.now()}`, {
       type: 'basic',
       iconUrl: ext.runtime.getURL('icons/tabsend-128.png'),
       title,
       message,
-      // Chrome keeps it on screen until dismissed. Firefox rejects the option outright.
-      ...(IS_FIREFOX ? {} : { requireInteraction: true }),
     })
   } catch {
-    // No notifications API or permission: the banner still shows.
+    // No notifications API or permission: the device is still in the list.
   }
 }
 
-/** A click opens the manage screen, where the banner and the Remove buttons are. */
+/** A click opens the manage screen, where the device list and its Remove buttons are. */
 export async function handleNewDeviceNotificationClick(notificationId: string): Promise<boolean> {
   if (!notificationId.startsWith(NOTIFICATION_ID_PREFIX)) return false
   void Promise.resolve()

@@ -56,6 +56,12 @@ import type { Endpoint, IsoTimestamp } from './types'
  *    this device removing it is kept in `vanished` until dismissed (GH7). A relay can
  *    show a device once and hide it; the one-time alert is easy to miss, and the
  *    device read what was sent while it was listed.
+ *  - The device that showed the pairing link vouches for the first list (P-23): the
+ *    link carries a short tag of each device that device has accepted (`vouchTags`),
+ *    and a device the new one finds in its first list under a vouched key is not put
+ *    on the first look. The link travels from the user's hand to the new device, so
+ *    the relay cannot add to it. Only what does not match is asked about; a link
+ *    from an older client carries no tags and everything is asked about, as before.
  *  - A rotation is owed FOR named devices (`rotateFor`), and the key that pays it
  *    must name them (`GroupKeyRecord.departed`). A newer key that does not is not
  *    a rotation for them: a relay that holds key copies back can otherwise make a
@@ -148,6 +154,12 @@ export interface NewDeviceWatch {
 /** The most "joined, then disappeared" notices kept; a relay that flaps ids cannot grow the record. */
 export const MAX_VANISHED = 20
 
+/** The most devices a pairing link vouches for. A larger group's link vouches for the first ones; the rest are asked about. */
+export const MAX_VOUCHED = 50
+
+/** Characters of a published key a pairing link carries per device: 96 bits, too many to grind a key for. */
+export const VOUCH_TAG_LENGTH = 16
+
 export interface WatchResult {
   /** What to store next. Null only when there was nothing before and the list could not be used. */
   watch: NewDeviceWatch | null
@@ -184,6 +196,10 @@ export function listIncludesSelf(list: readonly Endpoint[], selfId: string): boo
  * record yet it is the baseline, so a device that appeared after it was cached is
  * announced instead of being taken on trust. It counts only if it contains this
  * device, so a cache left by another pairing is ignored.
+ *
+ * `vouched` is the tags the pairing link carried (`parseVouch`), if any. It is used
+ * only when this list becomes the baseline: a device in it whose key has a vouched tag
+ * is not put on the first look. Once a record exists it is never consulted again.
  */
 export function watchDevices(
   prevRecord: NewDeviceWatch | null | undefined,
@@ -192,6 +208,7 @@ export function watchDevices(
   now: string = new Date().toISOString(),
   currentKeyCreatedAt?: string,
   seed?: readonly Endpoint[],
+  vouched?: readonly string[],
 ): WatchResult {
   if (!listIncludesSelf(rawList, selfId)) {
     return { watch: prevRecord ?? null, joined: [] }
@@ -200,7 +217,9 @@ export function watchDevices(
   const list = firstById(rawList)
   let prev = prevRecord
   if (!prev || prev.selfId !== selfId || !Array.isArray(prev.known)) {
-    if (!seed || !listIncludesSelf(seed, selfId)) return { watch: baseline(list, selfId), joined: [] }
+    if (!seed || !listIncludesSelf(seed, selfId)) {
+      return { watch: baseline(list, selfId, vouched), joined: [] }
+    }
     prev = baseline(seed, selfId)
   }
 
@@ -411,9 +430,16 @@ export function heldTabChoices(
   )
 }
 
-/** The user said "Yes, it's mine": drop that device's pending notice. */
+/**
+ * The user said "It's mine" on one device: drop its pending notice, or its place on
+ * the first look. The rest of the first look stays.
+ */
 export function confirmNewDevice(watch: NewDeviceWatch, id: string): NewDeviceWatch {
-  return { ...watch, unconfirmed: watch.unconfirmed.filter((n) => n.id !== id) }
+  const { review: _review, ...rest } = watch
+  const next: NewDeviceWatch = { ...rest, unconfirmed: watch.unconfirmed.filter((n) => n.id !== id) }
+  const review = watch.review?.filter((n) => n.id !== id)
+  if (review !== undefined && review.length > 0) next.review = review
+  return next
 }
 
 /** "All of these are mine": the first look is answered; its card goes on this device only. */
@@ -463,6 +489,129 @@ export function rotationDone(watch: NewDeviceWatch, owedAt: string): NewDeviceWa
   return rest
 }
 
+/** A phone not seen for this long no longer counts as the one that tells the user (P-23). */
+export const ANNOUNCER_STALE_MS = 30 * 24 * 60 * 60 * 1000
+
+/**
+ * Should THIS device tell the user that a device joined (P-23; owner, 2026-10-30: "show
+ * that warning once", information only)? A phone always does. A browser does only when the
+ * group has no phone this device had accepted before this list and has seen in the last 30
+ * days, so a user without a phone still hears, and one with a phone hears it once. A
+ * console never does: it has no notifications.
+ *
+ * Only a phone from the record BEFORE this list counts (`prev`): a phone that arrives in
+ * the same list as the newcomer, or is the newcomer, silences nobody, so a relay cannot hush
+ * the browsers by adding a phone along with its device. A time that cannot be read counts
+ * as not seen. Pure.
+ */
+export function announcesNewDevices(
+  prev: NewDeviceWatch | null | undefined,
+  list: readonly Endpoint[],
+  selfId: string,
+  now: number,
+): boolean {
+  const self = list.find((e) => e.id === selfId)
+  if (!self) return false
+  if (self.kind === 'mobile') return true
+  if (self.kind !== 'extension') return false
+  const before = prev && prev.selfId === selfId ? prev : null
+  return !endpointsKnownTo(before, firstById(list)).some((e) => {
+    if (e.id === selfId || e.kind !== 'mobile') return false
+    const seen = Date.parse(e.lastSeenAt)
+    return Number.isFinite(seen) && now - seen <= ANNOUNCER_STALE_MS
+  })
+}
+
+/**
+ * The notices, once told (P-23): a joined device is reported once, as information, and
+ * nothing waits for an answer, so nothing is kept on the first look (`review`) or pending
+ * (`unconfirmed`), with one exception: a device carrying the published key of a device
+ * THIS device removed stays pending, so `endpointsKnownTo` keeps it out of key handoff. A
+ * relay could otherwise list a removed device again under a fresh id and have it handed
+ * the next key a moment after one notification. Everything else in the record stays.
+ */
+export function settleNotices(watch: NewDeviceWatch): NewDeviceWatch {
+  const { review: _review, ...rest } = watch
+  const held = new Set(watch.removedKeys)
+  const unconfirmed = watch.unconfirmed.filter((n) => {
+    const key = watch.keys?.[n.id]
+    return key !== undefined && held.has(key)
+  })
+  return { ...rest, unconfirmed }
+}
+
+/**
+ * A device's tag in a pairing link: the first `VOUCH_TAG_LENGTH` characters of its
+ * published key, in the URL-safe alphabet so the link needs no escaping.
+ */
+export function vouchTag(e2ePubkey: string): string {
+  return e2ePubkey
+    .slice(0, VOUCH_TAG_LENGTH)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '')
+}
+
+/**
+ * The tags a pairing link this device shows vouches for (P-23): every device it has
+ * accepted (`endpointsKnownTo`, this device included), never one it has not answered
+ * yet, a pending notice or one on its own first look. Unique, in list order, at most
+ * `MAX_VOUCHED`. Empty when the watch belongs to another pairing or the list is not
+ * one this device may use; the link then vouches for nothing.
+ */
+export function vouchTags(
+  watch: NewDeviceWatch | null | undefined,
+  list: readonly Endpoint[],
+  selfId: string,
+): string[] {
+  if (!watch || watch.selfId !== selfId || !listIncludesSelf(list, selfId)) return []
+  const unanswered = new Set([...watch.unconfirmed, ...(watch.review ?? [])].map((n) => n.id))
+  const tags = endpointsKnownTo(watch, firstById(list))
+    .filter((e) => !unanswered.has(e.id))
+    .map((e) => vouchTag(e.e2ePubkey))
+    .filter((t) => t.length === VOUCH_TAG_LENGTH)
+  return [...new Set(tags)].slice(0, MAX_VOUCHED)
+}
+
+/**
+ * A pairing link with the tags appended to its fragment as `&v=tag.tag`. The relay makes
+ * the base link, so any `v` already in its fragment is removed first, tags or not: only
+ * this device may vouch, and a relay's own tag would make its planted device look
+ * accepted (v0.9.0 review, finding 1).
+ */
+export function withVouch(link: string, tags: readonly string[]): string {
+  const hash = link.indexOf('#')
+  if (hash < 0) return link
+  const kept = link
+    .slice(hash + 1)
+    .split('&')
+    .filter((p) => !p.startsWith('v='))
+  const base = `${link.slice(0, hash + 1)}${kept.join('&')}`
+  return tags.length === 0 ? base : `${base}&v=${tags.join('.')}`
+}
+
+/**
+ * The tags a pairing link carries, or undefined when it carries none (a link from an
+ * older client, one whose `v` held nothing usable, or one with more than one `v`). A tag that is not exactly
+ * `VOUCH_TAG_LENGTH` URL-safe characters is dropped: a shorter one would match more keys.
+ */
+export function parseVouch(link: string): string[] | undefined {
+  const hash = link.indexOf('#')
+  if (hash < 0) return undefined
+  const params = link
+    .slice(hash + 1)
+    .split('&')
+    .filter((p) => p.startsWith('v='))
+  // More than one `v` means something other than the showing device wrote one: trust none.
+  if (params.length !== 1) return undefined
+  const param = params[0] as string
+  const pattern = new RegExp(`^[A-Za-z0-9_-]{${VOUCH_TAG_LENGTH}}$`)
+  const tags = [...new Set(param.slice(2).trim().split('.'))]
+    .filter((t) => pattern.test(t))
+    .slice(0, MAX_VOUCHED)
+  return tags.length > 0 ? tags : undefined
+}
+
 /** The list with each id once, in order of first appearance. */
 function firstById(list: readonly Endpoint[]): Endpoint[] {
   const seen = new Set<string>()
@@ -475,10 +624,15 @@ function firstById(list: readonly Endpoint[]): Endpoint[] {
   return out
 }
 
-function baseline(raw: readonly Endpoint[], selfId: string): NewDeviceWatch {
+function baseline(
+  raw: readonly Endpoint[],
+  selfId: string,
+  vouched?: readonly string[],
+): NewDeviceWatch {
   const list = firstById(raw)
+  const vouchedTags = new Set(vouched)
   const others = list
-    .filter((e) => e.id !== selfId)
+    .filter((e) => e.id !== selfId && !vouchedTags.has(vouchTag(e.e2ePubkey)))
     .map((e) => ({ id: e.id, label: e.label, createdAt: e.createdAt }))
   const watch: NewDeviceWatch = {
     selfId,
@@ -486,7 +640,7 @@ function baseline(raw: readonly Endpoint[], selfId: string): NewDeviceWatch {
     unconfirmed: [],
     keys: keysOf(list),
   }
-  // The first look: one card, asked once, when there is anyone else to check.
+  // The first look: asked once, when anyone the pairing link did not vouch for is there.
   if (others.length > 0) watch.review = others
   return watch
 }

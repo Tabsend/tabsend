@@ -2,6 +2,7 @@ package io.tabsend.app.store
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.tabsend.app.logic.GroupResetRecord
 import io.tabsend.app.logic.HistoryItem
 import io.tabsend.app.logic.InboxItem
 import io.tabsend.app.logic.NewDeviceWatch
@@ -503,6 +504,48 @@ class Store private constructor(private val prefs: SharedPreferences) {
         return out
     }
 
+    // --- the pairing link's vouch (P-23) ---
+    // The tags the link this phone joined with carried ([NewDevices.parseVouch]): the
+    // devices the showing device vouched for. Read by the first watch of this pairing,
+    // which makes them its baseline's answer, then cleared; never consulted again.
+    // Device-local, never sent. Wiped by [clear] with the pairing.
+    var pairingVouch: List<String>?
+        get() = prefs.getString(K_PAIRING_VOUCH, null)
+            ?.let { runCatching { json.decodeFromString(ListSerializer(String.serializer()), it) }.getOrNull() }
+        set(value) = prefs.edit().apply {
+            if (value.isNullOrEmpty()) {
+                remove(K_PAIRING_VOUCH)
+            } else {
+                putString(K_PAIRING_VOUCH, json.encodeToString(ListSerializer(String.serializer()), value))
+            }
+        }.apply()
+
+    // --- a reset that waits (P-18 item 12) ---
+    // The last reset the relay reported, and which one was alerted and which one
+    // "It was me" hid. Device-local, never sent. Wiped by [clear] with the pairing.
+    var groupReset: GroupResetRecord?
+        get() = prefs.getString(K_GROUP_RESET, null)
+            ?.let { runCatching { json.decodeFromString(GroupResetRecord.serializer(), it) }.getOrNull() }
+        set(value) = prefs.edit().apply {
+            if (value == null) {
+                remove(K_GROUP_RESET)
+            } else {
+                putString(K_GROUP_RESET, json.encodeToString(GroupResetRecord.serializer(), value))
+            }
+        }.apply()
+
+    /**
+     * Read-modify-write the record under a lock: a background drain, the stream and an
+     * open screen can all check at once, and a lost update could alert twice or bring
+     * back a card the user hid.
+     */
+    @Synchronized
+    fun <T> updateGroupReset(transform: (GroupResetRecord?) -> Pair<GroupResetRecord?, T>): T {
+        val (next, out) = transform(groupReset)
+        groupReset = next
+        return out
+    }
+
     // --- source-side outbound queue (send while offline) ---
     var outbound: List<OutboundItem>
         get() = prefs.getString(K_OUTBOUND, null)
@@ -612,8 +655,10 @@ class Store private constructor(private val prefs: SharedPreferences) {
         private const val K_ENDPOINTS = "endpoints.cache"
         private const val K_ENDPOINTS_AT = "endpoints.cache.at"
         private const val K_NEW_DEVICES = "endpoints.newDevices"
+        private const val K_PAIRING_VOUCH = "endpoints.pairingVouch"
         private const val K_OUTBOUND = "outbound.queue"
         private const val K_RELAY_HEALTH = "relay.health"
+        private const val K_GROUP_RESET = "group.reset"
 
         @Volatile
         private var instance: Store? = null

@@ -30,7 +30,7 @@ struct PairSheetView: View {
                             .panelRow()
                     }
                 } footer: {
-                    Text("Scan the QR with a phone, or copy the link to a browser extension. It works once and expires in about 10 minutes.")
+                    Text("Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it. It works once and expires in about 10 minutes.")
                         .foregroundColor(Palette.muted)
                 }
 
@@ -44,7 +44,7 @@ struct PairSheetView: View {
                 }
             }
             .groupedListBackground()
-            .navigationTitle("Pair a device")
+            .navigationTitle("Add a device")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 Button("Close") { dismiss() }

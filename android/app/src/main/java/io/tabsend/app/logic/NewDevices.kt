@@ -13,12 +13,21 @@ import kotlinx.serialization.Serializable
  * is compared with the ids this phone saw last, so a device inserted straight
  * into the relay's database is caught on the next fetch.
  *
- *  - The first list is the baseline and announces nothing. The user looks at it ONCE
- *    instead ([NewDeviceWatch.review], GH6): a card lists the other devices in it, with
- *    "All of these are mine" and a way to remove any. On the first run of a build with
- *    the notice, the list the previous build cached is the baseline when there is one,
- *    so a device that appeared after it was cached is announced. Nothing is held back
- *    from the key while the card waits.
+ *  - The first list is the baseline and announces nothing as joined. Its other devices
+ *    are the first look ([NewDeviceWatch.review], GH6), told once (P-23). On the first
+ *    run of a build with the notice, the list the previous build cached is the baseline
+ *    when there is one, so a device that appeared after it was cached is announced. Nothing is held back
+ *    from the key while a device waits for an answer.
+ *  - Since P-23 (owner, 2026-10-30: "show that warning once", information only) a joined
+ *    device and the first look are told once and nothing waits for an answer: the phone
+ *    stores [NewDevices.settleNotices] of each record, and [NewDevices.announcesNewDevices]
+ *    says whether this device is the one that tells.
+ *  - The device that showed the pairing link vouches for the first list (P-23): the
+ *    link carries a short tag of each device that device has accepted
+ *    ([NewDevices.vouchTags]), and a device this phone finds in its first list under a vouched key is not put on
+ *    the first look. The link travels from the user's hand to this phone, so the relay
+ *    cannot add to it. Only what does not match is asked about; a link from an older
+ *    client carries no tags and everything is asked about, as before.
  *  - A device announced as new, never answered, and then gone from the list without this
  *    phone removing it is kept in [NewDeviceWatch.vanished] until dismissed (GH7): a
  *    relay can show a device once and hide it.
@@ -102,17 +111,19 @@ data class NewDeviceWatch(
     /**
      * The published keys (`e2ePubkey`) of the devices THIS phone removed, where it knew
      * them. A device carrying one of these under a NEW id stays out of
-     * [NewDevices.endpointsKnownTo] until the user answers its notice ("Yes, it's
-     * mine"): a relay can otherwise re-list a removed device under a fresh id and be
-     * handed the next key before anyone looks. Held back only until answered, because
-     * the extension keeps its device key when it re-pairs, so an honest re-paired device
-     * does come back under a new id with the same key: one tap lets it in.
+     * [NewDevices.endpointsKnownTo] while its notice is pending: a relay can otherwise
+     * re-list a removed device under a fresh id and be handed the next key before anyone
+     * looks. Held back only while pending, because the extension keeps its device key when
+     * it re-pairs, so an honest re-paired device does come back under a new id with the
+     * same key. Since P-23 the phone stores no pending notice ([settleNotices]), so this
+     * holds only for a record from before it.
      */
     val removedKeys: List<String>? = null,
     /**
-     * The first look (GH6): the other devices in the first list this phone accepted,
-     * waiting for ONE answer ("All of these are mine") or for each to be removed. Null
-     * once answered, and on a record written before this existed.
+     * The first look (GH6): the other devices in the first list this phone accepted that
+     * the pairing link did not vouch for (P-23). Told once and then dropped
+     * ([NewDevices.settleNotices]), so the stored record never keeps it; null on a record
+     * written before this existed.
      */
     val review: List<NewDeviceNotice>? = null,
     /**
@@ -135,6 +146,18 @@ object NewDevices {
     /** The most "joined, then disappeared" notices kept; a relay that flaps ids cannot grow the record. */
     const val MAX_VANISHED = 20
 
+    /**
+     * The most devices a pairing link vouches for. A larger group's link vouches for the
+     * first ones; the rest are asked about.
+     */
+    const val MAX_VOUCHED = 50
+
+    /** Characters of a published key a pairing link carries per device: 96 bits, too many to grind a key for. */
+    const val VOUCH_TAG_LENGTH = 16
+
+    /** A tag as [parseVouch] accepts it: exactly [VOUCH_TAG_LENGTH] URL-safe characters. */
+    private val VOUCH_TAG = Regex("[A-Za-z0-9_-]{$VOUCH_TAG_LENGTH}")
+
     /** True when a list may be used at all: it has to contain this device. */
     fun listIncludesSelf(list: List<Endpoint>, selfId: String): Boolean = list.any { it.id == selfId }
 
@@ -147,6 +170,10 @@ object NewDevices {
      * The TypeScript also restarts from a baseline when a stored record's `known`
      * is not a list; here the typed decode already refuses such a record (the
      * Store reads it as null), which lands on the same baseline.
+     *
+     * [vouched] is the tags the pairing link carried ([parseVouch]), if any. It is used
+     * only when this list becomes the baseline: a device in it whose key has a vouched tag
+     * is not put on the first look (P-23). Once a record exists it is never consulted again.
      */
     fun watch(
         prevRecord: NewDeviceWatch?,
@@ -155,16 +182,17 @@ object NewDevices {
         now: String = isoMillisOf(System.currentTimeMillis()),
         currentKeyCreatedAt: String? = null,
         seed: List<Endpoint>? = null,
+        vouched: List<String>? = null,
     ): WatchResult {
         if (!listIncludesSelf(rawList, selfId)) return WatchResult(prevRecord, emptyList())
-        // A list that names one id twice (a relay can) counts it once, so no card or banner is doubled.
+        // A list that names one id twice (a relay can) counts it once, so no row is marked twice.
         val list = rawList.distinctBy { it.id }
         // With no record yet, the list a build from before this rule cached is the
         // baseline, so what appeared after it is announced (GH6). It counts only if it
         // contains this phone, so a cache left by another pairing is ignored.
         val prev = if (prevRecord == null || prevRecord.selfId != selfId) {
             if (seed == null || !listIncludesSelf(seed, selfId)) {
-                return WatchResult(baseline(list, selfId), emptyList())
+                return WatchResult(baseline(list, selfId, vouched), emptyList())
             }
             baseline(seed, selfId)
         } else {
@@ -191,9 +219,9 @@ object NewDevices {
         val review = prev.review.orEmpty()
             .filter { it.id in byId && it.id !in joinedIds }
             .map(::refreshed)
-        // Shown to the user and never answered (a pending banner, or a device on the first-look
-        // card), then gone without this phone removing it: the relay may be hiding it (GH7).
-        // That holds for a device on the card too: it was shown once and cannot be allowed to
+        // Shown to the user and never answered (a pending notice, or a device on the first
+        // look), then gone without this phone removing it: the relay may be hiding it (GH7).
+        // That holds for a device on the first look too: it was shown once and cannot be allowed to
         // drop off without a trace. One that is back is a pending notice again, not both. One
         // whose key is still on screen as another unanswered device (a browser that re-paired:
         // new id, same key, old id deleted) is not hidden, only renamed, and is not reported.
@@ -326,7 +354,7 @@ object NewDevices {
      * The devices a held tab whose device is gone may be moved to (P-15 item 3,
      * SECURITY_REVIEW L3): those this watch has accepted ([endpointsKnownTo], so never
      * one this phone removed), never this phone or a console, and none the user has
-     * not answered yet, a pending "new device" notice or the first-look card. The relay
+     * not answered yet, a pending "new device" notice or one on the first look. The relay
      * decides when a held tab asks for a new device, so it must not also decide what
      * is offered. The device the tab was for is not left out: once accepted again it
      * is a fair choice. In list order; the home screen sorts. A watch that belongs to
@@ -340,16 +368,27 @@ object NewDevices {
         }
     }
 
-    /** "All of these are mine": the first look is answered; its card goes on this phone only. */
+    /**
+     * "All of these are mine": the whole first look is answered on this phone only. The
+     * home screen no longer asks this (P-23 answers per device, [confirm]); kept because
+     * the shared vectors run it on every client.
+     */
     fun confirmReview(watch: NewDeviceWatch): NewDeviceWatch = watch.copy(review = null)
 
     /** Dismiss one "joined, then disappeared" notice on this phone. */
     fun dismissVanished(watch: NewDeviceWatch, id: String): NewDeviceWatch =
         watch.copy(vanished = watch.vanished?.filter { it.id != id }?.ifEmpty { null })
 
-    /** The user said "Yes, it's mine": drop that device's pending notice. */
+    /**
+     * One device answered: drop its pending notice, or its place on the first look. The
+     * home screen no longer asks (P-23: told once, [settleNotices]); kept because the
+     * shared vectors run it on every client.
+     */
     fun confirm(watch: NewDeviceWatch, id: String): NewDeviceWatch =
-        watch.copy(unconfirmed = watch.unconfirmed.filter { it.id != id })
+        watch.copy(
+            unconfirmed = watch.unconfirmed.filter { it.id != id },
+            review = watch.review?.filter { it.id != id }?.ifEmpty { null },
+        )
 
     /**
      * Should this phone replace the group key now? Only when a rotation is owed and
@@ -386,15 +425,122 @@ object NewDevices {
             watch.copy(rotateOwedAt = null, rotateFrom = null, rotateFor = null)
         }
 
-    private fun baseline(raw: List<Endpoint>, selfId: String): NewDeviceWatch {
+    /** A phone not seen for this long no longer counts as the one that tells the user (P-23). */
+    const val ANNOUNCER_STALE_MS = 30L * 24 * 60 * 60 * 1000
+
+    /**
+     * Should THIS device tell the user that a device joined (P-23; owner, 2026-10-30: "show
+     * that warning once", information only)? A phone always does. A browser does only when
+     * the group has no phone this device had accepted before this list and has seen in the
+     * last 30 days, so a user without a phone still hears, and one with a phone hears it
+     * once. A console never does: it has no notifications.
+     *
+     * Only a phone from the record BEFORE this list counts ([prev]): a phone that arrives in
+     * the same list as the newcomer, or is the newcomer, silences nobody, so a relay cannot
+     * hush the browsers by adding a phone along with its device. A time that cannot be read
+     * counts as not seen. [now] is epoch milliseconds. Pure.
+     */
+    fun announcesNewDevices(prev: NewDeviceWatch?, list: List<Endpoint>, selfId: String, now: Long): Boolean {
+        val self = list.find { it.id == selfId } ?: return false
+        if (self.kind == "mobile") return true
+        if (self.kind != "extension") return false
+        val before = prev?.takeIf { it.selfId == selfId }
+        return endpointsKnownTo(before, list.distinctBy { it.id }).none {
+            if (it.id == selfId || it.kind != "mobile") return@none false
+            val seen = parseIsoMillis(it.lastSeenAt) ?: return@none false
+            now - seen <= ANNOUNCER_STALE_MS
+        }
+    }
+
+    /**
+     * The notices, once told (P-23): a joined device is reported once, as information, and
+     * nothing waits for an answer, so nothing is kept on the first look
+     * ([NewDeviceWatch.review]) or pending ([NewDeviceWatch.unconfirmed]), with one
+     * exception: a device carrying the published key of a device THIS phone removed stays
+     * pending, so [endpointsKnownTo] keeps it out of key handoff. A relay could otherwise
+     * list a removed device again under a fresh id and have it handed the next key a moment
+     * after one notification. Everything else in the record stays.
+     */
+    fun settleNotices(watch: NewDeviceWatch): NewDeviceWatch {
+        val held = watch.removedKeys.orEmpty().toSet()
+        val unconfirmed = watch.unconfirmed.filter { n ->
+            val key = watch.keys?.get(n.id)
+            key != null && key in held
+        }
+        return watch.copy(unconfirmed = unconfirmed, review = null)
+    }
+
+    /**
+     * A device's tag in a pairing link: the first [VOUCH_TAG_LENGTH] characters of its
+     * published key, in the URL-safe alphabet so the link needs no escaping.
+     */
+    fun vouchTag(e2ePubkey: String): String =
+        e2ePubkey
+            .take(VOUCH_TAG_LENGTH)
+            .replace('+', '-')
+            .replace('/', '_')
+            .replace("=", "")
+
+    /**
+     * The tags a pairing link this phone shows vouches for (P-23): every device it has
+     * accepted ([endpointsKnownTo], this phone included), never one it has not answered
+     * yet, a pending notice or one on its own first look. Unique, in list order, at most
+     * [MAX_VOUCHED]. Empty when the watch belongs to another pairing or the list is not
+     * one this phone may use; the link then vouches for nothing.
+     */
+    fun vouchTags(watch: NewDeviceWatch?, list: List<Endpoint>, selfId: String): List<String> {
+        if (watch == null || watch.selfId != selfId || !listIncludesSelf(list, selfId)) return emptyList()
+        val unanswered = (watch.unconfirmed + watch.review.orEmpty()).map { it.id }.toSet()
+        return endpointsKnownTo(watch, list.distinctBy { it.id })
+            .filter { it.id !in unanswered }
+            .map { vouchTag(it.e2ePubkey) }
+            .filter { it.length == VOUCH_TAG_LENGTH }
+            .distinct()
+            .take(MAX_VOUCHED)
+    }
+
+    /** A pairing link with the tags appended to its fragment as `&v=tag.tag`. Unchanged when there are none. */
+    fun withVouch(link: String, tags: List<String>): String {
+        // The relay makes the base link, so any `v` already in its fragment goes first,
+        // tags or not: only this device may vouch (v0.9.0 review, finding 1).
+        val hash = link.indexOf('#')
+        if (hash < 0) return link
+        val kept = link.substring(hash + 1).split('&').filterNot { it.startsWith("v=") }
+        val base = link.substring(0, hash + 1) + kept.joinToString("&")
+        return if (tags.isEmpty()) base else "$base&v=${tags.joinToString(".")}"
+    }
+
+    /**
+     * The tags a pairing link carries, or null when it carries none (a link from an
+     * older client, or one whose `v` held nothing usable). A tag that is not exactly
+     * [VOUCH_TAG_LENGTH] URL-safe characters is dropped: a shorter one would match more keys.
+     */
+    fun parseVouch(link: String): List<String>? {
+        val hash = link.indexOf('#')
+        if (hash < 0) return null
+        // More than one `v` means something other than the showing device wrote one.
+        val param = link.substring(hash + 1)
+            .split('&')
+            .filter { it.startsWith("v=") }
+            .singleOrNull()
+            ?: return null
+        val tags = param.substring(2).trim().split('.')
+            .distinct()
+            .filter { VOUCH_TAG.matches(it) }
+            .take(MAX_VOUCHED)
+        return tags.ifEmpty { null }
+    }
+
+    private fun baseline(raw: List<Endpoint>, selfId: String, vouched: List<String>? = null): NewDeviceWatch {
         val list = raw.distinctBy { it.id }
+        val vouchedTags = vouched.orEmpty().toSet()
         return NewDeviceWatch(
             selfId,
             list.map { it.id },
             emptyList(),
             keysOf(list),
-            // The first look: one card, asked once, when there is anyone else to check.
-            review = list.filter { it.id != selfId }
+            // The first look: asked once, when anyone the pairing link did not vouch for is there (P-23).
+            review = list.filter { it.id != selfId && vouchTag(it.e2ePubkey) !in vouchedTags }
                 .map { NewDeviceNotice(it.id, it.label, it.createdAt) }
                 .ifEmpty { null },
         )

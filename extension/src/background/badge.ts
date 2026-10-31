@@ -22,10 +22,17 @@ const DEFAULT_TITLE = 'Tabsend — send this tab'
 let clearTimer: ReturnType<typeof setTimeout> | undefined
 let titleTimer: ReturnType<typeof setTimeout> | undefined
 let unreadCount = 0
+/** The tooltip for devices that aren't connected any more (P-20); '' when none. */
+let unreachableTitle = ''
 
 /** What the badge shows when no send flash is in progress. */
 function renderIdleBadge(): void {
-  if (unreadCount > 0) {
+  // A device that needs fixing outranks the unread count: tabs keep going
+  // nowhere until it is answered, and the count is still on the history page.
+  if (unreachableTitle) {
+    void ext.action.setBadgeBackgroundColor({ color: RED })
+    void ext.action.setBadgeText({ text: '!' })
+  } else if (unreadCount > 0) {
     void ext.action.setBadgeBackgroundColor({ color: BLUE })
     void ext.action.setBadgeText({ text: unreadCount > 9 ? '9+' : String(unreadCount) })
   } else {
@@ -49,7 +56,7 @@ export function badgeTitle(title: string): void {
   if (titleTimer) clearTimeout(titleTimer)
   titleTimer = setTimeout(() => {
     titleTimer = undefined
-    void ext.action.setTitle({ title: DEFAULT_TITLE })
+    void ext.action.setTitle({ title: idleTitle() })
   }, CLEAR_MS * 2)
 }
 
@@ -90,5 +97,20 @@ export function clearBadge(): void {
   clearTimer = undefined
   titleTimer = undefined
   renderIdleBadge()
-  void ext.action.setTitle({ title: DEFAULT_TITLE })
+  void ext.action.setTitle({ title: idleTitle() })
+}
+
+function idleTitle(): string {
+  return unreachableTitle || DEFAULT_TITLE
+}
+
+/**
+ * Keep a "!" on the icon, and say why on its tooltip, while any device a send
+ * could not reach is still unanswered (P-20). `title` is '' when there are none.
+ * Like the unread count, it waits for a flash to finish rather than cutting it.
+ */
+export function setUnreachableBadge(title: string): void {
+  unreachableTitle = title
+  if (!clearTimer) renderIdleBadge()
+  if (!titleTimer) void ext.action.setTitle({ title: idleTitle() })
 }

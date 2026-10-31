@@ -207,7 +207,8 @@ struct GroupKeySyncTests {
         let posts = stub.recorded.filter { $0.method == "POST" && $0.path == "/v1/group-keys" }
         let targets = posts.flatMap { ($0.body?["items"] as? [[String: Any]]) ?? [] }
             .compactMap { $0["targetEndpointId"] as? String }
-        #expect(targets == ["a"])
+        // Once each: "a" is handed every key the ring holds, the old one included.
+        #expect(Set(targets) == ["a"])
     }
 
     @Test func ringUpdatesDoNotLoseAConcurrentWrite() async {

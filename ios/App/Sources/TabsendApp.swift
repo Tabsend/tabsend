@@ -37,6 +37,7 @@ struct TabsendApp: App {
 
     private func handleDeepLink(_ url: URL) {
         guard model.registration == nil else { return }
+        // Parsed from the full link, so the device tags it vouches for come along (P-23).
         if let parsed = Pairing.parse(url.absoluteString) {
             model.pendingDeepLink = parsed
         }

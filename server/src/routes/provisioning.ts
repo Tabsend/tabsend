@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { AUTH_SCHEME, type GroupId } from '@tabsend/shared'
+import { AUTH_SCHEME, type EndpointId, type GroupId } from '@tabsend/shared'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { mintFirstPairingForGroup } from '../bootstrap'
 import {
@@ -15,17 +15,26 @@ import { fail, NOT_FOUND_BODY } from '../errors'
 import { newId } from '../ids'
 import { isDirectLocalCall } from '../netguard'
 import { revokeDeleted } from '../push'
-import { deleteGroupCascade, groupUsage, setGroupSuspended } from '../tenancy'
+import {
+  cancelGroupReset,
+  deleteGroupCascade,
+  groupUsage,
+  runDueGroupReset,
+  scheduleGroupReset,
+  setGroupSuspended,
+} from '../tenancy'
 import { iso } from '../time'
 import { asObject } from '../validate'
+import { ringDoorbell } from '../wake'
 
 /**
  * `/admin/provisioning/*` — the authenticated surface the CONTROL PLANE calls
  * [0031] (HOSTED_PLAN §4.2).
  *
- * WHAT THIS IS. Six operations on one group: create it, mint its first pairing link,
- * set its caps, read its usage, suspend or resume it, delete it. That is the whole of
- * what a hosted signup, a billing webhook and an account deletion need from the relay.
+ * WHAT THIS IS. Seven operations on one group: create it, mint its first pairing link,
+ * set its caps, read its usage, suspend or resume it, schedule or cancel a reset that
+ * waits (P-18 item 12), delete it. That is the whole of what a hosted signup, a billing
+ * webhook, a lost-devices reset and an account deletion need from the relay.
  * The commercial policy that decides WHEN to call any of them — which cap for which
  * price, who gets provisioned, when somebody is cut off — is not here and never will
  * be (HOSTED_PLAN §2.3: mechanism open, policy closed).
@@ -201,6 +210,41 @@ function readFirstLinkLifetime(body: unknown): number | undefined {
     )
   }
   return value * 60 * 1000
+}
+
+/**
+ * The furthest out a reset may be scheduled: 30 days [P-18 item 12]. The account site
+ * waits 72 hours; this is the bound on what any caller can ask for, so a typo cannot
+ * leave a reset hanging over a group for a year.
+ */
+const MAX_RESET_DELAY_MS = 30 * 24 * 60 * 60 * 1000
+
+/**
+ * An ISO-8601 date and time WITH its zone: `Z` or `±hh:mm`. `Date.parse` alone would
+ * also take "Tuesday 3 pm" or a bare date read in the relay's own zone, and a time the
+ * devices count down to must mean one instant everywhere.
+ */
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/
+
+/**
+ * Read `{ "resetsAt": "<ISO>" }`: a real instant, in the future, at most 30 days out.
+ * Returned normalised to the relay's own format (UTC, milliseconds), which is what the
+ * column holds and what every device is shown.
+ */
+function readResetsAt(body: unknown, now: Date): string {
+  const value = asObject(body).resetsAt
+  const parsed = typeof value === 'string' && ISO_INSTANT.test(value) ? Date.parse(value) : NaN
+  if (Number.isNaN(parsed)) {
+    fail(
+      'invalid_request',
+      'resetsAt must be an ISO-8601 date and time with a zone, for example 2026-11-01T12:00:00.000Z.',
+    )
+  }
+  if (parsed <= now.getTime()) fail('invalid_request', 'resetsAt must be in the future.')
+  if (parsed - now.getTime() > MAX_RESET_DELAY_MS) {
+    fail('invalid_request', 'resetsAt must be at most 30 days from now.')
+  }
+  return iso(new Date(parsed))
 }
 
 export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -389,6 +433,7 @@ export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext
             ctx.certFingerprint,
             ctx.now(),
             ttlMs,
+            true,
           ),
         )
         // Deleted between the read above and the mint's own hold on the row. Rare, and
@@ -405,11 +450,27 @@ export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext
             'This group already has a device in it, so the relay no longer mints links for it. Pairing is device to device from here: make the link on a device that is already paired.',
           )
         }
-        const { pairing } = outcome
+        const { pairing, cleared } = outcome
+        // Leftovers of a failed first setup went with this mint (PLANS P-21). After the
+        // commit, as a device removal does: close any socket, and stop ringing them.
+        for (const row of cleared) {
+          ctx.hub.disconnectEndpoint(row.id as EndpointId, 'endpoint removed')
+        }
+        if (cleared.length > 0) {
+          revokeDeleted(
+            ctx.push,
+            cleared.map((row) => ({ endpointId: row.id, pushSubscription: row.push_subscription })),
+            request.log,
+          )
+        }
         // The EXPIRY is audited, never the link. This response is the one place in this
         // module where a pairing credential exists, and a log is exactly the wrong
         // place for it to also exist.
-        request.provisioningAudit = { groupId, expiresAt: pairing.expiresAt }
+        request.provisioningAudit = {
+          groupId,
+          expiresAt: pairing.expiresAt,
+          ...(cleared.length > 0 ? { leftoversCleared: cleared.length } : {}),
+        }
         reply.code(201).send(pairing)
       },
     )
@@ -499,6 +560,131 @@ export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext
         },
       )
     }
+
+    // POST /admin/provisioning/groups/:id/reset — schedule a reset that waits
+    // [P-18 item 12]. The relay HOLDS it, shows it to the group's devices, and lets any
+    // of them stop it; it never carries it out. When `resetsAt` comes and nobody has
+    // stopped it, the control plane replaces the group itself (`reset/run` below, then
+    // a new group and its first link), so this adds no way into the existing group.
+    //
+    // A retry while one is pending answers with the reset already there, unchanged:
+    // the devices are counting down to that time, and a retried call must not move it.
+    scope.post<{ Params: { id: string } }>(
+      '/admin/provisioning/groups/:id/reset',
+      { config: { provisioningOperation: 'schedule_reset' } },
+      async (request) => {
+        const groupId = request.params.id
+        request.provisioningAudit = { groupId }
+        const now = ctx.now()
+        const resetsAt = readResetsAt(request.body, now)
+        const outcome = await ctx.groupWrites.run(groupId, () =>
+          scheduleGroupReset(ctx.db, isPostgresUrl(ctx.config.databaseUrl), groupId, resetsAt, now),
+        )
+        if (!outcome.exists) fail('not_found', 'No such group on this relay.')
+        request.provisioningAudit = {
+          groupId,
+          resetsAt: outcome.reset?.resetsAt,
+          alreadyPending: !outcome.scheduled,
+        }
+        if (outcome.scheduled) {
+          // After the commit. Live sockets hear it at once; every other device gets
+          // its doorbell rung, content-free, exactly as for a new tab, so a phone
+          // nobody has open still learns a reset is coming while there is time to
+          // stop it. A retry rings nothing: the first call already did.
+          ctx.hub.toGroup(groupId as GroupId, { type: 'group_updated' })
+          const devices = await ctx.db
+            .selectFrom('endpoints')
+            .selectAll()
+            .where('group_id', '=', groupId)
+            .execute()
+          for (const device of devices) await ringDoorbell(ctx, request.log, device)
+        }
+        return { groupId: groupId as GroupId, reset: outcome.reset, stoppedAt: outcome.stoppedAt }
+      },
+    )
+
+    // DELETE /admin/provisioning/groups/:id/reset — the account owner cancelled the
+    // pending reset. 200 whether or not one was pending, so the control plane can
+    // re-run it. `stoppedAt` (a device's Stop) is left as it was.
+    scope.delete<{ Params: { id: string } }>(
+      '/admin/provisioning/groups/:id/reset',
+      { config: { provisioningOperation: 'cancel_reset' } },
+      async (request) => {
+        const groupId = request.params.id
+        request.provisioningAudit = { groupId }
+        const outcome = await ctx.groupWrites.run(groupId, () =>
+          cancelGroupReset(ctx.db, isPostgresUrl(ctx.config.databaseUrl), groupId),
+        )
+        if (!outcome.exists) fail('not_found', 'No such group on this relay.')
+        request.provisioningAudit = { groupId, cleared: outcome.cleared }
+        // Told only when something changed. No doorbell: a cancelled reset is good
+        // news a device can read on its next open.
+        if (outcome.cleared) ctx.hub.toGroup(groupId as GroupId, { type: 'group_updated' })
+        return { groupId: groupId as GroupId, reset: null, stoppedAt: outcome.stoppedAt }
+      },
+    )
+
+    // POST /admin/provisioning/groups/:id/reset/run — carry out a reset that waited
+    // [P-18 item 12], and the ONLY call the control plane uses to do it. The relay
+    // deletes the group only if a reset is still pending and its time has come, decided
+    // under the same hold as the deletion (tenancy.ts, `runDueGroupReset`), so a
+    // device's Stop that lands a moment before is honoured rather than lost between a
+    // control-plane check and a plain DELETE. Then the control plane makes the new
+    // group and its first link with the ordinary calls.
+    //
+    // 200 with `existed: false` for a group that is not there: a control plane that
+    // crashed after the deletion re-runs this and is told it is done. 409
+    // `reset_not_due`, and nothing changed, for anything else.
+    scope.post<{ Params: { id: string } }>(
+      '/admin/provisioning/groups/:id/reset/run',
+      { config: { provisioningOperation: 'run_reset' } },
+      async (request, reply) => {
+        const groupId = request.params.id
+        request.provisioningAudit = { groupId }
+        const outcome = await ctx.groupWrites.run(groupId, () =>
+          runDueGroupReset(ctx.db, isPostgresUrl(ctx.config.databaseUrl), groupId, ctx.now()),
+        )
+        if (outcome.status === 'not_due') {
+          request.provisioningAudit = { groupId, ran: false }
+          // Its own code rather than one from the client contract's closed set: this is
+          // not client wire surface, and only the control plane ever reads it.
+          return reply.code(409).send({
+            error: {
+              code: 'reset_not_due',
+              message:
+                'No reset is due for this group: it was stopped by a device, cancelled, never scheduled, or its time has not come yet. Nothing was changed.',
+            },
+          })
+        }
+        if (outcome.status === 'gone') {
+          request.provisioningAudit = { groupId, ran: false, existed: false }
+          return {
+            groupId: groupId as GroupId,
+            existed: false,
+            deleted: {
+              endpoints: 0,
+              messages: 0,
+              groupKeys: 0,
+              pairingCodes: 0,
+              removedEndpoints: 0,
+              quotaCounters: 0,
+            },
+            socketsClosed: 0,
+          }
+        }
+        // After the commit, exactly as the plain DELETE below does.
+        const { deletedEndpoints, ...result } = outcome.deletion
+        const disconnected = ctx.hub.disconnectGroup(groupId as GroupId)
+        revokeDeleted(ctx.push, deletedEndpoints, request.log)
+        request.provisioningAudit = {
+          groupId,
+          ran: true,
+          deleted: result.deleted,
+          socketsClosed: disconnected,
+        }
+        return { groupId: groupId as GroupId, ...result, socketsClosed: disconnected }
+      },
+    )
 
     // DELETE /admin/provisioning/groups/:id — the idempotent cascade (HOSTED_PLAN §5).
     //

@@ -16,6 +16,7 @@ public enum Wire {
     public static let authScheme = "Bearer"
     public static let presenceOnlineThresholdSeconds = 90
     public static let wsClientPingIntervalSeconds = 30
+    public static let wsClientPongTimeoutSeconds = 10
     public static let seenRetentionSeconds: TimeInterval = 14 * 24 * 60 * 60
 
     public static let encoder: JSONEncoder = {
@@ -448,6 +449,35 @@ public struct CreatePairingResponse: Codable, Sendable {
     public var link: String
     public var browserLink: String?
     public var expiresAt: String
+}
+
+// MARK: group state: the reset that waits [PLANS P-18 item 12]
+
+/// A reset the account site scheduled and nobody has stopped yet. Mirrors
+/// `GroupResetState` in shared/src/types.ts.
+public struct GroupResetState: Codable, Sendable, Equatable {
+    /// When the reset was asked for. Also the reset's identity on this phone: the
+    /// notice and "It was me" are both keyed by it.
+    public var requestedAt: String
+    /// When the group will be replaced, unless a device stops it first.
+    public var resetsAt: String
+
+    public init(requestedAt: String, resetsAt: String) {
+        self.requestedAt = requestedAt
+        self.resetsAt = resetsAt
+    }
+}
+
+/// GET /v1/group. `reset` is null when none is pending. An older relay answers
+/// the route 404, which `GroupReset.fetch` reads as `reset: null`.
+public struct GroupStateResponse: Codable, Sendable {
+    public var reset: GroupResetState?
+}
+
+/// POST /v1/group/reset/stop. Always `{ "reset": null }`, also when nothing was
+/// pending, so a retry or two devices pressing Stop at once both read as done.
+public struct StopGroupResetResponse: Codable, Sendable {
+    public var reset: GroupResetState?
 }
 
 public struct ApiErrorBody: Codable, Sendable {

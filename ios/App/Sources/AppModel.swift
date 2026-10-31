@@ -57,14 +57,13 @@ final class AppModel: ObservableObject {
     /// normal state to sit in, not a failure — the screen explains it instead of
     /// showing an empty list with no reason for being empty.
     @Published var relayKeepsHistory = true
-    /// Devices that joined since this phone's baseline and that the user has not
-    /// answered yet (PLANS.md P-10), oldest first. One banner each on the home
-    /// screen until "Yes, it's mine" or "Remove it".
-    @Published var newDeviceNotices: [NewDeviceNotice] = []
-    /// The first look (GH6): the other devices in the first list, waiting for one answer.
-    @Published var reviewDevices: [NewDeviceNotice] = []
     /// Announced as new, never answered, then gone from the list (GH7), until dismissed.
     @Published var vanishedDevices: [NewDeviceNotice] = []
+    /// A reset of the group that is waiting and that this phone has not answered
+    /// "It was me" (P-18 item 12). The card at the top of the home screen.
+    @Published var pendingReset: GroupResetState?
+    /// True while "Stop the reset" is on its way to the relay.
+    @Published var stoppingReset = false
 
     private init() {
         registration = store.registration
@@ -75,25 +74,60 @@ final class AppModel: ObservableObject {
         refreshHistory()
         refreshWakeState()
         refreshNewDevices()
+        refreshGroupResetCard()
+    }
+
+    // MARK: the reset that waits (PLANS.md P-18 item 12)
+
+    /// Re-read the card from the store. Local only: the relay is asked wherever the
+    /// device list is (`refreshEndpoints`), on the stream's `group_updated`, and in
+    /// the background wake.
+    func refreshGroupResetCard() {
+        pendingReset = GroupReset.current(store: store)
+    }
+
+    /// Ask the relay whether a reset is waiting; announce a new one once.
+    func refreshGroupReset() async {
+        guard let api, registration != nil else { return }
+        if let reset = await GroupReset.refresh(api: api, store: store) {
+            await Notifications.postGroupReset(reset)
+        }
+        refreshGroupResetCard()
+    }
+
+    /// "Stop the reset". On success the card goes and the short confirmation shows;
+    /// on failure the card stays and the reason shows, the way other actions do.
+    func stopGroupReset() async {
+        guard let api, !stoppingReset else { return }
+        stoppingReset = true
+        defer { stoppingReset = false }
+        do {
+            try await GroupReset.stop(api: api, store: store)
+            banner = GroupReset.stoppedLine
+        } catch let error as ApiError {
+            banner = error.message
+        } catch {
+            banner = relayUnreachableBanner()
+        }
+        refreshGroupResetCard()
+    }
+
+    /// "It was me": hides this reset on this phone only. A new reset shows again.
+    func dismissGroupReset(_ reset: GroupResetState) {
+        GroupReset.dismiss(requestedAt: reset.requestedAt, store: store)
+        refreshGroupResetCard()
     }
 
     // MARK: new devices (PLANS.md P-10)
 
-    /// Re-read the unanswered notices. Local only: the rule itself runs wherever a
-    /// device list is fetched (`refreshEndpoints`, and the drain, in the
-    /// foreground and in the background).
+    /// Re-read the "joined, then disappeared" notices. Local only: the rule itself runs
+    /// wherever a device list is fetched (`refreshEndpoints`, and the drain, in the
+    /// foreground and in the background). A device that joined is told once, by
+    /// notification, and nothing on screen waits for an answer (P-23).
     func refreshNewDevices() {
-        newDeviceNotices = NewDevices.unconfirmed(store: store)
-        reviewDevices = NewDevices.review(store: store)
         vanishedDevices = NewDevices.vanished(store: store)
-        // An answer, a removal or a new list changes where a held tab may go.
+        // A removal or a new list changes where a held tab may go.
         refreshHeldTargets()
-    }
-
-    /// "All of these are mine". Clears the card on this phone only.
-    func confirmReview() {
-        NewDevices.answerReview(store: store)
-        refreshNewDevices()
     }
 
     /// Dismiss one "joined, then disappeared" notice on this phone only.
@@ -102,14 +136,7 @@ final class AppModel: ObservableObject {
         refreshNewDevices()
     }
 
-    /// "Yes, it's mine". Clears the banner on this phone only: answers are not
-    /// synced, because a compromised relay could then answer for the user.
-    func confirmNewDevice(id: String) {
-        NewDevices.dismiss(id: id, store: store)
-        refreshNewDevices()
-    }
-
-    /// Remove another device from the group, from its row or from its banner.
+    /// Remove another device from the group, from its row.
     ///
     /// A relay that answers "not found" means it is already gone, which is what
     /// was asked for, so that counts as done. Returns false (and says why in
@@ -339,8 +366,10 @@ final class AppModel: ObservableObject {
     /// Foreground entry point: drain, refresh devices, hold the stream open.
     func appBecameActive() {
         guard registration != nil else { return }
-        // A background wake may have found a new device while the app was away.
+        // A background wake may have found a new device, or a pending reset, while
+        // the app was away.
         refreshNewDevices()
+        refreshGroupResetCard()
         startStream()
         Task {
             await drain()
@@ -369,7 +398,7 @@ final class AppModel: ObservableObject {
         defer { joining = false }
 
         guard let parsed = Pairing.parse(input.pairingLink) else {
-            banner = "Enter a complete pairing link."
+            banner = "Enter a complete setup link."
             return
         }
         let label = input.deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -381,6 +410,8 @@ final class AppModel: ObservableObject {
                 label: label.isEmpty ? Self.defaultDeviceName : label,
                 deviceName: Self.defaultDeviceName,
                 certFingerprint: parsed.certFingerprint,
+                // Read from the full link before it is reduced to the code (P-23).
+                vouched: parsed.vouched,
                 store: store
             )
             registration = outcome.registration
@@ -399,7 +430,7 @@ final class AppModel: ObservableObject {
         } catch let Registrar.JoinError.api(error) {
             switch error.code {
             case "invalid_pairing_code":
-                banner = "That pairing link is unknown, expired, or already used."
+                banner = "That setup link is unknown, expired, or already used."
             // The group is full [0030]. The relay's own message names the number,
             // but `message` is written for a log and may change, and the fix is the
             // same on every client — so this is one of the two codes answered in
@@ -438,9 +469,8 @@ final class AppModel: ObservableObject {
         RelayHealthTracker.shared.reset()
         registration = nil
         endpoints = []
-        newDeviceNotices = []
-        reviewDevices = []
         vanishedDevices = []
+        pendingReset = nil
         banner = nil
         refreshSendState()
         // `store.clear()` took the history and the group keyring with everything
@@ -468,13 +498,16 @@ final class AppModel: ObservableObject {
             let observed = NewDevices.observe(fetched, store: store)
             guard let fresh = observed.accepted else { return }
             endpoints = fresh
-            await Notifications.postNewDevices(observed.joined)
+            await Notifications.postNewDevices(observed.announcement)
             refreshNewDevices()
             // The one place the app learns the device list, so it is also the one
             // place the share sheet's suggestions can learn about a pairing, an
             // unpair or a rename without a job of their own.
             ShareSuggestions.sync(endpoints: fresh, store: store)
         }
+        // Wherever the device list is refreshed, the group's own state is too: a
+        // pending reset is the other thing every device must see (P-18 item 12).
+        await refreshGroupReset()
     }
 
     /// Presence ping, and the place a push transport rotates [0032].
@@ -509,12 +542,17 @@ final class AppModel: ObservableObject {
     }
 
     func mintPairing() async -> MintedPairing? {
-        guard let api, registration != nil else { return nil }
+        guard let api, let reg = registration else { return nil }
         do {
             let response = try await api.createPairing()
+            // The link vouches for the devices this phone has accepted (P-23), against the
+            // list it last accepted, so the new device asks only about the others.
+            let tags = NewDevices.vouchTags(
+                NewDevices.current(store: store), store.cachedEndpoints, selfId: reg.endpointId
+            )
             return MintedPairing(
-                link: response.browserLink ?? response.link,
-                qrLink: response.link,
+                link: NewDevices.withVouch(response.browserLink ?? response.link, tags),
+                qrLink: NewDevices.withVouch(response.link, tags),
                 expiresAt: response.expiresAt
             )
         } catch let error as ApiError {
@@ -524,6 +562,81 @@ final class AppModel: ObservableObject {
             banner = relayUnreachableBanner()
             return nil
         }
+    }
+
+    // MARK: moving to another relay (P-4, the Android and extension flow)
+
+    /// GET /v1/config, then `RelayMove` decides. The relayId comparison runs
+    /// BEFORE any token leaves the phone, so a relay already proven not to be
+    /// ours never sees it.
+    func probeRelay(_ candidate: String) async -> RelayMove.Verdict {
+        guard let reg = registration else { return .unreachable(relayUrl: candidate) }
+        let config: ServerConfigResponse
+        do {
+            config = try await ApiClient(relayUrl: candidate, certFingerprint: reg.certFingerprint).getConfig()
+        } catch let error as ApiError {
+            return .error(relayUrl: candidate, detail: RelayMove.refused(error.message))
+        } catch {
+            return .unreachable(relayUrl: candidate)
+        }
+        let check = ProtocolCheck.check(config)
+        if check.blocks {
+            return .error(relayUrl: candidate, detail: ProtocolCheck.message(check) ?? "")
+        }
+        if let verdict = RelayMove.byRelayId(relayUrl: candidate, storedId: reg.relayId, fetchedId: config.relayId) {
+            return verdict
+        }
+        let api = ApiClient(relayUrl: candidate, deviceToken: reg.deviceToken, certFingerprint: reg.certFingerprint)
+        do {
+            _ = try await api.listEndpoints()
+            return RelayMove.byTokenProbe(
+                relayUrl: candidate, storedId: reg.relayId, fetchedId: config.relayId, tokenRejected: false
+            )
+        } catch let error as ApiError where error.status == 401 {
+            return RelayMove.byTokenProbe(
+                relayUrl: candidate, storedId: reg.relayId, fetchedId: config.relayId, tokenRejected: true
+            )
+        } catch let error as ApiError {
+            return .error(relayUrl: candidate, detail: RelayMove.refused(error.message))
+        } catch {
+            return .unreachable(relayUrl: candidate)
+        }
+    }
+
+    /// Same relay, new address: the group is untouched. Re-runs both calls rather
+    /// than trusting the earlier check, since the relay can change in between.
+    /// Returns nil on success, or the line to show.
+    func switchRelayAddress(to relayUrl: String) async -> String? {
+        guard var reg = registration else { return nil }
+        do {
+            let config = try await ApiClient(relayUrl: relayUrl, certFingerprint: reg.certFingerprint).getConfig()
+            _ = try await ApiClient(
+                relayUrl: relayUrl, deviceToken: reg.deviceToken, certFingerprint: reg.certFingerprint
+            ).listEndpoints()
+            await stopStream()
+            reg.relayUrl = relayUrl
+            reg.relayId = config.relayId ?? reg.relayId
+            store.registration = reg
+            registration = reg
+            // The stored verdict is about the OLD address; keeping it would let a
+            // healthy new relay show as a standing outage.
+            RelayHealthTracker.shared.reset()
+            banner = RelayMove.done(relayUrl)
+            appBecameActive()
+            return nil
+        } catch let error as ApiError {
+            return RelayMove.commitFailed(error.message)
+        } catch {
+            return RelayMove.commitFailed(RelayMove.unreachable(relayUrl))
+        }
+    }
+
+    /// A different relay: leave this group, then pair on the new one with a link
+    /// it created. The checked address can't stand in for that link's one-time
+    /// code and pin.
+    func startFresh() async {
+        await unpair()
+        banner = RelayMove.afterStartFresh
     }
 
     /// Why a relay round-trip failed, for the paired screen's own actions
@@ -557,7 +670,7 @@ final class AppModel: ObservableObject {
         }
         let summary = await deliverer.drain()
         // The drain fetched the device list, so it ran the new-device rule too.
-        await Notifications.postNewDevices(summary.joinedDevices)
+        await Notifications.postNewDevices(summary.newDevices)
         refreshNewDevices()
         // The group-key and history pass rides the same wake, after the drain so
         // it can use the endpoint list the drain just fetched and the new-device
@@ -602,6 +715,8 @@ final class AppModel: ObservableObject {
             await drain()
         case .endpointsChanged:
             await refreshEndpoints()
+        case .groupUpdated:
+            await refreshGroupReset()
         case .connected:
             // A socket that has just come up is the earliest and most certain
             // evidence there is that the relay is answering again. Ignoring it
@@ -609,6 +724,9 @@ final class AppModel: ObservableObject {
             // opportunistic background refresh — so a relay that came back could
             // stay "waiting to send" in Notification Center long after it had.
             await drain()
+            // A `group_updated` sent while the socket was down is lost, so the state
+            // it would have announced is read once the socket is back.
+            await refreshGroupReset()
         case .disconnected:
             break
         }

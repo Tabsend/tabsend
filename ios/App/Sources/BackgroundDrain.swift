@@ -106,7 +106,13 @@ enum BackgroundDrain {
         let summary = await deliverer.drain()
         // The drain's device-list fetch ran the new-device rule (P-10); a device
         // added while the app was closed is announced from here.
-        await Notifications.postNewDevices(summary.joinedDevices)
+        await Notifications.postNewDevices(summary.newDevices)
+        // A reset that waits (P-18 item 12). The relay wakes every phone when one is
+        // scheduled, the same content-free way it does for a tab, so this wake may be
+        // the only chance to say so before the user next opens the app.
+        if let reset = await GroupReset.refresh(api: api, store: store) {
+            await Notifications.postGroupReset(reset)
+        }
         // The other reason to run in the background: a tab whose TTL expired
         // without ever being picked up [0028]. The user was told "Sent", which
         // was true, and nothing would otherwise ever tell them it did not

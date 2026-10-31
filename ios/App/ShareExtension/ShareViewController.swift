@@ -357,7 +357,6 @@ private struct ShareRootView: View {
         await SendNotifications.postOutcome(banner, messageId: result.messageId)
         let outcome = SendToastState.outcome(
             of: banner,
-            relayHoldsForAsleepTarget: result.queued,
             label: label,
             tabName: Self.tabName(payload)
         )
@@ -365,7 +364,7 @@ private struct ShareRootView: View {
         sending = false
         UIAccessibility.post(notification: .announcement, argument: outcome.announcement)
 
-        // Only "the relay has it" dismisses itself; the spec's ~2.5 s and ~3 s,
+        // Only "the relay has it" dismisses itself, after the spec's ~1 s,
         // stretched while VoiceOver is reading so the announcement can finish.
         guard let seconds = outcome.autoDismissSeconds else { return }
         let extra: Double = UIAccessibility.isVoiceOverRunning ? 2 : 0

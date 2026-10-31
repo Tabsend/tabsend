@@ -12,6 +12,11 @@
          like every other token (docs/APP_UI.md). -->
     <color name="relay_warning_bg">#24E0A11B</color>
     <color name="relay_warning_stroke">#80E0A11B</color>
+    <!-- Danger panel behind the "reset pending" card (P-18 item 12): the danger red
+         at 12% (16% in dark, values-night) with a half-strength red frame. Red, not
+         amber: unlike the device-check cards, this one ends with every device gone. -->
+    <color name="danger_bg">#1FA4361C</color>
+    <color name="danger_stroke">#80A4361C</color>
 
     <!-- ===== Generic petrol tint tokens (docs/APP_UI.md "Colour tokens"), light =====
          Prefixed ts_ so no library resource of the same name is overridden by

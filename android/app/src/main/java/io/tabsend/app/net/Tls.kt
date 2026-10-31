@@ -66,7 +66,7 @@ object Tls {
                 ?: throw CertificateException("Server presented no certificate.")
             if (!pinMatches(pin, leaf.publicKey.encoded)) {
                 throw CertificateException(
-                    "Relay certificate does not match the pinned key from the pairing link.",
+                    "Relay certificate does not match the pinned key from the setup link.",
                 )
             }
         }

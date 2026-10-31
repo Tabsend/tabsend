@@ -6,6 +6,7 @@ import type {
   GroupKeyRequest,
   GroupKeyResponse,
   GroupKeysResponse,
+  GroupStateResponse,
   HeartbeatRequest,
   HeartbeatResponse,
   HistoryResponse,
@@ -18,6 +19,7 @@ import type {
   SendRequest,
   SendResponse,
   ServerConfigResponse,
+  StopGroupResetResponse,
   UpdateEndpointRequest,
 } from '@tabsend/shared'
 import { bearerAuth, isDefinitiveRemoval } from '@tabsend/shared'
@@ -56,9 +58,14 @@ function join(relayUrl: string, path: string): string {
  * group, rather than merely failing to recognise the token — the latter is also
  * what a relay says when restarted on an empty database, and acting on it
  * destructively un-pairs healthy devices [shared §10b isDefinitiveRemoval].
+ *
+ * `token` is the one the relay refused. It may not be ours any more: a call made
+ * just before a relay move can be answered after it, by the relay we just left.
  */
-let onUnauthorized: ((definitive: boolean) => void) | undefined
-export function setUnauthorizedHandler(handler: (definitive: boolean) => void): void {
+let onUnauthorized: ((definitive: boolean, token: string) => void) | undefined
+export function setUnauthorizedHandler(
+  handler: (definitive: boolean, token: string) => void,
+): void {
   onUnauthorized = handler
 }
 
@@ -86,13 +93,13 @@ export function setTransportHandler(handler: (relayUrl: string, reachable: boole
   onTransport = handler
 }
 
-async function parse<T>(res: Response, authenticated: boolean): Promise<T> {
+async function parse<T>(res: Response, token: string | undefined): Promise<T> {
   const text = await res.text()
   const body = text.length > 0 ? JSON.parse(text) : undefined
   if (!res.ok) {
     const err = body as ApiError | undefined
-    if (authenticated && res.status === 401) {
-      onUnauthorized?.(isDefinitiveRemoval(err?.error?.code ?? 'unauthorized'))
+    if (token && res.status === 401) {
+      onUnauthorized?.(isDefinitiveRemoval(err?.error?.code ?? 'unauthorized'), token)
     }
     throw new ApiClientError(
       res.status,
@@ -100,7 +107,7 @@ async function parse<T>(res: Response, authenticated: boolean): Promise<T> {
       err?.error?.message ?? `Request failed (${res.status}).`,
     )
   }
-  if (authenticated) onAuthorized?.()
+  if (token) onAuthorized?.()
   return body as T
 }
 
@@ -143,7 +150,7 @@ async function req<T>(
     throw err
   }
   if (!opts.probe) onTransport?.(relayUrl, true)
-  return parse<T>(res, Boolean(opts.token) && !opts.probe)
+  return parse<T>(res, opts.probe ? undefined : opts.token)
 }
 
 export function getConfig(relayUrl: string): Promise<ServerConfigResponse> {
@@ -233,6 +240,28 @@ export function postGroupKeys(
   body: GroupKeyRequest,
 ): Promise<GroupKeyResponse> {
   return req<GroupKeyResponse>('POST', relayUrl, '/v1/group-keys', { token, body })
+}
+
+/**
+ * GET /v1/group — whether a reset is waiting for this browser's group (PLANS.md
+ * P-18 item 12). An older relay has no such route and answers 404; callers read
+ * that as "no reset" (`isGroupStateUnsupported`).
+ */
+export function getGroupState(relayUrl: string, token: string): Promise<GroupStateResponse> {
+  return req<GroupStateResponse>('GET', relayUrl, '/v1/group', { token })
+}
+
+/** POST /v1/group/reset/stop — stop a waiting reset. Answers `{ reset: null }` either way. */
+export function stopGroupReset(relayUrl: string, token: string): Promise<StopGroupResetResponse> {
+  return req<StopGroupResetResponse>('POST', relayUrl, '/v1/group/reset/stop', {
+    token,
+    body: {},
+  })
+}
+
+/** True when the relay answered but predates `GET /v1/group`: no reset can be waiting there. */
+export function isGroupStateUnsupported(err: unknown): boolean {
+  return err instanceof ApiClientError && err.status === 404
 }
 
 /**

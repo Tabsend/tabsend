@@ -1,8 +1,9 @@
 import type { PairingCodeValue } from '@tabsend/shared'
-import type { Kysely } from 'kysely'
+import type { Kysely, Transaction } from 'kysely'
 import { lockGroup } from './caps'
 import type { Config } from './config'
 import { type Database, isPostgresUrl, legacyGroupDefaults } from './db'
+import type { EndpointRow } from './db/schema'
 import { newId, newPairingCode } from './ids'
 import { pairingLinks } from './pairing-links'
 import { addMs, iso } from './time'
@@ -68,13 +69,21 @@ export async function ensureBootstrapGroup(
  * a relay that has nothing in it yet. Restarting the relay prints a fresh one, and every
  * link an earlier boot printed keeps working until the first device joins, at which
  * point the join retires the rest (routes/endpoints.ts).
+ *
+ * A group holding only LEFTOVERS of a failed first setup counts as empty here (PLANS
+ * P-21): the restart clears them and prints a fresh link. Otherwise a first browser that
+ * lost its pairing mid-setup left the relay printing nothing, ever, and the only way out
+ * was wiping its data. The email-takeover concern behind the strict rule is the hosted
+ * one; here, only whoever runs the machine can restart the relay. No socket can be open
+ * yet, and a leftover is a browser (phones name themselves when they join), so there is
+ * no forwarder record to revoke either.
  */
 export async function mintFirstRunPairing(
   db: Kysely<Database>,
   config: Config,
   certFingerprint: string | undefined,
   now: Date,
-): Promise<FirstRunPairing | null> {
+): Promise<(FirstRunPairing & { clearedLeftovers: number }) | null> {
   // Same rule as ensureBootstrapGroup [0029]: only the single-group relay has "the"
   // group to hand out a link for. Where several groups may exist, a link belongs to
   // one of them, and choosing which is the provisioning path's job, not boot's —
@@ -83,8 +92,18 @@ export async function mintFirstRunPairing(
 
   const group = await db.selectFrom('groups').select('id').limit(1).executeTakeFirst()
   if (!group) return null
-  const outcome = await mintFirstPairingForGroup(db, config, group.id, certFingerprint, now)
-  return outcome.status === 'minted' ? outcome.pairing : null
+  const outcome = await mintFirstPairingForGroup(
+    db,
+    config,
+    group.id,
+    certFingerprint,
+    now,
+    config.bootstrapPairingTtlMs,
+    true,
+  )
+  return outcome.status === 'minted'
+    ? { ...outcome.pairing, clearedLeftovers: outcome.cleared.length }
+    : null
 }
 
 /**
@@ -92,8 +111,77 @@ export async function mintFirstRunPairing(
  * and they are kept apart because they need different words: a group that already has a
  * device is a reason, a group that was deleted under the call is a 404.
  */
+/**
+ * How long a device that never finished setting up has to stay silent before it counts
+ * as a leftover (PLANS P-21). Any authenticated call refreshes `last_seen_at`
+ * (context.ts), so a device still in its setup screens is never this quiet.
+ */
+export const LEFTOVER_QUIET_MS = 60 * 60 * 1000
+
+/**
+ * How recently every device must have joined to count as a leftover. A first setup that
+ * failed is noticed within days; a device older than this was in use, whatever the other
+ * tests say. Without it, a working device with no device name (a web console, which never
+ * sends one, or anything paired before deviceName existed) in a group whose messages the
+ * sweeper had already deleted passed the rule after any hour of relay downtime, and a
+ * self-hosted restart unpaired it (v0.9.0 review, M1).
+ */
+export const LEFTOVER_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * The devices in a group that are LEFTOVERS of a first setup that failed (PLANS P-21):
+ * empty when any device in the group is not one, so callers get all or nothing.
+ *
+ * A leftover is a device that joined and then lost its pairing before choosing its
+ * device name (a crash, a closed tab, or the 2026-10-30 extension bug that wiped a new
+ * pairing mid-setup). It stays in the group, and the "only while empty" rule below then
+ * locks the account out of its own first link, with no device to pair from.
+ *
+ * Deliberately strict, because clearing them reopens the bootstrap window that HOSTED_PLAN
+ * §5 closes, to whoever controls the account's email. Every device must:
+ *   - have no device name. The extension sets one as the last setup step, and the
+ *     phones send one when they join, so a working device never qualifies;
+ *   - have been silent for {@link LEFTOVER_QUIET_MS};
+ *   - have joined within {@link LEFTOVER_MAX_AGE_MS};
+ * and the group must hold no message, no group-key copy (one device hands another the key,
+ * so a copy means two devices worked) and no removal tombstone (someone managed it).
+ * Messages leave with the sweeper, so "no message" alone does not prove "never used";
+ * the age bound and the other two tests are what make the rule hold over time.
+ */
+export async function leftoverEndpoints(
+  db: Kysely<Database> | Transaction<Database>,
+  groupId: string,
+  now: Date,
+): Promise<EndpointRow[]> {
+  const rows = await db
+    .selectFrom('endpoints')
+    .selectAll()
+    .where('group_id', '=', groupId)
+    .execute()
+  if (rows.length === 0) return []
+  const quietBefore = now.getTime() - LEFTOVER_QUIET_MS
+  const joinedAfter = now.getTime() - LEFTOVER_MAX_AGE_MS
+  const allLeftover = rows.every(
+    (row) =>
+      !row.device_name &&
+      Date.parse(row.last_seen_at) <= quietBefore &&
+      Date.parse(row.created_at) >= joinedAfter,
+  )
+  if (!allLeftover) return []
+  for (const table of ['messages', 'group_keys', 'removed_endpoints'] as const) {
+    const trace = await db
+      .selectFrom(table)
+      .select('group_id')
+      .where('group_id', '=', groupId)
+      .limit(1)
+      .executeTakeFirst()
+    if (trace) return []
+  }
+  return rows
+}
+
 export type FirstPairingOutcome =
-  | { status: 'minted'; pairing: FirstRunPairing }
+  | { status: 'minted'; pairing: FirstRunPairing; cleared: EndpointRow[] }
   | { status: 'populated' }
   | { status: 'gone' }
 
@@ -148,10 +236,12 @@ export async function mintFirstPairingForGroup(
   certFingerprint: string | undefined,
   now: Date,
   ttlMs: number = config.bootstrapPairingTtlMs,
+  clearLeftovers = false,
 ): Promise<FirstPairingOutcome> {
   const postgres = isPostgresUrl(config.databaseUrl)
   const code = newPairingCode() as PairingCodeValue
   const expiresAt = iso(addMs(now, ttlMs))
+  let cleared: EndpointRow[] = []
 
   const status = await db.transaction().execute(async (trx) => {
     if (!(await lockGroup(trx, postgres, groupId))) return 'gone' as const
@@ -162,7 +252,15 @@ export async function mintFirstPairingForGroup(
       .where('group_id', '=', groupId)
       .limit(1)
       .executeTakeFirst()
-    if (endpoint) return 'populated' as const // somebody is already in; they mint links now
+    if (endpoint) {
+      // Somebody is already in; they mint links now. Unless every device is a leftover
+      // of a failed first setup (PLANS P-21), which the account page and a self-hosted
+      // relay's restart may clear (`clearLeftovers`).
+      const leftovers = clearLeftovers ? await leftoverEndpoints(trx, groupId, now) : []
+      if (leftovers.length === 0) return 'populated' as const
+      await removeLeftovers(trx, groupId, leftovers, now)
+      cleared = leftovers
+    }
 
     await trx
       .insertInto('pairing_codes')
@@ -182,5 +280,39 @@ export async function mintFirstPairingForGroup(
   return {
     status,
     pairing: { link: links.browserLink, qrLink: links.nativeLink, expiresAt },
+    cleared,
   }
+}
+
+/**
+ * Remove leftovers the way a device removal does (routes/endpoints.ts): a tombstone first,
+ * so the device gets a definitive "removed" if it ever calls again, then the row and any
+ * group-key copies to or from it. Inside the mint's transaction and group hold.
+ */
+async function removeLeftovers(
+  trx: Transaction<Database>,
+  groupId: string,
+  rows: EndpointRow[],
+  now: Date,
+): Promise<void> {
+  const ids = rows.map((row) => row.id)
+  await trx
+    .insertInto('removed_endpoints')
+    .values(
+      rows.map((row) => ({
+        device_token_hash: row.device_token_hash,
+        endpoint_id: row.id,
+        group_id: groupId,
+        removed_at: iso(now),
+      })),
+    )
+    .execute()
+  await trx.deleteFrom('endpoints').where('id', 'in', ids).execute()
+  await trx
+    .deleteFrom('group_keys')
+    .where('group_id', '=', groupId)
+    .where((eb) =>
+      eb.or([eb('source_endpoint_id', 'in', ids), eb('target_endpoint_id', 'in', ids)]),
+    )
+    .execute()
 }

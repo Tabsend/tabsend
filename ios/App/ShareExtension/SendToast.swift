@@ -9,11 +9,9 @@ import TabsendKit
 enum SendToastState: Equatable {
     /// The POST is in flight.
     case sending(label: String, title: String)
-    /// `banner.tone == .success`, target online: the relay accepted the tab.
+    /// `banner.tone == .success`: the relay accepted the tab. A target that is
+    /// asleep right now is not called out: the relay holds it, so it is sent.
     case sent(label: String, title: String)
-    /// `banner.tone == .success` with `Result.queued`: the relay accepted it and is
-    /// holding it because the target is asleep. Opens there when it wakes.
-    case heldForDevice(label: String, title: String)
     /// `banner.tone == .pending`: the relay did NOT take it (unreachable, offline,
     /// 429/5xx, or a per-group cap). The tab stays in this phone's outbound queue
     /// and the ordinary flush retries it. Headline and reason are the shared copy.
@@ -23,15 +21,12 @@ enum SendToastState: Equatable {
 
     static func outcome(
         of banner: SendBanner,
-        relayHoldsForAsleepTarget: Bool,
         label: String,
         tabName: String
     ) -> SendToastState {
         switch banner.tone {
         case .success:
-            return relayHoldsForAsleepTarget
-                ? .heldForDevice(label: label, title: tabName)
-                : .sent(label: label, title: tabName)
+            return .sent(label: label, title: tabName)
         case .pending:
             return .heldOnPhone(banner)
         case .error:
@@ -43,7 +38,6 @@ enum SendToastState: Equatable {
         switch self {
         case .sending(let label, _): return "Sending to \(label)…"
         case .sent(let label, _): return "Sent to \(label)"
-        case .heldForDevice(let label, _): return "Waiting for \(label)"
         case .heldOnPhone(let banner), .failed(let banner): return banner.headline
         }
     }
@@ -52,7 +46,6 @@ enum SendToastState: Equatable {
     var tabLine: String? {
         switch self {
         case .sending(_, let title), .sent(_, let title): return title
-        case .heldForDevice: return nil
         case .heldOnPhone(let banner), .failed(let banner): return banner.title
         }
     }
@@ -61,7 +54,6 @@ enum SendToastState: Equatable {
     var detail: String? {
         switch self {
         case .sending, .sent: return nil
-        case .heldForDevice: return "Opens there when it wakes"
         case .heldOnPhone(let banner), .failed(let banner): return banner.detail
         }
     }
@@ -69,8 +61,7 @@ enum SendToastState: Equatable {
     /// Only outcomes where the relay HAS the tab dismiss themselves.
     var autoDismissSeconds: Double? {
         switch self {
-        case .sent: return 2.5
-        case .heldForDevice: return 3
+        case .sent: return 1
         case .sending, .heldOnPhone, .failed: return nil
         }
     }
@@ -78,7 +69,7 @@ enum SendToastState: Equatable {
     var showsClose: Bool {
         switch self {
         case .heldOnPhone, .failed: return true
-        case .sending, .sent, .heldForDevice: return false
+        case .sending, .sent: return false
         }
     }
 
@@ -171,7 +162,7 @@ private struct StatusDisc: View {
         switch state {
         case .sending: return Palette.ground
         case .sent: return Palette.success
-        case .heldForDevice, .heldOnPhone: return Palette.waitingFill
+        case .heldOnPhone: return Palette.waitingFill
         case .failed: return Palette.danger
         }
     }
@@ -182,7 +173,7 @@ private struct StatusDisc: View {
         switch state {
         case .sending: return .primary
         case .sent, .failed: return Palette.panel
-        case .heldForDevice, .heldOnPhone: return Self.onWaiting
+        case .heldOnPhone: return Self.onWaiting
         }
     }
 
@@ -190,7 +181,6 @@ private struct StatusDisc: View {
         switch state {
         case .sending: return "ellipsis"
         case .sent: return "checkmark"
-        case .heldForDevice: return "clock"
         // Held on this phone and retried by the queue on its own.
         case .heldOnPhone: return "arrow.clockwise"
         case .failed: return "exclamationmark"

@@ -950,6 +950,45 @@ export interface CreatePairingResponse {
   expiresAt: IsoTimestamp;
 }
 
+// --- group state: the reset that waits [PLANS P-18 item 12] ----------------
+//
+// A hosted account whose owner lost every paired device can ask, from the account
+// page, for the group to be replaced by a fresh, empty one. That reset WAITS (72
+// hours on the account site) so every device still paired can see it coming and stop
+// it: someone who got into the owner's email must not be able to quietly swap the
+// owner's devices out. The relay only holds and shows the pending state; when the time
+// comes the control plane makes a brand-new group (ADR-0021's own remedy), so nothing
+// here is a way into an existing group. A self-hosted relay never has one pending.
+
+/** A reset the control plane has scheduled and nobody has stopped yet. */
+export interface GroupResetState {
+  /** When the reset was asked for. */
+  requestedAt: IsoTimestamp;
+  /** When the group will be replaced, unless a device stops it first. */
+  resetsAt: IsoTimestamp;
+}
+
+/**
+ * GET /v1/group — the calling device's group, as far as a device needs to know it.
+ *
+ * `reset` is null when none is pending. An OLDER relay answers this route 404
+ * (`not_found`); clients treat that exactly as `{ reset: null }`. Answered whether or
+ * not the group is suspended: a paused group's devices must still be able to see and
+ * stop a reset.
+ */
+export interface GroupStateResponse {
+  reset: GroupResetState | null;
+}
+
+/**
+ * POST /v1/group/reset/stop (no body) — any device in the group stops a pending
+ * reset. Always answers `{ reset: null }`, also when nothing was pending, so a retry
+ * or two devices pressing Stop at once both read as done.
+ */
+export interface StopGroupResetResponse {
+  reset: null;
+}
+
 // ===========================================================================
 // 11. WebSocket fast path  (WS /v1/stream — latency only, never correctness)
 // ===========================================================================
@@ -968,6 +1007,13 @@ export type ServerStreamEvent =
   | { type: 'endpoint_updated'; endpoint: Endpoint }
   /** Sent to the SOURCE endpoint when a target acks — drains the ⏳ pending row without polling. [0010] */
   | { type: 'acked'; messageId: MessageId; targetEndpointId: EndpointId; ackedAt: IsoTimestamp }
+  /**
+   * The group's own state changed (for example a reset was scheduled, stopped or
+   * cancelled) → re-fetch `GET /v1/group`. Carries nothing itself, so a client that
+   * missed it loses nothing it cannot read again. An older relay never sends it, and
+   * answers `GET /v1/group` 404, which clients treat as "no reset". [P-18 item 12]
+   */
+  | { type: 'group_updated' }
   | { type: 'pong' };
 
 /** Client → server events. (Acks still go over REST for durability.) */
@@ -983,6 +1029,10 @@ export type ClientStreamEvent =
  *   is closed without ever receiving events.
  * - The client pings every WS_CLIENT_PING_INTERVAL_SECONDS; the server replies
  *   `{ type: 'pong' }`. A hello or ping also refreshes presence (§1).
+ * - A ping with no frame of any kind back within WS_CLIENT_PONG_TIMEOUT_SECONDS
+ *   means the socket is dead even if it never closed (a network switch, a NAT
+ *   that forgot it): the client drops it and reconnects, which drains.
+ *   [2026-10-27]
  * - The socket is LATENCY-ONLY: on any drop the client reconnects (with backoff)
  *   and pulls `GET /v1/messages?pending=1`. Nothing depends on it for
  *   correctness — push + queue always deliver. [0001][PRD §6.1]
@@ -1001,3 +1051,6 @@ export const API_VERSION = 'v1' as const;
 export const PRESENCE_ONLINE_THRESHOLD_SECONDS = 90;
 /** Client → server ping cadence on the fast-path WebSocket (§11). [Chunk 2] */
 export const WS_CLIENT_PING_INTERVAL_SECONDS = 30;
+/** How long a client waits for any frame after a ping before it calls the socket
+ *  dead and reconnects (§11). Shorter than the ping interval. [2026-10-27] */
+export const WS_CLIENT_PONG_TIMEOUT_SECONDS = 10;

@@ -1,6 +1,13 @@
 import { DEFAULT_CLIENT_SETTINGS } from '@tabsend/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DeviceRow, DevicesView, RpcRequest, StateView } from '../lib/model'
+import type {
+  ChooserRow,
+  ChooserView,
+  DeviceRow,
+  DevicesView,
+  RpcRequest,
+  StateView,
+} from '../lib/model'
 import { type FakePage, installFakePage, uninstallFakePage } from './test-dom'
 
 /**
@@ -50,12 +57,26 @@ const devices: DevicesView = {
   vanished: [],
 }
 
+/** What getSettings and getChooser answer; reset before each test. */
+let settings = { ...DEFAULT_CLIENT_SETTINGS }
+let chooser: Partial<ChooserView> = {}
+
+function target(id: string, label: string): ChooserRow {
+  return {
+    endpoint: { id, label } as ChooserRow['endpoint'],
+    isPrimary: false,
+    isRecent: false,
+    stale: false,
+    presenceKnown: true,
+  }
+}
+
 function answer(req: RpcRequest): unknown {
   switch (req.type) {
     case 'getState':
       return { ok: true, state }
     case 'getSettings':
-      return { ok: true, settings: DEFAULT_CLIENT_SETTINGS }
+      return { ok: true, settings }
     case 'getChooser':
       return {
         ok: true,
@@ -68,6 +89,7 @@ function answer(req: RpcRequest): unknown {
           newDevices: [],
           review: [],
           vanished: [],
+          ...chooser,
         },
       }
     case 'getDevices':
@@ -90,6 +112,8 @@ async function openPage(): Promise<void> {
 const removals = () => requests.filter((r) => r.type === 'removeEndpoint')
 
 beforeEach(() => {
+  settings = { ...DEFAULT_CLIENT_SETTINGS }
+  chooser = {}
   requests.length = 0
   Object.assign(permission, { held: true, answer: true, asked: [] })
 })
@@ -168,5 +192,56 @@ describe("Settings: the browser's permission to reach the relay (Chrome Web Stor
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(page.buttons('relay-access-actions', 'Allow access')).toEqual([])
     expect(page.byId('relay-status').textContent).not.toContain('permission')
+  })
+})
+
+describe('Settings: "Send in one click"', () => {
+  const sent = (type: RpcRequest['type']) => requests.filter((r) => r.type === type)
+
+  it('starts off, with the device picker hidden and the current behaviour said', async () => {
+    await openPage()
+    expect(page.byId('one-click').checked).toBe(false)
+    expect(page.byId('one-click-on').style.display).toBe('none')
+    expect(page.byId('one-click-off').style.display).toBe('block')
+  })
+
+  it('turning it on saves quick-send mode and shows the picker', async () => {
+    await openPage()
+    const box = page.byId('one-click')
+    box.checked = true
+    box.dispatch('change')
+    await vi.waitFor(() =>
+      expect(sent('setSettings')).toEqual([
+        { type: 'setSettings', settings: { toolbarClickMode: 'quicksend' } },
+      ]),
+    )
+    expect(page.byId('one-click-on').style.display).toBe('block')
+    expect(page.byId('one-click-off').style.display).toBe('none')
+  })
+
+  it('picking a device pins it; "the device I sent to last" unpins', async () => {
+    settings = { ...settings, toolbarClickMode: 'quicksend' }
+    chooser = {
+      targets: [target('ep-phone', 'Pixel 8'), target('ep-ipad', 'iPad')],
+      primaryTargetId: 'ep-phone',
+    }
+    await openPage()
+    const select = page.byId('send-to')
+    expect(select.children.map((o) => o.textContent)).toEqual([
+      'The device I sent to last',
+      'Pixel 8',
+      'iPad',
+    ])
+
+    select.value = 'ep-ipad'
+    select.dispatch('change')
+    select.value = ''
+    select.dispatch('change')
+    await vi.waitFor(() =>
+      expect(sent('setPrimary')).toEqual([
+        { type: 'setPrimary', targetEndpointId: 'ep-ipad', pinned: true },
+        { type: 'setPrimary', targetEndpointId: 'ep-phone', pinned: false },
+      ]),
+    )
   })
 })

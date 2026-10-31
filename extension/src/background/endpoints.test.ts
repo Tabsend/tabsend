@@ -1,6 +1,7 @@
 import type { Endpoint, EndpointId, IsoTimestamp, NewDeviceWatch } from '@tabsend/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboundItem } from '../lib/model'
+import type { UnreachableDevice } from '../lib/unreachable'
 
 /**
  * The popup's "waiting on this browser" rows for a tab whose device is gone
@@ -11,14 +12,31 @@ import type { OutboundItem } from '../lib/model'
 let list: Endpoint[] = []
 let outbound: OutboundItem[] = []
 let watch: NewDeviceWatch | undefined
+let unreachable: UnreachableDevice[] = []
+let toolbarClickMode: 'chooser' | 'quicksend' = 'chooser'
 vi.mock('../lib/storage', () => ({
   getCachedEndpoints: vi.fn(async () => list),
   getCachedEndpointsAt: vi.fn(async () => undefined),
   getOutbound: vi.fn(async () => outbound),
-  getPrefs: vi.fn(async () => ({ primaryPinned: false, recentTargetIds: [] })),
+  getPrefs: vi.fn(async () => ({
+    primaryPinned: false,
+    primaryTargetId: 'pixel',
+    recentTargetIds: [],
+  })),
+  getSettings: vi.fn(async () => ({ toolbarClickMode })),
+  getUnreachableDevices: vi.fn(async () => unreachable),
+  setUnreachableDevices: vi.fn(async (v: UnreachableDevice[]) => {
+    unreachable = v
+  }),
+  UNREACHABLE_DEVICES_KEY: 'unreachableDevices',
 }))
+vi.mock('./badge', () => ({ setUnreachableBadge: vi.fn() }))
 vi.mock('../lib/api', () => ({ getOutbox: vi.fn(async () => []), listEndpoints: vi.fn() }))
 vi.mock('./health', () => ({ relayHealth: vi.fn(async () => undefined) }))
+vi.mock('./groupreset', () => ({
+  groupResetNotice: vi.fn(async () => undefined),
+  refreshGroupReset: vi.fn(async () => null),
+}))
 vi.mock('./newdevices', () => ({
   currentDeviceWatch: vi.fn(async () => watch),
   newDeviceNotices: vi.fn(async () => []),
@@ -66,6 +84,8 @@ function heldFor(target: string, extra: Partial<OutboundItem> = {}): OutboundIte
 }
 
 beforeEach(() => {
+  unreachable = []
+  toolbarClickMode = 'chooser'
   list = ['self', 'pixel', 'removed', 'pending', 'stranger'].map((id) => device(id))
   list.push(device('console', 'console'))
   watch = {
@@ -122,5 +142,35 @@ describe('held tabs whose device is gone, in the popup', () => {
     const view = await buildChooserView({ cached: true })
     expect(view.held[0]?.targetGone).toBe(true)
     expect(view.held[0]?.choices).toBeUndefined()
+  })
+})
+
+describe('a device a send could not reach, in the popup (P-20)', () => {
+  it('is listed for the card, and its row says "not connected" while the list still shows it', async () => {
+    outbound = []
+    unreachable = [
+      { endpointId: 'pixel', label: 'pixel', failedAt: '2026-10-30T10:00:00.000Z' },
+      { endpointId: 'gone', label: 'Old laptop', failedAt: '2026-10-30T10:00:00.000Z' },
+    ]
+    const view = await buildChooserView({ cached: true })
+    expect(view.unreachable.map((d) => d.label)).toEqual(['pixel', 'Old laptop'])
+    expect(view.targets.find((t) => t.endpoint.id === 'pixel')?.unreachable).toBe(true)
+    expect(view.targets.find((t) => t.endpoint.id === 'removed')?.unreachable).toBeUndefined()
+  })
+})
+
+describe('the "Main" label in the popup', () => {
+  const marked = async () =>
+    (await buildChooserView({ cached: true })).targets
+      .filter((t) => t.isPrimary)
+      .map((t) => t.endpoint.id)
+
+  it('marks the one-click device while "Send in one click" is on', async () => {
+    toolbarClickMode = 'quicksend'
+    expect(await marked()).toEqual(['pixel'])
+  })
+
+  it('marks nothing while it is off, since a click then sends nowhere by itself', async () => {
+    expect(await marked()).toEqual([])
   })
 })

@@ -786,7 +786,7 @@ describe('handleAuthRejection', () => {
   it('unpairs only when the relay PROVED the endpoint was removed', async () => {
     store.set('registration', registration)
 
-    await handleAuthRejection(true)
+    await handleAuthRejection(true, registration.deviceToken)
 
     expect(store.has('registration')).toBe(false)
     expect(store.get('removedNotice')).toBe(true)
@@ -799,12 +799,26 @@ describe('handleAuthRejection', () => {
     store.set('registration', registration)
     store.set('outbound', [{ id: 'm1', targetEndpointId: 'ep-other', envelope: {}, attempts: 0 }])
 
-    await handleAuthRejection(false)
+    await handleAuthRejection(false, registration.deviceToken)
 
     expect(store.get('registration')).toEqual(registration)
     expect(store.get('outbound')).toHaveLength(1)
     expect(store.get('authWarning')).toBe(true)
     expect(store.has('removedNotice')).toBe(false)
+  })
+
+  it('ignores a refusal of a token this browser already gave up', async () => {
+    // The regression: moving relays retires the old endpoint, and a poll sent to
+    // the old relay just before the move came back "removed" just after it, which
+    // wiped the NEW pairing before the device step (dogfood 2026-10-30).
+    store.set('registration', registration)
+
+    await handleAuthRejection(true, 'dt-old-relay')
+    await handleAuthRejection(false, 'dt-old-relay')
+
+    expect(store.get('registration')).toEqual(registration)
+    expect(store.has('removedNotice')).toBe(false)
+    expect(store.has('authWarning')).toBe(false)
   })
 })
 

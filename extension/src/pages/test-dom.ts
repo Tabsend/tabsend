@@ -209,7 +209,7 @@ export function installFakePage(htmlFile: string, opts: { hash?: string } = {}):
     getElementById: (id: string) => (ids.has(id) ? byId(id) : null),
     createElement: (tag: string) => new FakeElement(tag),
     createElementNS: (_ns: string, tag: string) => new FakeElement(tag),
-    // Attribute selectors (the toolbar radios) are not modelled: none match.
+    // Attribute selectors are not modelled: none match.
     querySelectorAll: (_selector: string): FakeElement[] => [],
     addEventListener: (type: string, fn: Listener) => docListeners.addEventListener(type, fn),
   }

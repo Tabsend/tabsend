@@ -6,6 +6,7 @@ import {
   type Endpoint,
   endpointsKnownTo,
   type GroupKeyRecord,
+  type GroupResetState,
   ListWithoutSelfError,
   listIncludesSelf,
   type NewDeviceNotice,
@@ -13,9 +14,13 @@ import {
   type PairingCodeValue,
   type Platform,
   type PushSubscription,
+  parseVouch,
   removeDevice,
   type ServerStreamEvent,
+  settleNotices,
+  vouchTags,
   watchDevices,
+  withVouch,
 } from '@tabsend/shared'
 import {
   ApiClientError,
@@ -26,12 +31,14 @@ import {
   getConfig,
   getGroupHistory,
   getGroupKeys,
+  getGroupState,
   getPending,
   isMissingRouteError,
   listEndpoints,
   mintPairing,
   register,
   renameEndpoint,
+  stopGroupReset,
 } from './api'
 import { generateKeyPair, keyId } from './crypto'
 import { syncGroupKeys } from './group-keys'
@@ -47,18 +54,24 @@ import {
 import { defaultHistoryStore, type HistoryStore } from './persist'
 import { consumePending, sortHistory } from './receive'
 import {
+  clearPairingVouch,
   clearSession,
   defaultKv,
   type KeyValue,
+  loadDismissedGroupReset,
   loadKeyring,
   loadNewDeviceWatch,
+  loadPairingVouch,
   loadSession,
+  saveDismissedGroupReset,
   saveKeyring,
   saveNewDeviceWatch,
+  savePairingVouch,
   saveSession,
 } from './session'
 import { type Signal, signal } from './store'
 import { StreamClient } from './stream'
+import { groupResetCopy } from './view'
 
 export type Phase = 'loading' | 'onboarding' | 'ready'
 
@@ -132,6 +145,12 @@ export class Controller {
   readonly review: Signal<NewDeviceNotice[]> = signal<NewDeviceNotice[]>([])
   /** Announced as new, never answered, then gone from the list (GH7). */
   readonly vanished: Signal<NewDeviceNotice[]> = signal<NewDeviceNotice[]>([])
+  /**
+   * A reset waiting to replace the group (PLANS.md P-18 item 12), unless this
+   * console answered "It was me" to it. The console has no background, so this
+   * card is its whole notice.
+   */
+  readonly groupReset: Signal<GroupResetState | null> = signal<GroupResetState | null>(null)
   readonly history: Signal<HistoryEntry[]> = signal<HistoryEntry[]>([])
   /** The group history keyring [ADR-0028]. Rendered only as a count, in Account. */
   readonly keyring: Signal<GroupKeyRecord[]> = signal<GroupKeyRecord[]>([])
@@ -153,6 +172,10 @@ export class Controller {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   /** Epoch ms before which group history is not worth asking about again. */
   private groupHistoryRetryAt = 0
+  /** The reset the relay last reported, before this console's own answer is applied. */
+  private pendingReset: GroupResetState | null = null
+  /** `requestedAt` of a reset this console stopped, so a read already in flight cannot bring it back. */
+  private stoppedReset: string | undefined
 
   private readonly deps: ControllerDeps
 
@@ -215,7 +238,7 @@ export class Controller {
   async join(rawInput: string, label: string): Promise<void> {
     const parsed = parsePairingInput(rawInput)
     if (!parsed) {
-      this.status.set({ kind: 'error', message: 'Enter a complete pairing link.' })
+      this.status.set({ kind: 'error', message: 'Enter a complete setup link.' })
       return
     }
     const relayUrl = parsed.relayUrl
@@ -240,6 +263,10 @@ export class Controller {
         e2ePubkey: kp.publicKey,
         pairingCode: parsed.code as PairingCodeValue,
       })
+      // The devices the pairing link vouched for go on no first look (P-23). Kept
+      // until the first list of this pairing is judged, so a reload does not lose them.
+      const vouched = parseVouch(rawInput)
+      if (vouched) savePairingVouch({ endpointId: res.endpointId, tags: vouched }, this.deps.kv)
       const session: ConsoleSession = {
         relayUrl,
         endpointId: res.endpointId,
@@ -277,6 +304,9 @@ export class Controller {
     this.newDevices.set([])
     this.review.set([])
     this.vanished.set([])
+    this.groupReset.set(null)
+    this.pendingReset = null
+    this.stoppedReset = undefined
     this.history.set([])
     this.keyring.set([])
     this.awaitingGroupKey.set(false)
@@ -300,6 +330,7 @@ export class Controller {
       if (!(err instanceof ListWithoutSelfError)) this.connection.set('offline')
       return
     }
+    await this.refreshGroupReset()
     try {
       if (this.connection.get() === 'offline') this.connection.set('polling')
       // Group history first: it is the authoritative list [ADR-0028]. The
@@ -337,16 +368,25 @@ export class Controller {
   private watchNewDevices(list: Endpoint[], session: ConsoleSession): void {
     // The console never rotates, but the record keeps the same shape everywhere. Its
     // debt just sits: a device that can mint settles it.
+    const prev = loadNewDeviceWatch(this.deps.kv)
+    const vouch = prev?.selfId === session.endpointId ? null : loadPairingVouch(this.deps.kv)
+    const vouched = vouch?.endpointId === session.endpointId ? vouch.tags : undefined
     const { watch } = watchDevices(
-      loadNewDeviceWatch(this.deps.kv),
+      prev,
       list,
       session.endpointId,
       new Date(this.deps.now()).toISOString(),
       sortKeys(this.keyring.get())[0]?.createdAt,
+      undefined,
+      vouched,
     )
     if (!watch) return
-    saveNewDeviceWatch(watch, this.deps.kv)
-    this.showWatch(watch, session)
+    // Told once, as information, by a phone or a browser (P-23); a console has no
+    // notifications and keeps nothing waiting for an answer.
+    const settled = settleNotices(watch)
+    saveNewDeviceWatch(settled, this.deps.kv)
+    if (vouched && watch.selfId === session.endpointId) clearPairingVouch(this.deps.kv)
+    this.showWatch(settled, session)
   }
 
   /** Put what the watch asks this console to look at on screen, for this pairing only. */
@@ -382,13 +422,14 @@ export class Controller {
     return endpointsKnownTo(loadNewDeviceWatch(this.deps.kv), list)
   }
 
-  /** "Yes, it's mine": this console's banner goes; other devices answer for themselves. */
+  /** "It's mine": this console's New tag on that device goes; other devices answer for themselves. */
   confirmNewDevice(id: string): void {
     const watch = loadNewDeviceWatch(this.deps.kv)
     if (!watch) return
     const next = confirmNewDevice(watch, id)
     saveNewDeviceWatch(next, this.deps.kv)
     this.newDevices.set(next.unconfirmed)
+    this.review.set(next.review ?? [])
   }
 
   /** "All of these are mine": the first look is answered on this console only. */
@@ -406,6 +447,69 @@ export class Controller {
     const next = dismissVanished(watch, id)
     saveNewDeviceWatch(next, this.deps.kv)
     this.vanished.set(next.vanished ?? [])
+  }
+
+  // -- the reset that waits (PLANS.md P-18 item 12) --------------------------
+
+  /**
+   * Ask the relay whether a reset is waiting. Runs with every refresh (the poll) and
+   * on `group_updated`. An older relay answers 404, read as "none", quietly; any
+   * other failure keeps what was shown, since the next poll asks again.
+   */
+  async refreshGroupReset(): Promise<void> {
+    const session = this.session.get()
+    if (!session) return
+    let reset: GroupResetState | null
+    try {
+      reset = (await getGroupState(this.opts(), session.deviceToken)).reset ?? null
+    } catch (err) {
+      if (!(err instanceof ApiClientError && err.status === 404)) return
+      reset = null
+    }
+    if (reset && reset.requestedAt === this.stoppedReset) reset = null
+    this.pendingReset = reset
+    this.showGroupReset(session)
+  }
+
+  private showGroupReset(session: ConsoleSession): void {
+    const reset = this.pendingReset
+    const dismissed = loadDismissedGroupReset(session.endpointId, this.deps.kv)
+    this.groupReset.set(reset && reset.requestedAt !== dismissed ? reset : null)
+  }
+
+  /**
+   * "Stop the reset". On success the card goes and the status line says so; on
+   * failure the card stays and the status line says why.
+   */
+  async stopGroupReset(): Promise<void> {
+    const session = this.session.get()
+    if (!session) return
+    const stopping = this.pendingReset
+    this.busy.set(true)
+    try {
+      await stopGroupReset(this.opts(), session.deviceToken)
+      if (stopping) this.stoppedReset = stopping.requestedAt
+      this.pendingReset = null
+      this.showGroupReset(session)
+      this.status.set({ kind: 'info', message: groupResetCopy.stopped })
+    } catch (err) {
+      const message =
+        err instanceof TypeError
+          ? groupResetCopy.stopFailedOffline
+          : groupResetCopy.stopFailed(describe(err, 'Request failed.'))
+      this.status.set({ kind: 'error', message })
+    } finally {
+      this.busy.set(false)
+    }
+  }
+
+  /** "It was me": hide this request only, on this console. A new request shows again. */
+  dismissGroupReset(): void {
+    const session = this.session.get()
+    const reset = this.pendingReset
+    if (!session || !reset) return
+    saveDismissedGroupReset(session.endpointId, reset.requestedAt, this.deps.kv)
+    this.showGroupReset(session)
   }
 
   private async refreshConfig(): Promise<void> {
@@ -473,12 +577,19 @@ export class Controller {
     this.busy.set(true)
     try {
       const res: CreatePairingResponse = await mintPairing(this.opts(), session.deviceToken)
-      const copyLink = res.browserLink ?? res.link
+      // The devices this console has accepted ride along, so the new device asks only
+      // about the ones that do not match (P-23). The relay never sees the fragment.
+      const tags = vouchTags(
+        loadNewDeviceWatch(this.deps.kv),
+        this.endpoints.get(),
+        session.endpointId,
+      )
+      const copyLink = withVouch(res.browserLink ?? res.link, tags)
       const parsed = parsePairingInput(copyLink)
-      if (!parsed) throw new Error('The relay returned an invalid pairing link.')
-      const qrLink = res.link
+      if (!parsed) throw new Error('The relay returned an invalid setup link.')
+      const qrLink = withVouch(res.link, tags)
       const qrParsed = parsePairingInput(qrLink)
-      if (!qrParsed) throw new Error('The relay returned an invalid QR pairing link.')
+      if (!qrParsed) throw new Error('The relay returned an invalid QR setup link.')
       const qrRelayUrl = pairingLinkRelayUrl(qrLink)
       if (!qrRelayUrl) throw new Error('The relay returned an invalid QR pairing route.')
       this.pairing.set({
@@ -496,7 +607,7 @@ export class Controller {
         localOnly: isLoopbackRelayUrl(qrRelayUrl),
       })
     } catch (err) {
-      this.status.set({ kind: 'error', message: describe(err, 'Could not mint a pairing link.') })
+      this.status.set({ kind: 'error', message: describe(err, 'Could not make a setup link.') })
     } finally {
       this.busy.set(false)
     }
@@ -641,6 +752,10 @@ export class Controller {
       case 'endpoint_removed':
       case 'endpoint_updated':
         void this.refresh()
+        break
+      case 'group_updated':
+        // A reset was scheduled or stopped. The event carries nothing; read again.
+        void this.refreshGroupReset()
         break
       default:
         // 'acked'/'pong' — the console isn't a real-send source, so 'acked' won't

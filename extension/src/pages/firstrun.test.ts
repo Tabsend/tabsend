@@ -5,9 +5,8 @@ import { type FakePage, installFakePage, uninstallFakePage } from './test-dom'
 
 /**
  * The manage screen at the end of first run (SECURITY_REVIEW L7, X13). It has
- * four ways to remove a device: the device list, the "new device" banner, the
- * first-look card, and the popup's "Remove it", which lands here as
- * `#remove=<id>`. Every one must ask first and then send `removeEndpoint`, the
+ * two ways to remove a device: a row of the device list, and the popup's
+ * "Remove it", which lands here as `#remove=<id>`. Every one must ask first and then send `removeEndpoint`, the
  * request whose handler writes the removal into this browser's watch. The page
  * is imported for real, over a stand-in DOM built from firstrun.html.
  */
@@ -106,23 +105,13 @@ describe('first run, manage screen: every Remove records the removal (X13)', () 
     expect(page.asked).toEqual(['Remove “Pixel 8” from the group?'])
   })
 
-  it('from the "new device" banner', async () => {
+  it('from the row of a device that just joined', async () => {
     await openPage()
-    const [remove] = page.buttons('new-devices', 'Remove it')
-    remove?.click()
+    page.buttons('device-list', 'Remove Galaxy S24')[0]?.click()
 
     await vi.waitFor(() => expect(removals()).toHaveLength(1))
     expect(removals()[0]).toEqual({ type: 'removeEndpoint', endpointId: 'ep-new' })
     expect(page.asked).toEqual(['Remove “Galaxy S24” from the group?'])
-  })
-
-  it('from the first-look card', async () => {
-    await openPage()
-    page.buttons('new-devices', 'Remove iPad')[0]?.click()
-
-    await vi.waitFor(() => expect(removals()).toHaveLength(1))
-    expect(removals()[0]).toEqual({ type: 'removeEndpoint', endpointId: 'ep-old' })
-    expect(page.asked).toEqual(['Remove “iPad” from the group?'])
   })
 
   it('from the popup, handed over as #remove=<id>, asked once', async () => {
@@ -149,8 +138,8 @@ describe('first run, manage screen: every Remove records the removal (X13)', () 
     await openPage()
     page.confirmAnswer.value = false
     page.buttons('device-list', 'Remove Pixel 8')[0]?.click()
-    page.buttons('new-devices', 'Remove it')[0]?.click()
-    page.buttons('new-devices', 'Remove iPad')[0]?.click()
+    page.buttons('device-list', 'Remove Galaxy S24')[0]?.click()
+    page.buttons('device-list', 'Remove iPad')[0]?.click()
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(page.asked).toEqual([
@@ -240,5 +229,14 @@ describe('first run, pair screen: the relay permission (Chrome Web Store review)
     expect(page.byId('error').textContent).toContain('choose Allow')
     expect(joins()).toEqual([])
     expect(page.byId('join').disabled).toBe(false)
+  })
+})
+
+describe('first run, manage screen: a device that joined (P-23)', () => {
+  it('is just in the list: no card, no tag, nothing to answer', async () => {
+    await openPage()
+    expect(page.byId('new-devices').textContent).toBe('')
+    expect(page.byId('device-list').textContent).toContain('Galaxy S24')
+    expect(page.buttons('device-list', "It's mine: Galaxy S24")).toEqual([])
   })
 })

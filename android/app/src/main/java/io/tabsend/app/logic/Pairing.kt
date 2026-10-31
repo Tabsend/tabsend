@@ -5,13 +5,15 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 /**
- * A parsed pairing link: its internal one-time secret, relay URL, and optional
- * TLS certificate pin (P-3).
+ * A parsed pairing link: its internal one-time secret, relay URL, optional
+ * TLS certificate pin (P-3), and the devices it vouches for (P-23).
  */
 data class ParsedPairing(
     val code: String,
     val relayUrl: String,
     val certFingerprint: String? = null,
+    /** The `v=` tags ([NewDevices.parseVouch]); null for a link from an older client. */
+    val vouched: List<String>? = null,
 )
 
 /**
@@ -19,6 +21,7 @@ data class ParsedPairing(
  * extension's `lib/pairing.ts`. Accepts:
  *  - the https pairing link: "https://relay.example/pair#c=ABC12345"  (relay derived)
  *  - the pinned variant:     "https://relay.example/pair#c=ABC12345&fp=…"  (P-3)
+ *  - either with the vouch:  "…&v=tag.tag"  (P-23), read from the WHOLE link
  *
  * The code rides in the URL *fragment* so it never hits a server log (ADR-0009).
  * The fragment may carry &-separated params: `c` is the code, `fp` is the
@@ -55,7 +58,8 @@ object Pairing {
             } ?: return null
             val relayUrl = routeHint(parts, "native")
                 ?: legacyNativeRoute(linkRelayUrl, certFingerprint)
-            return ParsedPairing(code.uppercase(), relayUrl, certFingerprint)
+            // Read from the full link before it is reduced to its code (P-23).
+            return ParsedPairing(code.uppercase(), relayUrl, certFingerprint, NewDevices.parseVouch(trimmed))
         }
         return null
     }
@@ -66,6 +70,21 @@ object Pairing {
      * survive the handoff from the scanner.
      */
     fun scannedLink(input: String): String? = input.trim().takeIf { parse(it) != null }
+
+    /**
+     * How long "Pair a device" keeps its QR on screen, from the relay's `expiresAt`.
+     * Closing it is only tidiness (the relay enforces the expiry), so a time this
+     * phone cannot trust (unparseable, already past or further out than any pairing
+     * lives, both signs of a skewed clock) falls back to the usual ten minutes rather
+     * than closing at once or never.
+     */
+    fun qrLifetimeMillis(expiresAt: String, nowMillis: Long): Long {
+        val left = parseIsoMillis(expiresAt)?.minus(nowMillis) ?: return QR_DEFAULT_LIFETIME_MS
+        return if (left in 1..QR_MAX_LIFETIME_MS) left else QR_DEFAULT_LIFETIME_MS
+    }
+
+    private const val QR_DEFAULT_LIFETIME_MS = 10 * 60 * 1000L
+    private const val QR_MAX_LIFETIME_MS = 15 * 60 * 1000L
 
     private fun routeHint(parts: List<String>, name: String): String? {
         val encoded = parts.drop(1)

@@ -262,6 +262,19 @@ class LogicTest {
     }
 
     @Test
+    fun `pairing link carries the devices it vouches for, read from the whole link`() {
+        // P-23: the v= tags ride after the code and any pin; the code and pin are unchanged.
+        val parsed = Pairing.parse(
+            "https://relay.example/pair#c=abc123&fp=PIN&v=Me0Me0Me0Me0Me0M.Pix-el8_Pix-el8_",
+        )!!
+        assertEquals("ABC123", parsed.code)
+        assertEquals("PIN", parsed.certFingerprint)
+        assertEquals(listOf("Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_"), parsed.vouched)
+        // An older link vouches for nothing.
+        assertEquals(null, Pairing.parse("https://relay.example/pair#c=ABC12345")!!.vouched)
+    }
+
+    @Test
     fun `bare secret is rejected because it carries no relay or trust pin`() {
         assertEquals(null, Pairing.parse("abc12345"))
     }
@@ -281,6 +294,15 @@ class LogicTest {
         assertEquals(null, Pairing.scannedLink("ABC12345"))
         assertEquals(null, Pairing.scannedLink("https://example.com/menu"))
         assertEquals(null, Pairing.scannedLink("WIFI:S:HomeNet;T:WPA;P:hunter2;;"))
+    }
+
+    @Test
+    fun `pairing QR stays up until the link expires, or ten minutes if the time is off`() {
+        val now = parseIsoMillis("2026-10-30T12:00:00Z")!!
+        assertEquals(9 * 60 * 1000L, Pairing.qrLifetimeMillis("2026-10-30T12:09:00Z", now))
+        assertEquals(10 * 60 * 1000L, Pairing.qrLifetimeMillis("2026-10-30T11:59:00Z", now))
+        assertEquals(10 * 60 * 1000L, Pairing.qrLifetimeMillis("2026-10-30T13:00:00Z", now))
+        assertEquals(10 * 60 * 1000L, Pairing.qrLifetimeMillis("not a time", now))
     }
 
     // --- Feedback copy (§4 table; the failure lines live in SendFeedbackTest) --

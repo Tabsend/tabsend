@@ -76,7 +76,7 @@ struct JoinView: View {
         .alert("How pairing works", isPresented: $showHowItWorks) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Every browser and phone you link joins one private group on your relay. The code your browser shows holds your relay's address and a one-time code; it works once and expires in about 10 minutes. You can also scan the code another paired phone shows, or paste its pairing link.")
+            Text("Every browser and phone you link joins one private group on your relay. The code your browser shows holds your relay's address and a one-time code; it works once and expires in about 10 minutes. You can also scan the code another paired phone shows, or paste its setup link.")
         }
         .onAppear {
             if let pending = model.pendingDeepLink {
@@ -99,12 +99,12 @@ struct JoinView: View {
             PairingIllustration()
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-            Text("Link this phone to your browsers")
+            Text("Link this phone to Tabsend")
                 .font(.archivo(.extrabold, size: 30, relativeTo: .largeTitle))
                 .foregroundColor(Palette.Brand.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-            Text("On your computer, click the Tabsend button and choose New browser. Then scan the code it shows.")
+            Text("On a device already using Tabsend, such as your browser, open Tabsend and choose \"Add a device\". Then scan the code it shows.")
                 .font(.body)
                 .foregroundColor(Palette.Brand.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -118,7 +118,7 @@ struct JoinView: View {
 
     private var linkForm: some View {
         VStack(alignment: .leading, spacing: 8) {
-            fieldLabel("Pairing link")
+            fieldLabel("Setup link")
             // Never auto-capitalise: a pairing link's fp= fingerprint is
             // case-sensitive base64url, and uppercasing it silently breaks
             // certificate pinning. Pairing.parse uppercases only the internal secret.
@@ -128,7 +128,7 @@ struct JoinView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .focused($linkFocused)
-                .accessibilityLabel("Pairing link")
+                .accessibilityLabel("Setup link")
                 .modifier(FieldBackground())
 
             fieldLabel("Name this device")
@@ -189,6 +189,24 @@ struct JoinView: View {
                 }
                 .buttonStyle(SignatureButtonStyle())
 
+                // Scanning a code without the app lands on the install page, whose
+                // Install button copies the setup link first. The system Paste button
+                // reads it back without iOS's "Allow Paste" prompt.
+                if UIPasteboard.general.hasStrings {
+                    PasteButton(payloadType: String.self) { strings in
+                        let text = strings.first ?? ""
+                        DispatchQueue.main.async {
+                            if let parsed = Pairing.parse(text) {
+                                apply(parsed: parsed)
+                            } else {
+                                model.banner = "What you copied isn't a Tabsend setup link."
+                            }
+                        }
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .frame(minHeight: 44)
+                }
+
                 if !showPaste {
                     Button {
                         showPaste = true
@@ -196,7 +214,7 @@ struct JoinView: View {
                         // this state change has rendered it.
                         DispatchQueue.main.async { linkFocused = true }
                     } label: {
-                        Text("Paste a pairing link instead")
+                        Text("Paste a setup link instead")
                             .frame(minHeight: 44)
                     }
                 }
@@ -222,9 +240,10 @@ struct JoinView: View {
             model.banner = "That QR code isn't a Tabsend pairing code."
             return
         }
+        // The device tags stay on the link (P-23): the join reads them from this field.
         pairingLink = Pairing.link(
             relayUrl: parsed.relayUrl, code: parsed.code,
-            certFingerprint: parsed.certFingerprint
+            certFingerprint: parsed.certFingerprint, vouched: parsed.vouched
         )
     }
 }

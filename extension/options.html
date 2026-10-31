@@ -17,7 +17,18 @@
       main { width: 100%; max-width: 560px; }
       .setting-control { flex: none; }
       .setting.stack .setting-detail { margin-top: 6px; }
-      #primary { margin-top: 2px; }
+      .one-click { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+      .one-click input {
+        flex: none;
+        width: 18px;
+        height: 18px;
+        margin: 2px 0 0;
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+      /* Lines up with the checkbox label's text: 18px box + 12px gap. */
+      .indent { margin-left: 30px; }
+      #send-to { margin: 4px 0 6px; }
       .relay-line {
         display: flex;
         align-items: baseline;
@@ -42,6 +53,7 @@
       #move-form label { display: block; font-weight: 600; margin-bottom: 8px; }
       #move-form .input-row { display: flex; gap: 8px; }
       #move-form .input-row input { flex: 1; min-width: 0; }
+      #move-hint { margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
       /* The verdict: a tinted strip the width of the input above it, so the
          finding and its action read as one result, not a stray line. */
       #probe-result {
@@ -128,41 +140,27 @@
       <section class="section" aria-labelledby="sec-sending">
         <h2 class="section-label" id="sec-sending">Sending</h2>
         <div class="rows">
-          <div class="setting stack" role="radiogroup" aria-labelledby="toolbar-title">
-            <span class="setting-text">
-              <span class="setting-title" id="toolbar-title">Clicking the toolbar icon</span>
-            </span>
-            <div class="segmented">
-              <label>
-                <input type="radio" name="toolbar" value="chooser" />
-                <span>Open the chooser</span>
-              </label>
-              <label>
-                <input type="radio" name="toolbar" value="quicksend" />
-                <span>Quick-send to primary</span>
-              </label>
-            </div>
-            <span class="setting-detail">
-              The chooser lets you pick a device every time (default). Quick-send sends straight
-              to your primary device, with a 4-second “Undo” on the page.
-            </span>
-          </div>
-
           <div class="setting stack">
-            <label class="setting-text" for="primary">
-              <span class="setting-title">Primary device</span>
-              <span class="setting-detail">Where quick-send and the “send to primary” shortcut go. Learned from your recent sends unless you pin it.</span>
+            <label class="one-click">
+              <input type="checkbox" id="one-click" />
+              <span class="setting-text">
+                <span class="setting-title">Send in one click</span>
+                <span class="setting-detail">
+                  Clicking the Tabsend icon sends the tab right away, without asking which device.
+                </span>
+              </span>
             </label>
-            <select id="primary"></select>
+            <p class="setting-detail indent" id="one-click-off">
+              Now: clicking the icon shows your devices so you can pick one.
+            </p>
+            <div class="indent" id="one-click-on" style="display: none">
+              <label class="setting-detail" for="send-to">Send to</label>
+              <select id="send-to"></select>
+              <span class="setting-detail">
+                You get 4 seconds to undo. Right-click the icon to pick a different device.
+              </span>
+            </div>
           </div>
-
-          <label class="setting">
-            <span class="setting-text">
-              <span class="setting-title">Pin the primary device</span>
-              <span class="setting-detail">Stop it moving to your most-recent device.</span>
-            </span>
-            <input type="checkbox" class="switch" id="primary-pinned" />
-          </label>
 
           <label class="setting">
             <span class="setting-text">
@@ -174,7 +172,7 @@
 
           <label class="setting">
             <span class="setting-text">
-              <span class="setting-title">Show the waiting row in the chooser</span>
+              <span class="setting-title">Show the waiting row in the device list</span>
               <span class="setting-detail">“⏳ 1 waiting for …” while a send is queued to an asleep device.</span>
             </span>
             <input type="checkbox" class="switch" id="pending-row" />
@@ -192,8 +190,8 @@
             <span class="setting-text">
               <span class="setting-title">Keyboard shortcut</span>
               <span class="setting-detail">
-                <code>Ctrl/Cmd + Shift + S</code> does what the toolbar icon does. A second,
-                unbound shortcut sends straight to your primary device.
+                <code>Ctrl/Cmd + Shift + S</code> does what the Tabsend icon does. A second
+                shortcut, not set at first, always sends in one click to the “Send to” device.
               </span>
             </span>
             <button type="button" class="linkish setting-control" id="open-shortcuts">Rebind…</button>
@@ -240,26 +238,26 @@
           </div>
           <div class="setting stack">
             <span class="setting-text">
-              <span class="setting-title">Pair a device</span>
+              <span class="setting-title">Add a device</span>
               <span class="setting-detail">
-                Connect another browser or your phone to this group with a link or QR code —
-                handy when quick-send has taken over the toolbar icon.
+                Connect another browser or your phone to this group with a link or QR code.
+                Useful when “Send in one click” is on, since the icon then no longer shows your devices.
               </span>
             </span>
             <p class="setting-detail" id="pairing-unregistered" style="display: none">
-              Finish setting up Tabsend first, then come back here to pair another device.
+              Finish setting up Tabsend first, then come back here to add a device.
               <button type="button" class="linkish" id="pairing-setup-link">Set up Tabsend</button>
             </p>
-            <div><button type="button" id="pair-device" class="btn-primary">Show pairing link</button></div>
+            <div><button type="button" id="pair-device" class="btn-primary">Show QR code or link</button></div>
             <div id="pairing-box">
               <div id="pairing-ready">
                 <div id="pairing-qr"></div>
-                <input id="pairing-link" type="text" readonly aria-label="Pairing link" />
+                <input id="pairing-link" type="text" readonly aria-label="Setup link" />
                 <div class="pair-actions">
-                  <button type="button" class="linkish" id="copy-link">Copy pairing link</button>
+                  <button type="button" class="linkish" id="copy-link">Copy link</button>
                   <span id="copy-note"></span>
                 </div>
-                <p class="pair-hint">Scan the QR with a phone, or copy the pairing link to a browser extension.</p>
+                <p class="pair-hint">Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it.</p>
                 <div id="pairing-local-only" role="status"></div>
               </div>
               <div id="pairing-note"></div>
@@ -309,6 +307,14 @@
               <input type="url" id="new-address" placeholder="http://192.168.1.50:8787" spellcheck="false" />
               <button type="button" id="relay-check" class="btn-secondary">Check</button>
             </div>
+            <!-- The same box takes a pairing link, which is how a self-hosted user moves
+                 to the hosted service; nothing on this page said so. -->
+            <p id="move-hint">
+              Moving to the Tabsend hosted service? Sign up at
+              <a href="https://tabsend.org/" target="_blank" rel="noopener">tabsend.org</a>, then
+              paste your setup link here. This browser keeps using your current relay until the
+              new one accepts it. After that, pair your other devices again.
+            </p>
             <div id="probe-result">
               <div class="probe-row">
                 <svg id="probe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
@@ -324,7 +330,8 @@
                 <code>https://&lt;LAN-IP&gt;:8787</code> is for the Android app.
               </p>
               <p>
-                Tabsend checks whether the address is the relay you are already on (then only
+                You can paste a relay address or a setup link. Tabsend checks whether it is the
+                relay you are already on (then only
                 the address changes and your devices stay paired) or a different one (then it
                 opens setup, and keeps the current pairing until the new relay accepts this
                 browser).

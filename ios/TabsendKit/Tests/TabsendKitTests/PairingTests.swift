@@ -62,6 +62,22 @@ struct PairingTests {
                 == "https://r.example/pair#c=ABC123"
         )
     }
+
+    /// P-23: the device tags are read from the full link and survive being put back in
+    /// the join field, so the join still has them.
+    @Test func vouchTagsAreReadAndReemitted() {
+        let tags = ["Me0Me0Me0Me0Me0M", "Pix-el8_Pix-el8_"]
+        let parsed = Pairing.parse("https://r.example/pair#c=abc123&fp=FP&v=\(tags.joined(separator: "."))")
+        #expect(parsed?.code == "ABC123")
+        #expect(parsed?.certFingerprint == "FP")
+        #expect(parsed?.vouched == tags)
+        let link = Pairing.link(
+            relayUrl: "https://r.example", code: "ABC123", certFingerprint: "FP", vouched: tags
+        )
+        #expect(link == "https://r.example/pair#c=ABC123&fp=FP&v=Me0Me0Me0Me0Me0M.Pix-el8_Pix-el8_")
+        #expect(Pairing.parse(link)?.vouched == tags)
+        #expect(Pairing.parse("https://r.example/pair#c=ABC123")?.vouched == nil)
+    }
 }
 
 struct ProtocolCheckTests {

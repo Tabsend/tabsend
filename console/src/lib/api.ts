@@ -4,6 +4,7 @@ import type {
   DeviceToken,
   Endpoint,
   GroupKeysResponse,
+  GroupStateResponse,
   HeartbeatResponse,
   HistoryResponse,
   ListEndpointsResponse,
@@ -12,6 +13,7 @@ import type {
   RegisterRequest,
   RegisterResponse,
   ServerConfigResponse,
+  StopGroupResetResponse,
   UpdateEndpointRequest,
 } from '@tabsend/shared'
 import { bearerAuth } from '@tabsend/shared'
@@ -132,6 +134,19 @@ export function getGroupHistory(opts: ApiOptions, token: string): Promise<Histor
 /** GET /v1/group-keys — every group history key copy sealed to this console [ADR-0028]. */
 export function getGroupKeys(opts: ApiOptions, token: string): Promise<GroupKeysResponse> {
   return req<GroupKeysResponse>('GET', opts, '/v1/group-keys', { token })
+}
+
+/**
+ * GET /v1/group — whether a reset is waiting for this console's group (PLANS.md
+ * P-18 item 12). An older relay has no such route and answers 404, read as "none".
+ */
+export function getGroupState(opts: ApiOptions, token: string): Promise<GroupStateResponse> {
+  return req<GroupStateResponse>('GET', opts, '/v1/group', { token })
+}
+
+/** POST /v1/group/reset/stop — stop a waiting reset. Answers `{ reset: null }` either way. */
+export function stopGroupReset(opts: ApiOptions, token: string): Promise<StopGroupResetResponse> {
+  return req<StopGroupResetResponse>('POST', opts, '/v1/group/reset/stop', { token, body: {} })
 }
 
 /**

@@ -1,26 +1,58 @@
 name: iOS
 
-# Split out of ci.yml (2026-09-29) so it runs only when iOS code changes. It is
-# the only macOS job, and macOS minutes bill at 10x, so one run costs about as
-# much as ten Linux runs. ios/ is self-contained (it builds nothing from outside
-# it), so a change elsewhere cannot break this job. Same refs as ci.yml: main,
-# release tags, pull requests; "Run workflow" forces a run.
+# Split out of ci.yml (2026-09-29). It is the only macOS job, and macOS minutes
+# bill at 10x, so one run costs about as much as ten Linux runs. ios/ is
+# self-contained (it builds nothing from outside it), so a change elsewhere
+# cannot break this job.
+#
+# Same schedule as ci.yml (once a day, not on every push to main; owner's
+# ruling of 2026-10-30): the daily run starts the Mac only when ios/ changed in
+# the last 25 hours, decided by a few seconds on Linux. Release tags, pull
+# requests that touch ios/, and "Run workflow" always run it. Before a push,
+# `scripts/check.sh` runs the same Swift tests on this Mac for free.
 on:
+  schedule:
+    - cron: '0 8 * * *'
   push:
-    branches: [main]
     tags: ['v*']
-    paths: ['ios/**', '.github/workflows/ios.yml']
   pull_request:
     paths: ['ios/**', '.github/workflows/ios.yml']
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    name: anything to check?
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 100
+
+      - name: Decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != schedule ]; then echo run=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          n=$(git log --since='25 hours ago' --format=%h -- ios .github/workflows/ios.yml | wc -l)
+          echo "commits touching ios/ in the last 25 hours: $n"
+          if [ "$n" -gt 0 ]; then echo run=true >> "$GITHUB_OUTPUT"; else echo run=false >> "$GITHUB_OUTPUT"; fi
+
   # SwiftPM exercises the protocol/crypto core directly. The Xcode build is
   # separate evidence that the generated app project — including the embedded
   # share extension — still compiles. A generic simulator destination avoids
   # booting an emulator, and disabled signing keeps CI free of Apple secrets.
   ios:
     name: ios (unit tests + simulator build)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: macos-15
     timeout-minutes: 20
     steps:

@@ -196,6 +196,94 @@ describe('first-run links stand until the first device joins, and not after', ()
     expect((await joinWith(other)).status).toBe(201)
   })
 
+  it('clears a first browser that never finished setup, on restart (PLANS P-21)', async () => {
+    server = await startTestServer()
+    const first = server.firstRunPairing
+    await register(server.baseUrl, {
+      pairingCode: pairingCodeFromLink((first as { link: string }).link),
+    })
+    // Still within the hour: it may be mid-setup, so a restart leaves it alone.
+    server.clock.advance(59 * 60 * 1000)
+    expect(
+      await mintFirstRunPairing(server.db, server.config, undefined, server.clock.now()),
+    ).toBeNull()
+
+    server.clock.advance(60 * 1000)
+    const fresh = await mintFirstRunPairing(server.db, server.config, undefined, server.clock.now())
+    expect(fresh?.clearedLeftovers).toBe(1)
+    expect((await joinWith((fresh as { link: string }).link)).status).toBe(201)
+  })
+
+  it('never clears a first device that chose its name, however long it is quiet', async () => {
+    server = await startTestServer()
+    const first = server.firstRunPairing
+    await register(server.baseUrl, {
+      pairingCode: pairingCodeFromLink((first as { link: string }).link),
+      deviceName: 'MacBook',
+    })
+    server.clock.advance(30 * 24 * 60 * 60 * 1000)
+    expect(
+      await mintFirstRunPairing(server.db, server.config, undefined, server.clock.now()),
+    ).toBeNull()
+  })
+
+  it('never clears a nameless device that joined more than a week ago (v0.9.0 review M1)', async () => {
+    server = await startTestServer()
+    const first = server.firstRunPairing
+    // A web console, or a device paired before deviceName existed: no name, and the
+    // group's messages long since swept. Days of downtime make it look quiet too.
+    await register(server.baseUrl, {
+      pairingCode: pairingCodeFromLink((first as { link: string }).link),
+    })
+    server.clock.advance(7 * 24 * 60 * 60 * 1000 + 60 * 1000)
+    expect(
+      await mintFirstRunPairing(server.db, server.config, undefined, server.clock.now()),
+    ).toBeNull()
+  })
+
+  for (const table of ['group_keys', 'removed_endpoints'] as const) {
+    it(`never clears a group that holds a row in ${table} (v0.9.0 review M1)`, async () => {
+      server = await startTestServer()
+      const first = server.firstRunPairing
+      const a = await register(server.baseUrl, {
+        pairingCode: pairingCodeFromLink((first as { link: string }).link),
+      })
+      const row = await server.db
+        .selectFrom('endpoints')
+        .select(['group_id', 'id'])
+        .where('id', '=', a.endpointId)
+        .executeTakeFirstOrThrow()
+      const at = server.clock.now().toISOString()
+      if (table === 'group_keys') {
+        await server.db
+          .insertInto('group_keys')
+          .values({
+            id: 'gk-1',
+            group_id: row.group_id,
+            source_endpoint_id: row.id,
+            target_endpoint_id: row.id,
+            envelope: '{}',
+            created_at: at,
+          })
+          .execute()
+      } else {
+        await server.db
+          .insertInto('removed_endpoints')
+          .values({
+            device_token_hash: 'removed-device',
+            endpoint_id: 'ep-removed',
+            group_id: row.group_id,
+            removed_at: at,
+          })
+          .execute()
+      }
+      server.clock.advance(2 * 60 * 60 * 1000)
+      expect(
+        await mintFirstRunPairing(server.db, server.config, undefined, server.clock.now()),
+      ).toBeNull()
+    })
+  }
+
   it('mints nothing once a device is in', async () => {
     server = await startTestServer()
     const first = server.firstRunPairing

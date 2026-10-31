@@ -13,7 +13,12 @@ import {
 } from '../src/db'
 import { toEndpoint } from '../src/mappers'
 import { hitQuota, quotaHits } from '../src/quota'
-import { groupSuspendedAt, setGroupSuspended } from '../src/tenancy'
+import {
+  groupSuspendedAt,
+  readGroupReset,
+  scheduleGroupReset,
+  setGroupSuspended,
+} from '../src/tenancy'
 import { PG_URL, USE_POSTGRES } from './helpers'
 
 /** Distinctive relay-wide caps, so a fallback is visibly a fallback [0030]. */
@@ -394,6 +399,44 @@ describe('additive caps + quota migration (owner live-data upgrade)', () => {
       exists: false,
       suspendedAt: null,
     })
+  })
+
+  /**
+   * `groups.reset_*` [P-18 item 12], the reset that waits, lands the same way. All
+   * three nullable: NULL is "no reset pending" and "no device ever stopped one".
+   */
+  it('adds nullable reset columns to a pre-existing groups table; old groups have no reset pending', async () => {
+    await createLegacySchema()
+    await db
+      .insertInto('groups')
+      .values({ id: 'g-old', created_at: now, plan: 'free', has_email: 0 })
+      .execute()
+
+    await migrate(db)
+    await migrate(db) // idempotent: the columns already exist the second time
+
+    const row = await db
+      .selectFrom('groups')
+      .selectAll()
+      .where('id', '=', 'g-old')
+      .executeTakeFirstOrThrow()
+    expect(row.reset_requested_at).toBeNull()
+    expect(row.reset_at).toBeNull()
+    expect(row.reset_stopped_at).toBeNull()
+    expect(await readGroupReset(db, 'g-old')).toBeNull()
+
+    // And a reset can be scheduled on that legacy row, and a retry keeps its clock.
+    const resetsAt = '2026-07-21T00:00:00.000Z'
+    const first = await scheduleGroupReset(db, USE_POSTGRES, 'g-old', resetsAt, new Date(now))
+    expect(first).toMatchObject({ exists: true, scheduled: true })
+    const retry = await scheduleGroupReset(
+      db,
+      USE_POSTGRES,
+      'g-old',
+      '2026-07-25T00:00:00.000Z',
+      new Date('2026-07-19T00:00:00.000Z'),
+    )
+    expect(retry).toMatchObject({ scheduled: false, reset: { requestedAt: now, resetsAt } })
   })
 
   /**

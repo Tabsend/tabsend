@@ -48,6 +48,7 @@ import { currentDeviceWatch } from './newdevices'
 import { recordSend } from './prefs'
 import { ensureRetryAlarm } from './scheduler'
 import { currentSession, requireSession } from './session'
+import { noteSendOutcome } from './unreachable'
 
 /** Skip embedding a favicon that is a data: URL larger than this (keep the box small). */
 const MAX_DATA_FAVICON_BYTES = 8 * 1024
@@ -160,7 +161,7 @@ async function sealFor(
  */
 async function resolveTargetAndConsoles(
   targetEndpointId: string,
-): Promise<{ target?: Endpoint; consoles: Endpoint[] }> {
+): Promise<{ target?: Endpoint; consoles: Endpoint[]; cachedLabel?: string }> {
   const cached = await getCachedEndpoints()
   let list = cached
   if (cached.some((e) => e.id === targetEndpointId)) {
@@ -172,9 +173,13 @@ async function resolveTargetAndConsoles(
       list = cached
     }
   }
+  // The name it had in the last list, for a device the relay no longer has: the
+  // failure can then say WHICH device (P-20), not just "that device".
+  const cachedLabel = cached.find((e) => e.id === targetEndpointId)?.label
   return {
     target: list.find((e) => e.id === targetEndpointId),
     consoles: list.filter((e) => e.kind === 'console'),
+    ...(cachedLabel ? { cachedLabel } : {}),
   }
 }
 
@@ -266,6 +271,8 @@ export async function sendToTarget(
       ? await activeOrigin().catch(() => undefined)
       : (opts.origin ?? undefined)
   const result = await runSend(targetEndpointId, payloads, origin)
+  // Before the report, so the popup's next render and the "!" already agree (P-20).
+  await noteSendOutcome(targetEndpointId, result).catch(() => undefined)
   const titleFrom = opts.titleFrom ?? payloads[0]?.url
   const where: FeedbackPlace = {
     ...(origin ? { origin } : {}),
@@ -328,7 +335,7 @@ async function runSend(
    *  sends keep producing exactly today's shape. */
   const withCount = (result: SendResult): SendResult => (count > 1 ? { ...result, count } : result)
 
-  const { target, consoles } = await resolveTargetAndConsoles(targetEndpointId)
+  const { target, consoles, cachedLabel } = await resolveTargetAndConsoles(targetEndpointId)
   if (!target) {
     return withCount(
       withTitle(
@@ -337,6 +344,7 @@ async function runSend(
           queued: false,
           offline: false,
           error: 'Target endpoint not found.',
+          ...(cachedLabel ? { targetLabel: cachedLabel } : {}),
           failure: { kind: 'no-target' },
         },
         title,

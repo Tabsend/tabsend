@@ -2,6 +2,7 @@ import { ext } from '../lib/ext'
 import type { InboxItem } from '../lib/model'
 import { getSettings, getUnreadReceived, setUnreadReceived } from '../lib/storage'
 import { type ArrivalPlace, arrivalPlaceLine, receivedNotificationLine } from '../lib/strings'
+import { handleGroupResetNotificationClick } from './groupreset'
 import { handleNewDeviceNotificationClick } from './newdevices'
 
 /**
@@ -225,5 +226,6 @@ export function registerNotificationClickHandler(): void {
   ext.notifications?.onClicked?.addListener((notificationId) => {
     void handleNotificationClick(notificationId)
     void handleNewDeviceNotificationClick(notificationId)
+    void handleGroupResetNotificationClick(notificationId)
   })
 }

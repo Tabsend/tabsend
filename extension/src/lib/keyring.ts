@@ -83,22 +83,38 @@ export function shouldMintFirstKey(
   return ids.every((id) => selfEndpointId <= id)
 }
 
-/** One copy of the current key that still needs handing to a group member. */
+/**
+ * How many keys a device hands on, newest first. Every key still in the ring may
+ * open retained history, so a device that joins after a rotation needs the older
+ * ones too, or everything from before the rotation stays locked to it. Old keys
+ * lose their use as their blobs leave the history window; this keeps a long-lived
+ * group from handing a newcomer every key it ever had, well inside the relay's
+ * 64-copies-per-device bound.
+ */
+export const MAX_HANDED_KEYS = 16
+
+/** One copy of a group key that still needs handing to a group member. */
 export interface PendingKeyDelivery {
   /** Deterministic, so a replay dedupes server-side instead of piling up rows. */
   id: string
+  /** The key to seal: the current one, or an older one that still opens history. */
+  record: GroupKeyRecord
   targetEndpointId: string
   targetPubkey: string
 }
 
 /**
- * Which group members still need the current key.
+ * Which group members still need which keys.
+ *
+ * Every key in the ring, newest first and capped at {@link MAX_HANDED_KEYS}, not
+ * only the current one: the history a newcomer is meant to read (ADR-0028
+ * amended 2026-10-30) is sealed under whatever key was current when it was sent.
  *
  * Excludes this device, consoles included on purpose (a console reads history
  * like anything else — it is excluded from CHOOSERS, not from the group), and
  * anything already delivered. `delivered` is a local record of
  * `keyId:endpointId` pairs, which is enough because both halves are stable: a
- * device that re-pairs gets a new endpoint id and so reappears here.
+ * rotation changes the keyId, so everyone is owed the new key automatically.
  */
 export function pendingKeyDeliveries(
   ring: readonly GroupKeyRecord[],
@@ -106,20 +122,26 @@ export function pendingKeyDeliveries(
   selfEndpointId: string,
   delivered: readonly string[],
 ): PendingKeyDelivery[] {
-  const key = currentKey(ring)
-  if (!key) return []
+  const keys = sortKeys(ring).slice(0, MAX_HANDED_KEYS)
+  if (keys.length === 0) return []
   const done = new Set(delivered)
-  // Never to a device the key itself names as gone: a key minted after a departure
-  // exists to keep that device out, and a relay that lists it again (or shows this
-  // device a list from before) must not get it handed over (X14).
-  const gone = new Set(key.departed)
-  return endpoints
-    .filter((e) => (e.id as string) !== selfEndpointId && !gone.has(e.id as string))
-    .map((e) => ({
-      id: deliveryId(key.keyId, e.id as string),
-      targetEndpointId: e.id as string,
-      targetPubkey: e.e2ePubkey,
-    }))
+  // Never to a device ANY key names as gone: a key minted after a departure exists
+  // to keep that device out, and a relay that lists it again (or shows this device
+  // a list from before) must not get it handed over (X14). It already holds the
+  // keys from before it left, so nothing is lost by leaving it out of all of them.
+  const gone = new Set(ring.flatMap((k) => k.departed ?? []))
+  const targets = endpoints.filter(
+    (e) => (e.id as string) !== selfEndpointId && !gone.has(e.id as string),
+  )
+  return keys
+    .flatMap((record) =>
+      targets.map((e) => ({
+        id: deliveryId(record.keyId, e.id as string),
+        record,
+        targetEndpointId: e.id as string,
+        targetPubkey: e.e2ePubkey,
+      })),
+    )
     .filter((d) => !done.has(d.id))
 }
 

@@ -6,10 +6,16 @@ import type { ConsoleSession, HistoryEntry } from './model'
 import { STALE_ENDPOINT_THRESHOLD_MS } from './time'
 import {
   batchHeading,
+  clockLine,
   connectionTitle,
   deliveryBadge,
   groupHistory,
+  groupResetCopy,
+  HOSTED_HOST,
   hostOf,
+  introCopy,
+  monthDayLine,
+  projectLinks,
   resolveEntryLabel,
   toDeviceRows,
 } from './view'
@@ -207,5 +213,54 @@ describe('connectionTitle', () => {
     expect(connectionTitle('offline', 'http://localhost:5173')).not.toContain(HOME_NETWORK_HINT)
     expect(connectionTitle('live', 'http://192.168.1.20:8786')).not.toContain(HOME_NETWORK_HINT)
     expect(connectionTitle('polling', 'http://192.168.1.20:8786')).not.toContain(HOME_NETWORK_HINT)
+  })
+})
+
+describe('the reset that waits copy (PLANS.md P-18 item 12)', () => {
+  it('names the day and the local time, word for word as on the other clients', () => {
+    const requestedAt = '2026-10-27T12:00:00.000Z'
+    const resetsAt = '2026-10-30T12:00:00.000Z'
+    // Noon UTC is the same calendar day in every time zone from UTC-11 to UTC+11.
+    expect(monthDayLine(requestedAt)).toBe('October 27')
+    expect(clockLine(resetsAt)).toMatch(/^\d{1,2}:\d{2} (AM|PM)$/)
+    expect(groupResetCopy.body(requestedAt, resetsAt)).toBe(
+      `From your account page on October 27. On October 30 at ${clockLine(resetsAt)}, every device is removed, this one too. If it wasn't you, stop it now, then change your email password.`,
+    )
+    expect(groupResetCopy.body(requestedAt, resetsAt)).not.toContain('—')
+  })
+})
+
+describe('the front page copy', () => {
+  it('says what Tabsend is and what the console cannot do, in plain words', () => {
+    expect(introCopy.what).toContain('sends a web page from one of your devices to another')
+    expect(introCopy.what).toContain("can't send tabs itself")
+    for (const text of Object.values(introCopy)) expect(text).not.toContain('—')
+  })
+
+  it('never uses the words a visitor would have to look up', () => {
+    const all = Object.values(introCopy).join(' ')
+    expect(all).not.toMatch(/relay|group history|end-to-end/i)
+  })
+})
+
+describe('projectLinks', () => {
+  it('links the hosted service to the site, its policies and support', () => {
+    expect(projectLinks(HOSTED_HOST)).toEqual([
+      { label: 'tabsend.org', href: 'https://tabsend.org' },
+      { label: 'Privacy', href: 'https://tabsend.org/privacy' },
+      { label: 'Terms', href: 'https://tabsend.org/terms' },
+      { label: 'Support', href: 'https://tabsend.org/support' },
+    ])
+  })
+
+  it('leaves out the policies on a relay somebody else runs', () => {
+    for (const host of [
+      'localhost',
+      '192.168.1.20',
+      'relay.example.com',
+      'app.tabsend.org.evil.test',
+    ]) {
+      expect(projectLinks(host).map((l) => l.label)).toEqual(['tabsend.org', 'Support'])
+    }
   })
 })

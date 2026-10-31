@@ -23,6 +23,8 @@ export interface KeyValue {
 const SESSION_KEY = 'tabsend.console.session.v1'
 const KEYRING_KEY = 'tabsend.console.keyring.v1'
 const NEW_DEVICES_KEY = 'tabsend.console.newdevices.v1'
+const PAIRING_VOUCH_KEY = 'tabsend.console.pairingvouch.v1'
+const GROUP_RESET_KEY = 'tabsend.console.groupreset.v1'
 
 /** localStorage-backed KV in a browser; an in-memory bag elsewhere (tests/SSR). */
 export function defaultKv(): KeyValue {
@@ -86,6 +88,8 @@ export function clearSession(kv: KeyValue = defaultKv()): void {
   // group secret material; leaving it behind in an unpaired browser buys nothing.
   kv.removeItem(KEYRING_KEY)
   kv.removeItem(NEW_DEVICES_KEY)
+  kv.removeItem(PAIRING_VOUCH_KEY)
+  kv.removeItem(GROUP_RESET_KEY)
 }
 
 /**
@@ -114,6 +118,70 @@ export function loadNewDeviceWatch(kv: KeyValue = defaultKv()): NewDeviceWatch |
 
 export function saveNewDeviceWatch(watch: NewDeviceWatch, kv: KeyValue = defaultKv()): void {
   kv.setItem(NEW_DEVICES_KEY, JSON.stringify(watch))
+}
+
+/**
+ * The device tags the pairing link this console joined with carried (P-23), kept
+ * until the first device list of that pairing has been judged against them.
+ */
+export interface PairingVouch {
+  endpointId: string
+  tags: string[]
+}
+
+export function loadPairingVouch(kv: KeyValue = defaultKv()): PairingVouch | null {
+  const raw = kv.getItem(PAIRING_VOUCH_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as Partial<PairingVouch>
+    if (
+      typeof parsed.endpointId === 'string' &&
+      Array.isArray(parsed.tags) &&
+      parsed.tags.every((t) => typeof t === 'string')
+    ) {
+      return parsed as PairingVouch
+    }
+  } catch {
+    // Unreadable: the first look asks about every device, as with an older link.
+  }
+  return null
+}
+
+export function savePairingVouch(vouch: PairingVouch, kv: KeyValue = defaultKv()): void {
+  kv.setItem(PAIRING_VOUCH_KEY, JSON.stringify(vouch))
+}
+
+export function clearPairingVouch(kv: KeyValue = defaultKv()): void {
+  kv.removeItem(PAIRING_VOUCH_KEY)
+}
+
+/**
+ * The reset this console answered "It was me" to (PLANS.md P-18 item 12), by its
+ * `requestedAt`, for one pairing. A new request (another `requestedAt`) shows again.
+ */
+export function loadDismissedGroupReset(
+  selfId: string,
+  kv: KeyValue = defaultKv(),
+): string | undefined {
+  const raw = kv.getItem(GROUP_RESET_KEY)
+  if (!raw) return undefined
+  try {
+    const parsed = JSON.parse(raw) as { selfId?: unknown; dismissedFor?: unknown }
+    if (parsed.selfId === selfId && typeof parsed.dismissedFor === 'string') {
+      return parsed.dismissedFor
+    }
+  } catch {
+    // unreadable: the card shows again, which is the safe side
+  }
+  return undefined
+}
+
+export function saveDismissedGroupReset(
+  selfId: string,
+  requestedAt: string,
+  kv: KeyValue = defaultKv(),
+): void {
+  kv.setItem(GROUP_RESET_KEY, JSON.stringify({ selfId, dismissedFor: requestedAt }))
 }
 
 /**

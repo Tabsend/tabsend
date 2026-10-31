@@ -4,6 +4,7 @@ import type {
   EncryptedEnvelope,
   Endpoint,
   EndpointKind,
+  GroupResetState,
   GroupSealed,
   NewDeviceNotice,
   Platform,
@@ -11,6 +12,7 @@ import type {
 } from '@tabsend/shared'
 import type { RelayHealth } from './health'
 import type { SendFailure } from './strings'
+import type { UnreachableDevice } from './unreachable'
 
 /**
  * Internal (device-local) shapes and the page <-> service-worker RPC contract.
@@ -239,12 +241,36 @@ export interface PendingUndo {
   origin?: FeedbackOrigin
 }
 
+/**
+ * What this browser last read about a reset that waits (PLANS.md P-18 item 12),
+ * for one pairing. Persisted so the system notification goes up once per request
+ * and "It was me" holds across restarts; a NEW request (another `requestedAt`)
+ * shows and alerts again.
+ */
+export interface GroupResetRecord {
+  /** The endpoint this was read for; another pairing's record is ignored. */
+  selfId: string
+  /** The reset the relay last reported, or null when none is waiting. */
+  reset: GroupResetState | null
+  /** `requestedAt` of the reset the system notification went up for. */
+  notifiedFor?: string
+  /** `requestedAt` of the reset the user answered "It was me" to. */
+  dismissedFor?: string
+}
+
 // --- page <-> SW RPC ------------------------------------------------------
 
 export type RpcRequest =
   | { type: 'getState' }
   | { type: 'createGroup'; relayUrl: string; browserName: string; deviceName: string }
-  | { type: 'joinGroup'; relayUrl: string; code: string; browserName: string }
+  | {
+      type: 'joinGroup'
+      relayUrl: string
+      code: string
+      browserName: string
+      /** The device tags the pairing link carried (P-23), if any. */
+      vouched?: string[]
+    }
   | { type: 'setDevice'; deviceName: string }
   | { type: 'resetRegistration' }
   | { type: 'getDevices' }
@@ -254,6 +280,12 @@ export type RpcRequest =
   | { type: 'confirmNewDevice'; endpointId: string }
   | { type: 'confirmReview' }
   | { type: 'dismissVanished'; endpointId: string }
+  // "Dismiss" on a device that isn't connected any more (PLANS.md P-20). Local only.
+  | { type: 'dismissUnreachable'; endpointId: string }
+  // The reset that waits (PLANS.md P-18 item 12): stop it at the relay, or answer
+  // "It was me" for this one request on this browser only.
+  | { type: 'stopGroupReset' }
+  | { type: 'dismissGroupReset'; requestedAt: string }
   // `cached` builds the view with no network at all, so the popup can paint
   // last-known rows immediately and re-render when the networked build lands.
   | { type: 'getChooser'; cached?: boolean }
@@ -268,7 +300,7 @@ export type RpcRequest =
   | { type: 'sendAgain'; targetEndpointId: string; payload: SendPayload }
   | { type: 'getSettings' }
   | { type: 'setSettings'; settings: Partial<ClientSettings> }
-  | { type: 'setPrimary'; targetEndpointId: string; pinned: boolean }
+  | { type: 'setPrimary'; targetEndpointId: string | null; pinned: boolean }
   | { type: 'mintPairing' }
   | { type: 'probeRelay'; relayUrl: string }
   | { type: 'changeRelayUrl'; relayUrl: string }
@@ -361,6 +393,8 @@ export interface DevicesView {
   review: NewDeviceNotice[]
   /** Announced as new, never answered, then gone from the list (GH7). */
   vanished: NewDeviceNotice[]
+  /** A reset waiting to replace the group, not answered here (PLANS.md P-18 item 12). */
+  groupReset?: GroupResetState
 }
 
 export interface ChooserRow {
@@ -377,6 +411,8 @@ export interface ChooserRow {
    * repeating a verdict nobody can check.
    */
   presenceKnown: boolean
+  /** A send to it found the relay no longer has it (PLANS.md P-20). */
+  unreachable?: boolean
 }
 
 /** One tab still sitting on this browser, for the "waiting here" list. */
@@ -425,6 +461,10 @@ export interface ChooserView {
   review: NewDeviceNotice[]
   /** Announced as new, never answered, then gone from the list (GH7). */
   vanished: NewDeviceNotice[]
+  /** Devices a send could not reach, until answered (PLANS.md P-20). */
+  unreachable: UnreachableDevice[]
+  /** A reset waiting to replace the group, not answered here (PLANS.md P-18 item 12). */
+  groupReset?: GroupResetState
 }
 
 export interface SendResult {

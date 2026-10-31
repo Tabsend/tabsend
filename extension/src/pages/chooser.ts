@@ -13,17 +13,24 @@ import {
   relayDownLine,
   sendBanner,
   sendFailureLine,
+  unreachableCopy,
 } from '../lib/strings'
-import { renderDeviceNotices } from './newdevice-banner'
+import {
+  type ResetCardState,
+  renderDeviceNotices,
+  resetNotices,
+  runStopReset,
+} from './newdevice-banner'
 import { wirePairingBox } from './pairing-box'
 import { rpcOk } from './rpc-client'
 
 /**
  * The toolbar popup chooser (MVP slice of INTERACTION_FLOWS §3.1): ordered
  * target rows (device tile, name, "Kind · status"); click a row to send; a zero-target empty
- * state that links to first-run; and a persistent "+ New browser" pill in the
+ * state that links to first-run; and a persistent "+ Add device" pill in the
  * header — same spot whether the list is empty, has one device, or several —
- * so pairing another profile is never just a small footer link away.
+ * so pairing another profile is never just a small footer link away. The pill
+ * opens pairing over the whole popup; Back (or Escape) returns to the list.
  */
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -139,7 +146,7 @@ function renderRow(row: ChooserRow): HTMLLIElement {
   const verb = selectedCount > 1 ? `Send ${selectedCount} tabs to` : 'Send to'
   btn.setAttribute(
     'aria-label',
-    `${verb} ${row.endpoint.label}${row.isPrimary ? ', primary' : ''}, ${presence}`,
+    `${verb} ${row.endpoint.label}${row.isPrimary ? ', main' : ''}, ${presence}`,
   )
 
   // Presence is said in WORDS on the second line ("Browser · online"), not by a
@@ -157,7 +164,7 @@ function renderRow(row: ChooserRow): HTMLLIElement {
   label.textContent = row.endpoint.label
   nameLine.append(label)
   // The primary device carries a small "Main" label (APP_UI.md "Device row"),
-  // which replaced the ★. The button's aria-label already says "primary", so
+  // which replaced the ★. The button's aria-label already says "main", so
   // this is decorative for assistive tech.
   if (row.isPrimary) {
     const main = document.createElement('span')
@@ -173,7 +180,12 @@ function renderRow(row: ChooserRow): HTMLLIElement {
   // `.last-seen` is the status word: sendTo() swaps it for "sending…" and back.
   const status = document.createElement('span')
   status.className = 'last-seen'
-  if (row.presenceKnown && row.endpoint.presence === 'online') {
+  if (row.unreachable) {
+    // Said instead of presence: whatever the list last heard, the relay has
+    // already refused a send to it (P-20). The card above says what to do.
+    status.classList.add('broken')
+    status.textContent = unreachableCopy.rowStatus
+  } else if (row.presenceKnown && row.endpoint.presence === 'online') {
     status.classList.add('online')
     status.textContent = 'online'
   } else {
@@ -291,7 +303,9 @@ async function sendTo(targetEndpointId: string, btn: HTMLButtonElement): Promise
     btn.append(check)
     // The message STAYS — the popup is still open and this is the only place
     // the reason is written down. Only the row's ✗ marker times out.
-    statusEl.textContent = send.failure ? sendFailureLine(send.failure) : (send.error ?? '')
+    statusEl.textContent = send.failure
+      ? sendFailureLine(send.failure, send.targetLabel)
+      : (send.error ?? '')
     statusEl.classList.add('error')
     show(statusEl, true)
     setTimeout(() => check.remove(), 2000)
@@ -335,36 +349,59 @@ async function renderRelayAccess(state: StateView): Promise<void> {
 }
 
 /**
- * "New device: X. Was this you?" (PLANS.md P-10). Removing needs a confirmation
- * dialog, which a popup cannot hold open, so "Remove it" hands over to the
- * manage screen and asks there.
+ * "Joined, then disappeared" (GH7) and the reset that waits (P-18 item 12). A device
+ * that joins is told once as a notification, never here (P-23).
  */
+/** The reset card's page-side state (P-18 item 12), kept across live re-renders. */
+const resetCard: ResetCardState = { busy: false }
+/** The view the notices were last drawn from, so an answer lands on the current one. */
+let noticesView: ChooserView | undefined
+
 function renderNewDevices(view: ChooserView): void {
+  noticesView = view
   renderDeviceNotices(
     newDevicesEl,
     // `?? []`: a popup from this build can meet a service worker that is still the old one.
-    { review: view.review ?? [], vanished: view.vanished ?? [], newDevices: view.newDevices ?? [] },
     {
-      confirm: (n) => {
-        renderNewDevices({
-          ...view,
-          newDevices: (view.newDevices ?? []).filter((d) => d.id !== n.id),
-        })
-        void rpcOk({ type: 'confirmNewDevice', endpointId: n.id }).catch(() => undefined)
+      vanished: view.vanished ?? [],
+      unreachable: view.unreachable ?? [],
+      ...resetNotices(resetCard, view.groupReset),
+    },
+    {
+      stopReset: (reset) => {
+        void runStopReset(
+          resetCard,
+          reset,
+          () => rpcOk({ type: 'stopGroupReset' }),
+          () => renderNewDevices(noticesView ?? view),
+        )
       },
-      remove: (n) => {
-        void ext.tabs.create({
-          url: ext.runtime.getURL(`firstrun.html#remove=${encodeURIComponent(n.id)}`),
-        })
-        window.close()
-      },
-      confirmReview: () => {
-        renderNewDevices({ ...view, review: [] })
-        void rpcOk({ type: 'confirmReview' }).catch(() => undefined)
+      dismissReset: (reset) => {
+        resetCard.dismissedFor = reset.requestedAt
+        renderNewDevices(noticesView ?? view)
+        void rpcOk({ type: 'dismissGroupReset', requestedAt: reset.requestedAt }).catch(
+          () => undefined,
+        )
       },
       dismissVanished: (n) => {
         renderNewDevices({ ...view, vanished: (view.vanished ?? []).filter((d) => d.id !== n.id) })
         void rpcOk({ type: 'dismissVanished', endpointId: n.id }).catch(() => undefined)
+      },
+      // The card stays up while pairing: it goes once the device joins again
+      // (a fresh list prunes it) or is dismissed, not on the click.
+      pairAgain: () => $<HTMLButtonElement>('pair-header').click(),
+      dismissUnreachable: (d) => {
+        // The whole view, not just the card: the row's "not connected" goes too.
+        const next: ChooserView = {
+          ...view,
+          unreachable: (view.unreachable ?? []).filter((u) => u.endpointId !== d.endpointId),
+          targets: view.targets.map((t) =>
+            t.endpoint.id === d.endpointId ? { ...t, unreachable: false } : t,
+          ),
+        }
+        if (currentState && !sending) renderChooser(next, currentState)
+        else renderNewDevices(next)
+        void rpcOk({ type: 'dismissUnreachable', endpointId: d.endpointId }).catch(() => undefined)
       },
     },
   )
@@ -611,6 +648,27 @@ function openHistory(): void {
   window.close()
 }
 
+/** Pairing covers the popup while open; the box itself is the shared pairing-box. */
+function wirePairingView(): void {
+  const close = (): void => {
+    document.body.classList.remove('pairing')
+    $('pairing-box').classList.remove('visible')
+    $('pair-header').focus()
+  }
+  $('pair-header').addEventListener('click', () => {
+    document.body.classList.add('pairing')
+    $('pair-back').focus()
+  })
+  $('pair-back').addEventListener('click', close)
+  document.addEventListener('keydown', (e) => {
+    // Escape would otherwise close the whole popup; inside pairing it means "back".
+    if (e.key === 'Escape' && document.body.classList.contains('pairing')) {
+      e.preventDefault()
+      close()
+    }
+  })
+}
+
 async function main(): Promise<void> {
   show(statusEl, true)
   $('open-firstrun').addEventListener('click', openFirstRun)
@@ -624,6 +682,7 @@ async function main(): Promise<void> {
     copy: $<HTMLButtonElement>('copy-link'),
     copyNote: $('copy-note'),
   })
+  wirePairingView()
   $('settings-footer').addEventListener('click', openSettings)
   $('history-footer').addEventListener('click', openHistory)
 

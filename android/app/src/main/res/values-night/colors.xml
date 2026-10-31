@@ -23,6 +23,8 @@
     <color name="ts_waiting_text">#F0C463</color>
     <color name="relay_warning_bg">#29E0A11B</color>
     <color name="ts_danger">#F08A6E</color>
+    <color name="danger_bg">#29F08A6E</color>
+    <color name="danger_stroke">#80F08A6E</color>
     <color name="ts_waiting_glyph">#10201E</color>
 
     <!-- Phone tokens, Android dark column. -->

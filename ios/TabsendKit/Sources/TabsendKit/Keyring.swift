@@ -82,15 +82,28 @@ public enum Keyring {
             .allSatisfy { selfEndpointId <= $0.id }
     }
 
-    /// One copy of the current key that still needs handing to a group member.
+    /// How many keys a device hands on, newest first. The mirror of
+    /// `MAX_HANDED_KEYS` in extension/src/lib/keyring.ts: every key still in the
+    /// ring may open retained history, so a device that joins after a rotation
+    /// needs the older ones too, and this keeps a long-lived group well inside the
+    /// relay's 64-copies-per-device bound.
+    public static let maxHandedKeys = 16
+
+    /// One copy of a group key that still needs handing to a group member.
     public struct PendingDelivery: Sendable, Equatable, Identifiable {
         /// Deterministic, so a replay dedupes server-side instead of piling up rows.
         public var id: String
+        /// The key to seal: the current one, or an older one that still opens history.
+        public var record: GroupKeyRecord
         public var targetEndpointId: String
         public var targetPubkey: String
     }
 
-    /// Which group members still need the current key.
+    /// Which group members still need which keys.
+    ///
+    /// Every key in the ring, newest first and capped at `maxHandedKeys`, not only
+    /// the current one: the history a newcomer is meant to read (ADR-0028 amended
+    /// 2026-10-30) is sealed under whatever key was current when it was sent.
     ///
     /// Excludes this device, consoles included on purpose (a console reads history
     /// like anything else — it is excluded from CHOOSERS, not from the group), and
@@ -101,20 +114,25 @@ public enum Keyring {
         ring: [GroupKeyRecord], endpoints: [Endpoint],
         selfEndpointId: String, delivered: [String]
     ) -> [PendingDelivery] {
-        guard let key = current(ring) else { return [] }
+        let keys = Array(sorted(ring).prefix(maxHandedKeys))
+        guard !keys.isEmpty else { return [] }
         let done = Set(delivered)
-        // Never to a device the key itself names as gone: a key minted after a departure
-        // exists to keep that device out, and a relay that lists it again (or shows this
-        // phone a list from before) must not get it handed over (X14).
-        let gone = Set(key.departed ?? [])
-        return endpoints
-            .filter { $0.id != selfEndpointId && !gone.contains($0.id) }
-            .map {
-                PendingDelivery(
-                    id: deliveryId(keyId: key.keyId, endpointId: $0.id),
-                    targetEndpointId: $0.id,
-                    targetPubkey: $0.e2ePubkey
-                )
+        // Never to a device ANY key names as gone: a key minted after a departure
+        // exists to keep that device out, and a relay that lists it again (or shows
+        // this phone a list from before) must not get it handed over (X14). It
+        // already holds the keys from before it left, so it loses nothing.
+        let gone = Set(ring.flatMap { $0.departed ?? [] })
+        let targets = endpoints.filter { $0.id != selfEndpointId && !gone.contains($0.id) }
+        return keys
+            .flatMap { record in
+                targets.map {
+                    PendingDelivery(
+                        id: deliveryId(keyId: record.keyId, endpointId: $0.id),
+                        record: record,
+                        targetEndpointId: $0.id,
+                        targetPubkey: $0.e2ePubkey
+                    )
+                }
             }
             .filter { !done.contains($0.id) }
     }

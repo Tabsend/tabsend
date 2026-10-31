@@ -35,6 +35,9 @@ object Registrar {
     /**
      * Join an existing group via pairing link. Nothing to wait for first —
      * the phone registers push-less ({transport:"none"}, [0015]).
+     *
+     * [vouched] is the tags the link carried (P-23). Saved with the registration
+     * for the first device-list watch of this pairing, which reads it once.
      */
     suspend fun join(
         context: Context,
@@ -43,6 +46,7 @@ object Registrar {
         deviceLabel: String,
         certFingerprint: String? = null,
         relayId: String? = null,
+        vouched: List<String>? = null,
     ): Registration = withContext(Dispatchers.IO) {
         val store = Store.get(context)
         val identity = ensureIdentity(store)
@@ -69,6 +73,9 @@ object Registrar {
             certFingerprint = certFingerprint,
             relayId = relayId,
         )
+        // The vouch first: the first watch needs the registration, so it cannot run
+        // before both are in. Null clears any left over (P-23).
+        store.pairingVouch = vouched
         store.registration = registration
         registration
     }

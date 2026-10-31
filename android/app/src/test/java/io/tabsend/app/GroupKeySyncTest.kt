@@ -74,12 +74,15 @@ class GroupKeySyncTest {
         rotateFrom = if (rotateOwedAt == null) null else rotateFrom,
     )
 
-    /** A relay that serves [waiting] and accepts every copy, remembering who it was for. */
+    /**
+     * A relay that serves [waiting] and accepts every copy, remembering who it was
+     * for, once each: a device is handed every key the ring holds.
+     */
     private class FakeRelay(private val waiting: List<GroupKeyDelivery> = emptyList()) : GroupHistory.KeyRelay {
         val postedTo = mutableListOf<String>()
         override fun fetch() = waiting
         override fun post(body: GroupKeyRequest): GroupKeyResponse {
-            postedTo += body.items.map { it.targetEndpointId }
+            postedTo += body.items.map { it.targetEndpointId }.filterNot { it in postedTo }.distinct()
             return GroupKeyResponse(accepted = body.items.map { it.id })
         }
     }

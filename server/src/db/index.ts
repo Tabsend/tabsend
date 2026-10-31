@@ -149,6 +149,11 @@ export async function migrate(db: Kysely<Database>): Promise<void> {
     // it is running. Nullable is the only honest shape: NULL is "not suspended", and
     // a timestamp answers "since when", which is what a grace period counts from.
     .addColumn('suspended_at', 'text')
+    // ADDITIVE [P-18 item 12]: a reset that waits. All nullable: NULL is "no reset
+    // pending" and "no device ever stopped one", and neither has another spelling.
+    .addColumn('reset_requested_at', 'text')
+    .addColumn('reset_at', 'text')
+    .addColumn('reset_stopped_at', 'text')
     .execute()
 
   await db.schema
@@ -358,6 +363,14 @@ export async function migrate(db: Kysely<Database>): Promise<void> {
   // one shape that could not work: there is no value that means "not suspended" other
   // than the absence of one.
   await ensureColumn(db, 'groups', 'suspended_at', 'text')
+
+  // ADDITIVE migration [P-18 item 12]: `groups.reset_*`, the reset that waits. Same
+  // in-place upgrade path, for a relay whose `groups` table predates it. Nullable, so
+  // every pre-existing group reads as "no reset pending, none ever stopped", which is
+  // what it is.
+  await ensureColumn(db, 'groups', 'reset_requested_at', 'text')
+  await ensureColumn(db, 'groups', 'reset_at', 'text')
+  await ensureColumn(db, 'groups', 'reset_stopped_at', 'text')
 
   // ADDITIVE [0031]: which group a control-plane `Idempotency-Key` already created
   // (HOSTED_PLAN §4.2). The header was read and logged from the start and honoured

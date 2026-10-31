@@ -4,6 +4,7 @@ import {
   currentKey,
   deliveryId,
   keyById,
+  MAX_HANDED_KEYS,
   mergeKeys,
   pendingKeyDeliveries,
   rotatedKey,
@@ -142,6 +143,39 @@ describe('handing the key to the rest of the group', () => {
 
   it('has nothing to deliver while the group has no key', () => {
     expect(pendingKeyDeliveries([], group, 'self', [])).toEqual([])
+  })
+
+  it('hands a newcomer the older keys too, so history from before a rotation opens', () => {
+    const rotated = [key('k1', '2026-08-01T00:00:00.000Z'), key('k2', '2026-08-09T00:00:00.000Z')]
+    // Everyone already in the group has both; the new phone has neither.
+    const done = ['k1', 'k2'].flatMap((k) => [deliveryId(k, 'desk')])
+    const pending = pendingKeyDeliveries(rotated, group, 'self', done)
+    expect(pending.map((p) => [p.record.keyId, p.targetEndpointId])).toEqual([
+      ['k2', 'phone'],
+      ['k1', 'phone'],
+    ])
+  })
+
+  it('keeps a device any key names as gone out of every key, old ones included', () => {
+    const rotated = [
+      key('k1', '2026-08-01T00:00:00.000Z'),
+      { ...key('k2', '2026-08-09T00:00:00.000Z'), departed: ['desk'] },
+    ]
+    const pending = pendingKeyDeliveries(rotated, group, 'self', [])
+    expect(new Set(pending.map((p) => p.targetEndpointId))).toEqual(new Set(['phone']))
+    expect(pending).toHaveLength(2)
+  })
+
+  it('hands on at most MAX_HANDED_KEYS keys, newest first', () => {
+    const many = Array.from({ length: MAX_HANDED_KEYS + 4 }, (_, i) =>
+      key(
+        `k${String(i).padStart(2, '0')}`,
+        `2026-08-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
+      ),
+    )
+    const pending = pendingKeyDeliveries(many, [endpoint('self'), endpoint('phone')], 'self', [])
+    expect(pending).toHaveLength(MAX_HANDED_KEYS)
+    expect(pending[0]?.record.keyId).toBe(`k${MAX_HANDED_KEYS + 3}`)
   })
 })
 

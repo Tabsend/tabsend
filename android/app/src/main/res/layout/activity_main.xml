@@ -9,7 +9,7 @@
     button ("Scan code").
   - pairedCard: everything after pairing, in plain Material 3. A top app bar with
     the title, petrol subheaders, a tonal panel for the received list, plain
-    device rows, a petrol switch, and an extended FAB for "Pair a device". No
+    device rows, a petrol switch, and an extended FAB for "Add a device". No
     outlines, no offset shadows.
 
   MainActivity toggles the two and repaints the status bar to match.
@@ -297,6 +297,20 @@
                     android:textColor="@color/relay_warning"
                     android:visibility="gone" />
 
+                <!-- ===== A reset that waits (PLANS.md P-18 item 12) =====
+                     One red card while a reset of the whole group is pending and
+                     not answered "It was me" on this phone. Filled in code
+                     (MainActivity.renderGroupReset); empty and invisible otherwise.
+                     First of the notices: unless someone stops it, every device
+                     is removed, this one too. -->
+                <LinearLayout
+                    android:id="@+id/groupResetList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:accessibilityLiveRegion="polite"
+                    android:orientation="vertical"
+                    android:visibility="gone" />
+
                 <!-- ===== New devices (PLANS.md P-10) =====
                      One amber card per device that joined since this phone last
                      looked and has not been answered here. Filled in code
@@ -530,7 +544,7 @@
         </androidx.core.widget.NestedScrollView>
 
         <!-- "Pair a device" (APP_UI: an extended FAB, tonal, radius 16). Mints a
-             pairing link exactly as the old full-width button did. -->
+             setup link exactly as the old full-width button did. -->
         <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
             android:id="@+id/addDeviceButton"
             style="@style/Widget.Tabsend.ExtendedFab"

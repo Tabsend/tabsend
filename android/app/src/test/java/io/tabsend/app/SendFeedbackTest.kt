@@ -49,7 +49,8 @@ class SendFeedbackTest {
     fun `an asleep target is still a success - the relay has it`() {
         val banner = Feedback.banner(SendOutcomeView(ok = true, queued = true, targetLabel = label))
         assertEquals(SendTone.SUCCESS, banner.tone)
-        assertEquals("Opens when it wakes", banner.detail)
+        assertEquals("Sent to Arc · Mac mini", banner.headline)
+        assertNull(banner.detail)
     }
 
     /** THE regression: a dead relay used to return ok=true and render as "Sent". */

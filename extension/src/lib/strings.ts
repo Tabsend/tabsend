@@ -279,7 +279,7 @@ function relayErrorLine(code: ApiErrorCode, device: string): string {
     case 'endpoint_removed':
       return `Your relay doesn't recognise this browser any more. Set Tabsend up again here to start sending.`
     case 'invalid_pairing_code':
-      return 'That pairing link is no longer valid.'
+      return 'That setup link is no longer valid.'
     // Only ever answered to a register/create call [ADR-0022], never to a send;
     // it exists here so the switch stays exhaustive as the wire set grows.
     case 'group_exists':
@@ -365,6 +365,7 @@ export function agoLine(iso: string, now: number): string {
  * spotted; the banner stays until the user answers it.
  */
 export const newDeviceCopy = {
+  // Told once, as information (P-23): a phone tells, or a browser when the group has no phone.
   alert(
     joined: readonly { label: string; createdAt: string }[],
     now: number,
@@ -375,33 +376,91 @@ export const newDeviceCopy = {
     const [first] = joined
     if (joined.length === 1 && first) {
       return {
-        title: `New device: ${first.label}`,
-        message: `Joined your Tabsend devices ${agoLine(first.createdAt, now)}. Was this you? If not, remove it.`,
+        title: `${first.label} was added`,
+        message: `It joined your Tabsend devices ${agoLine(first.createdAt, now)}. If that wasn't you, remove it in Tabsend.`,
       }
     }
     return {
-      title: `${joined.length} new devices joined`,
-      message: `${listOfLabels(joined.map((j) => j.label))}. Were these you? If not, remove them.`,
+      title: `${joined.length} devices were added`,
+      message: `${listOfLabels(joined.map((j) => j.label))} joined your Tabsend devices. If any wasn't you, remove it in Tabsend.`,
     }
   },
-  bannerTitle: (label: string): string => `New device: ${label}`,
-  bannerBody: (createdAt: string, now: number): string =>
-    `Joined ${agoLine(createdAt, now)}. Was this you? If it isn't yours, remove it. It could read the links you send.`,
-  confirm: "Yes, it's mine",
-  remove: 'Remove it',
-  // The first look (GH6): one card, asked once, when this browser first sees the group.
-  reviewTitle: 'Check your devices',
-  reviewBody:
-    "Your group has these devices. A device you don't know could read the links you send, so remove it.",
-  reviewRemove: 'Remove',
-  /** The accessible name of one row's Remove, so a screen reader does not say "Remove, Remove". */
-  reviewRemoveLabel: (label: string): string => `Remove ${label}`,
-  reviewConfirm: 'All of these are mine',
+  /** A fresh pairing whose link did not vouch for every device already in the group. */
+  firstListAlert(devices: readonly { label: string }[]): { title: string; message: string } {
+    const [first] = devices
+    if (devices.length === 1 && first) {
+      return {
+        title: `${first.label} is in your group`,
+        message:
+          "The device you paired with didn't list it. If it isn't yours, remove it in Tabsend.",
+      }
+    }
+    return {
+      title: `${devices.length} devices are in your group`,
+      message: `${listOfLabels(devices.map((d) => d.label))}. The device you paired with didn't list them. If any isn't yours, remove it in Tabsend.`,
+    }
+  },
   // A device announced as new and then hidden from the list (GH7).
   vanishedTitle: (label: string): string => `${label} joined, then disappeared`,
   vanishedBody: (createdAt: string, now: number): string =>
     `It joined ${agoLine(createdAt, now)} and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.`,
   vanishedDismiss: 'Dismiss',
+} as const
+
+/**
+ * A device a send could not reach because the relay no longer has it (PLANS.md
+ * P-20). Worded for any device, phone or browser: the cause is the same either
+ * way (Tabsend removed or reinstalled there, or the device removed from the
+ * group), and so is the fix (pair it again from here).
+ */
+export const unreachableCopy = {
+  title: (label: string): string => `${label} isn't connected any more`,
+  body: "Tabs sent to it won't arrive. This happens when Tabsend is removed or reinstalled on it, or when it's removed from your devices. To keep sending to it, pair it again.",
+  pairAgain: (label: string): string => `Pair ${label} again`,
+  dismiss: 'Dismiss',
+  /** The device's row, when the list still shows it. */
+  rowStatus: 'not connected',
+  /** The toolbar icon's tooltip while the "!" is up. */
+  tooltip: (labels: readonly string[]): string =>
+    labels.length === 1
+      ? `${labels[0]} isn't connected any more. Open Tabsend to fix it.`
+      : `${labels.length} devices aren't connected any more. Open Tabsend to fix them.`,
+} as const
+
+/** "October 27", in this browser's time zone. An unreadable time is shown as sent. */
+export function monthDayLine(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+}
+
+/** "3:05 PM", in this browser's time zone. ICU's narrow space before AM/PM made plain. */
+export function clockLine(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, ' ')
+}
+
+/**
+ * The reset that waits (PLANS.md P-18 item 12). Word for word the same on Android,
+ * iOS and the console: every paired device shows it, and any one can stop it.
+ */
+export const groupResetCopy = {
+  alertTitle: 'Tabsend',
+  alertMessage: (requestedAt: string): string =>
+    `Someone asked to remove all your devices on ${monthDayLine(requestedAt)}. Open Tabsend to stop it.`,
+  title: 'Someone asked to remove all your devices',
+  body: (requestedAt: string, resetsAt: string): string =>
+    `From your account page on ${monthDayLine(requestedAt)}. On ${monthDayLine(resetsAt)} at ${clockLine(resetsAt)}, every device is removed, this one too. If it wasn't you, stop it now, then change your email password.`,
+  stop: 'Stop the reset',
+  stopping: 'Stopping…',
+  dismiss: 'It was me',
+  stopped: 'Reset stopped. Nothing was removed.',
+  stopFailedOffline: "Couldn't reach your relay, so the reset is still waiting. Try again.",
+  stopFailed: (reason: string): string => {
+    const r = reason.trim().replace(/[.!]?$/, '.')
+    return `Couldn't stop the reset: ${r} The reset is still waiting. Try again.`
+  },
 } as const
 
 /** "A", "A and B", "A, B and C". */
@@ -558,7 +617,7 @@ export function pairingErrorLine(cause: PairingFailure): string {
     case 'unauthorized':
       return 'This browser is no longer in the group — set it up again to pair other devices.'
     case 'relay':
-      return `The relay couldn't issue a pairing link: ${cause.detail}`
+      return `The relay couldn't make a setup link: ${cause.detail}`
   }
 }
 
@@ -611,7 +670,7 @@ export type PairingFailure =
  * had to read and apply correctly before the app would tell them what it already
  * knew (dogfood 2026-07-29).
  *
- * Each line leaves the word its button already carries ("address", "here") to
+ * Each line leaves the word its button already carries ("address") to
  * the button, so the pair doesn't repeat itself. No em dashes: short sentences
  * instead, so the fix is legible split across the icon + text row in a boxed
  * callout rather than one long run-on line.
@@ -623,7 +682,8 @@ export const relayProbeCopy = {
   sameUnverified: (): string =>
     "Probably the same relay. It's too old to confirm, but it accepted this browser's login.",
   /** A relay that has never heard of us. Name the cost, don't moralise about it. */
-  different: (): string => 'Different relay. No record of your devices, so every one re-pairs.',
+  different: (): string =>
+    "This is a different relay. It doesn't know your devices, so each one will need to pair again.",
   /** Nothing answered. */
   unreachable: (relayUrl: string): string =>
     `Couldn't reach a relay at ${relayUrl}. Check the address and that it's running.`,
@@ -688,7 +748,7 @@ export const relaySwitchCopy = {
   keep: (currentRelayUrl: string): string => `Keep ${currentRelayUrl} instead`,
   /** The pre-filled link is the one they pasted, and codes are single-use. */
   reusedLink: (): string =>
-    'This is the link you pasted in settings. Pairing links are single-use and expire, so mint a fresh one if the relay refuses it.',
+    'This is the link you pasted in settings. Setup links work once and expire, so make a new one if the relay refuses it.',
 } as const
 
 /**

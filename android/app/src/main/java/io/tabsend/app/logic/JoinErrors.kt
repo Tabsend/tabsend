@@ -35,24 +35,24 @@ object JoinErrors {
     ): String = when {
         e is SSLException && hadPin ->
             "The relay answered, but its security certificate doesn't match the one in " +
-                "this pairing link. If the relay was rebuilt or reinstalled it will have a " +
-                "new certificate — create a fresh pairing link and scan it again."
+                "this setup link. If the relay was rebuilt or reinstalled it will have a " +
+                "new certificate — create a fresh setup link and scan it again."
 
         e is SSLException ->
             "The relay answered, but this phone doesn't trust its security certificate. " +
-                "The pairing link did not include the certificate fingerprint this phone " +
+                "The setup link did not include the certificate fingerprint this phone " +
                 "needs. Create a fresh link from the relay or an updated Tabsend device."
 
         e is UnknownServiceException ->
             "Android won't send plain http anywhere but localhost, so this address is " +
                 "blocked. The relay needs an https address — one with its own self-signed " +
-                "certificate is fine, as long as its pairing link carries the fingerprint."
+                "certificate is fine, as long as its setup link carries the fingerprint."
 
         isLoopback(relay) ->
             "$relay means this phone itself, so there's nothing there to reach. That " +
                 "address came from a relay that describes itself as localhost, which is a " +
                 "development-only setting. Give the relay a PUBLIC_RELAY_URL that other " +
-                "devices can reach, then create a new pairing link."
+                "devices can reach, then create a new setup link."
 
         else ->
             "Couldn't reach the relay at $relay. Check that it's running and that this " +
