@@ -462,8 +462,6 @@ class MainActivity : AppCompatActivity() {
                 setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
             },
         )
-        // Dimmed once opened, still listed: the same rule History follows.
-        column.alpha = if (item.openedAt != null) 0.6f else 1f
         if (LinkPolicy.isOpenableWebUrl(item.url)) {
             DeviceRows.makeTappable(column) { openReceived(item) }
         }

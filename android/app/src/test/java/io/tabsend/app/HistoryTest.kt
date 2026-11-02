@@ -277,4 +277,20 @@ class HistoryTest {
         val rows = History.rows(listOf(item("m1", source = "self")), emptyList(), "self", now - hour)
         assertTrue(History.unannouncedNeverArrived(rows, emptyList()).isEmpty())
     }
+
+    @Test
+    fun aTabWaitingForThisPhoneIsWorthFetching() {
+        val waiting = item("w", source = "laptop", target = "phone")
+        val rows = History.rows(listOf(waiting), emptyList(), "phone", now)
+        assertTrue(History.hasWaitingForSelf(rows))
+    }
+
+    @Test
+    fun waitingElsewhereOrAlreadyHereIsNot() {
+        val mine = item("s", source = "phone", target = "laptop")
+        val others = item("o", source = "laptop", target = "tablet")
+        val landed = item("a", source = "laptop", target = "phone", ackedAt = "2026-08-06T11:01:00.000Z")
+        val rows = History.rows(listOf(mine, others, landed), emptyList(), "phone", now)
+        assertFalse(History.hasWaitingForSelf(rows))
+    }
 }

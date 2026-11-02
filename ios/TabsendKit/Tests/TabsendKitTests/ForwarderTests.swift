@@ -117,8 +117,8 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 /// as it is in the app.
 @Suite(.serialized)
 struct ForwarderTests {
-    /// Every test starts from the shipped default: no forwarder URL anywhere.
-    init() { ForwarderConfig.clearOverride() }
+    /// Tests start without a forwarder unless they explicitly enable one.
+    init() { ForwarderConfig.setOverride(nil) }
 
     private func enabled() { ForwarderConfig.setOverride("https://wake.test") }
 
@@ -209,10 +209,15 @@ struct ForwarderTests {
         #expect(ForwarderConfig.url == "https://wake.test")
     }
 
-    @Test func nothingIsConfiguredUntilAUrlIsKnown() {
-        // The shipped default: no official instance is deployed, nothing is baked in,
-        // and the whole path is off.
-        #expect(ForwarderConfig.officialInstance == nil)
+    @Test func officialForwarderIsConfiguredByDefault() {
+        #expect(ForwarderConfig.officialInstance == "https://wake.tabsend.org")
+        ForwarderConfig.clearOverride()
+        #expect(ForwarderConfig.url == "https://wake.tabsend.org")
+        #expect(WakePath.isConfigured)
+        #expect(ForwarderClient.live() != nil)
+    }
+
+    @Test func noForwarderWhenExplicitlyDisabled() {
         #expect(!WakePath.isConfigured)
         #expect(ForwarderClient.live() == nil)
         enabled()

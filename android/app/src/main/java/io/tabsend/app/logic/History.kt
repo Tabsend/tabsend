@@ -201,6 +201,17 @@ object History {
     }
 
     /**
+     * Is a tab addressed to THIS phone still sitting on the relay?
+     *
+     * History and the inbox are two separate questions to the relay, so the
+     * history can learn of a tab before the inbox pull does (the push wake was
+     * late or lost). A screen that shows "Waiting for <this phone>" should go and
+     * fetch it rather than describe the wait.
+     */
+    fun hasWaitingForSelf(rows: List<HistoryRow>): Boolean =
+        rows.any { it.direction == Direction.RECEIVED && it.delivery == Delivery.WAITING }
+
+    /**
      * Tabs this phone sent that never arrived and have not been announced yet.
      *
      * Only this phone's own sends: the tab is on the device that sent it, and

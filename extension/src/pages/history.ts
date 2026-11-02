@@ -10,6 +10,12 @@ import {
   mergeHistory,
   relativeTime,
 } from '../lib/history'
+import {
+  hasPreviewPermission,
+  loadPreview,
+  loadPreviewImage,
+  previewUrl,
+} from '../lib/link-preview'
 import type { HistoryRow } from '../lib/model'
 import { isEmbeddedFavicon, isOpenableWebUrl } from '../lib/policy'
 import { getHistory, getInbox, getRegistration, setUnreadReceived } from '../lib/storage'
@@ -33,6 +39,18 @@ import { rpc } from './rpc-client'
 
 const groupsEl = document.getElementById('groups') as HTMLDivElement
 const emptyEl = document.getElementById('empty') as HTMLDivElement
+const opened = new Set<string>()
+const previewCallbacks = new WeakMap<Element, () => void>()
+const previewObserver = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting || document.visibilityState !== 'visible') continue
+      previewObserver.unobserve(entry.target)
+      previewCallbacks.get(entry.target)?.()
+    }
+  },
+  { rootMargin: '100px' },
+)
 const retentionEl = document.getElementById('retention') as HTMLParagraphElement
 
 // Retention is stated here rather than buried in settings, and it names BOTH
@@ -41,7 +59,8 @@ const retentionEl = document.getElementById('retention') as HTMLParagraphElement
 // the relay being unreachable.
 retentionEl.textContent =
   `Every tab your devices send each other, newest first. Your relay decides how far ` +
-  `back the list goes. The newest ${HISTORY_MAX} are kept on this browser, so the page still works offline.`
+  `back the list goes. The newest ${HISTORY_MAX} are kept on this browser, so the page still works offline. ` +
+  `Website previews load from linked sites, which can see requests from this device.`
 
 /**
  * Mail imagery per direction [ADR-0028 §9]: never a bare arrow.
@@ -186,6 +205,9 @@ function renderRow(row: HistoryRow, now: number): HTMLLIElement {
   const li = document.createElement('li')
   const wrap = document.createElement('div')
   wrap.className = 'row'
+  const fresh =
+    row.direction === 'received' && !opened.has(row.id) && now - Date.parse(row.sentAt) < 86400000
+  wrap.classList.toggle('fresh', fresh)
   wrap.appendChild(directionGlyph(row))
 
   const url = openableUrl(row)
@@ -195,7 +217,11 @@ function renderRow(row: HistoryRow, now: number): HTMLLIElement {
   if (body instanceof HTMLButtonElement) {
     body.type = 'button'
     const target = url as string
-    body.addEventListener('click', () => openTab(target))
+    body.addEventListener('click', () => {
+      opened.add(row.id)
+      wrap.classList.remove('fresh')
+      openTab(target)
+    })
     // The whole URL on hover: the row truncates, and "which link is this
     // exactly" is the question this page exists to answer.
     body.title = target
@@ -233,6 +259,82 @@ function renderRow(row: HistoryRow, now: number): HTMLLIElement {
   }
 
   li.appendChild(wrap)
+  const publicUrl = url && previewUrl(url)
+  if (publicUrl) {
+    const apply = async () => {
+      const preview = await loadPreview(publicUrl.href)
+      if (!li.isConnected) return
+      if (preview.title) title.textContent = preview.title
+      if (preview.description) {
+        const description = document.createElement('span')
+        description.className = 'preview-description'
+        description.textContent = preview.description
+        text.appendChild(description)
+      }
+      const showImage = (source: string) => {
+        const image = document.createElement('img')
+        image.className = 'preview-image'
+        image.alt = ''
+        image.src = source
+        image.addEventListener('error', () => image.remove())
+        body.appendChild(image)
+      }
+      if (preview.image) showImage(preview.image)
+      else if (preview.imageSource) {
+        const imageURL = previewUrl(preview.imageSource)
+        if (imageURL && imageURL.origin !== publicUrl.origin) {
+          const allowImage = document.createElement('button')
+          allowImage.className = 'preview-allow'
+          allowImage.textContent = 'Load preview image'
+          allowImage.title = `Allow ${imageURL.hostname} to provide the image. It will see a request from this device.`
+          allowImage.addEventListener('click', () => {
+            void ext.permissions
+              .request({ origins: [`${imageURL.origin}/*`] })
+              .then(async (granted) => {
+                if (!granted) return
+                const source = await loadPreviewImage(imageURL.href)
+                if (source && li.isConnected) {
+                  preview.image = source
+                  showImage(source)
+                  allowImage.remove()
+                } else allowImage.textContent = 'Image unavailable'
+              })
+              .catch(() => {
+                allowImage.textContent = 'Try loading image again'
+              })
+          })
+          li.appendChild(allowImage)
+        }
+      }
+    }
+    previewCallbacks.set(li, () => {
+      void hasPreviewPermission(publicUrl)
+        .then((allowed) => {
+          if (!li.isConnected) return
+          if (allowed) return apply()
+          const allow = document.createElement('button')
+          allow.className = 'preview-allow'
+          allow.textContent = 'Load website preview'
+          allow.title =
+            'Allow this website to provide a preview. It will see a request from this device.'
+          allow.addEventListener('click', () => {
+            void ext.permissions
+              .request({ origins: [`${publicUrl.origin}/*`] })
+              .then((granted) => {
+                if (granted) {
+                  void render()
+                }
+              })
+              .catch(() => {
+                allow.textContent = 'Try loading preview again'
+              })
+          })
+          li.appendChild(allow)
+        })
+        .catch(() => undefined)
+    })
+    previewObserver.observe(li)
+  }
   return li
 }
 
@@ -319,6 +421,7 @@ async function render(): Promise<void> {
   )
   const now = Date.now()
 
+  previewObserver.disconnect()
   groupsEl.replaceChildren()
   emptyEl.classList.toggle('hidden', rows.length > 0)
   for (const group of groupHistory(rows)) groupsEl.appendChild(renderGroup(group, now))

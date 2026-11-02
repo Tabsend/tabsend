@@ -31,8 +31,11 @@ start the relay with a new empty database, and pair again. Follow the recoverabl
   Web Push and a 30-second poll. Android uses its default-on foreground WebSocket service plus
   scheduled polling. iOS is instant in the foreground, drains on open, and may receive an
   opportunistic Background App Refresh window; timely background iOS delivery is not promised.
-- **Self-host == hosted:** the relay you run is the whole backend. No cloud dependency, no
-  telemetry.
+- **Self-host == hosted:** the relay you run is the whole backend. No telemetry. The one
+  outside service is optional: to wake a closed phone, the relay can ring the Tabsend
+  wake-up service, which asks Apple or Google to ring it. They learn that the phone got
+  something, and when (and its internet address); never what. Without it, phones keep
+  their own connection or fetch on open.
 
 See [`docs/PRD.md`](docs/PRD.md) and [`docs/DECISIONS.md`](docs/DECISIONS.md) for the full
 product and the decision log (ADRs).

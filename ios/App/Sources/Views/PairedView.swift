@@ -440,7 +440,7 @@ struct PairedView: View {
                 // The metadata cost, in the same words the forwarder's own
                 // documentation uses, because a promise this narrow is worth
                 // nothing if what it does keep is left vague.
-                Text("Tabs arrive even when Tabsend is closed. Your relay asks the Tabsend wake-up service to ring this phone, then this phone fetches the tab from your relay. The service learns that a device received something, and when. Never what. Turn this off to get tabs only when you open Tabsend.")
+                Text("Tabs arrive even when Tabsend is closed. Your relay asks the Tabsend wake-up service to ring this phone, then this phone fetches the tab from your relay. The wake-up service and Apple learn that this phone received something, and when, and Apple also sees the phone's internet address. Never what, or who sent it. Turn this off to get tabs only when you open Tabsend.")
                     .foregroundColor(Palette.muted)
             }
         }
@@ -532,8 +532,6 @@ struct PairedView: View {
         // style all fire together on a tap anywhere in the row.
         .buttonStyle(.plain)
         .disabled(openable == nil)
-        // Dimmed once opened, still listed — the same rule as History.
-        .opacity(item.openedAt == nil ? 1 : 0.55)
     }
 
     private func open(_ item: HistoryItem) {

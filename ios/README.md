@@ -104,16 +104,12 @@ iOS freezes backgrounded apps: no held connection, no timer, no self-wake
 (PLANS.md P-5). The only reliable wake is APNs, and APNs takes instructions
 only from a key Apple issues per developer account — which is why the wake-up
 forwarder exists (`forwarder/PROTOCOL.md`, HOSTED_PLAN §6, ADR-0032). The app
-holds that whole path but **it is dormant in this build**, for one reason:
+uses `https://wake.tabsend.org` by default. Instant delivery is on by default,
+but the service must also have Apple's push key and the app must be signed with
+the push capability. The Apple path still needs a real-device test after developer
+account approval. A build may override the address in `TabsendForwarderURL`.
 
-> **No official forwarder instance is deployed yet, so no URL is baked in.**
-> `ForwarderConfig.officialInstance` is `nil` and marked with the comment that
-> says where the address goes before store publication. With no URL the app
-> asks Apple for nothing, registers `{transport: "none"}`, and behaves exactly
-> as v0.6 did. A default pointing at an address that cannot answer would make
-> every install look broken with nothing on the phone able to explain why.
-
-**Without a forwarder URL** (today, and on any build that does not set one),
+**Without a forwarder URL**,
 the app registers `pushSubscription: {transport: "none"}` like Android
 (ADR-0015), and delivery is:
 
@@ -161,7 +157,7 @@ it appears only where it would do something — this build knows a forwarder
 Apple to stop, and moves the relay back to `{transport: "none"}` on the same
 beat.
 
-**Nothing on this path has been run against real APNs or a real forwarder.**
+**The iPhone path has not yet been run against real APNs or a physical device.**
 See "Not yet proven" below.
 
 ## Deliberate differences from Android
@@ -182,7 +178,7 @@ See "Not yet proven" below.
 ## Not yet proven
 
 The wake path compiles and its logic is unit-tested against stubs. None of it
-has met Apple or a running forwarder. A physical-device run still has to show:
+has met Apple on a physical device. A physical-device run still has to show:
 
 - **register → wake → drain end to end**: a signed build on a real iPhone gets
   a device token, mints a wake token, hands it to a relay running with

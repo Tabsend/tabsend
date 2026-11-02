@@ -13,7 +13,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "0.9.0"
+    MARKETING_VERSION: "0.10.0"
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Automatic
     # Set your Apple Developer team once here (or in Xcode's Signing pane):
@@ -72,10 +72,8 @@ targets:
           - fetch
           - remote-notification
         # Uncomment and point at your own forwarder to use one other than the official
-        # instance (a self-hoster running `forwarder/` beside their relay). Left out
-        # entirely by default: there is NO official instance deployed yet, so there is
-        # no address to put here that could answer, and the app falls back to exactly
-        # its pre-forwarder behaviour when this is absent.
+        # instance (a self-hoster running `forwarder/` beside their relay). When absent,
+        # the app uses https://wake.tabsend.org.
         # TabsendForwarderURL: https://wake.example.org
         CFBundleURLTypes:
           - CFBundleURLSchemes: [tabsend]

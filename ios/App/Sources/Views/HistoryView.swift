@@ -12,7 +12,7 @@ import TabsendKit
 ///
 /// Notifications stay the primary surface (PRD §6.4: Tabsend never intercepts, the
 /// user taps). This is the backstop, which is why an already-opened tab stays
-/// listed but dimmed rather than disappearing: the screen has to be worth opening
+/// listed rather than disappearing: the screen has to be worth opening
 /// even on the days nothing was lost.
 struct HistoryView: View {
     @EnvironmentObject private var model: AppModel
@@ -115,13 +115,14 @@ struct HistoryView: View {
         .navigationTitle("History")
         .navigationBarTitleDisplayMode(.large)
         // Rebuilt on every appearance rather than once: the user leaves this screen
-        // BY opening a tab, and comes back to a row that should now be dimmed.
+        // by opening a tab, and comes back to a row whose state has changed.
         // Arrivals while it is open land the same way.
         .onAppear { model.refreshHistory() }
     }
 
     private var retentionFooter: some View {
-        Text(History.retentionLine(relayKeepsHistory: model.relayKeepsHistory))
+        Text(History.retentionLine(relayKeepsHistory: model.relayKeepsHistory)
+             + "\n\nWebsite previews load from linked sites, which can see requests from this device.")
             .foregroundColor(Palette.muted)
     }
 
@@ -150,6 +151,7 @@ struct HistoryView: View {
         let state = History.state(item)
         let openable = item.payload.flatMap { LinkURLPolicy.openableURL(from: $0.url) }
         let flagged = direction == .sent && state == .neverArrived
+        let isNew = direction == .received && item.openedAt == nil && openable != nil
         return VStack(alignment: .leading, spacing: 6) {
             Button {
                 open(item)
@@ -160,23 +162,30 @@ struct HistoryView: View {
                     // received, a neutral exchange glyph when neither end is here.
                     SymbolTile(systemName: History.symbol(direction), color: Self.tileColor(direction))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(History.displayTitle(item))
-                            .font(.body)
-                            .foregroundColor(.primary)
-                            .lineLimit(2)
+                        if let openable {
+                            HistoryLinkPreview(url: openable, expanded: isNew,
+                                               fallbackTitle: History.displayTitle(item))
+                        } else {
+                            Text(History.displayTitle(item))
+                                .font(.body)
+                                .foregroundColor(.primary)
+                                .lineLimit(2)
+                        }
                         Text(History.subtitle(item, direction: direction, grouped: grouped))
                             .font(.subheadline)
                             .foregroundColor(Palette.muted)
                             .lineLimit(2)
+                        if isNew {
+                            Text("New")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(Palette.accent)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
-            // Plain, not the default style: a tinted button paints its WHOLE label
-            // in the accent colour, which turned every row blue and left the dimmed
-            // already-opened rows barely distinguishable from the rest. The row is
-            // still fully tappable (contentShape above).
+            // Plain avoids tinting the whole label; the row remains fully tappable.
             .buttonStyle(.plain)
             .disabled(openable == nil)
 
@@ -205,11 +214,7 @@ struct HistoryView: View {
                 .padding(.leading, 42)
             }
         }
-        .padding(.vertical, 4)
-        // Dimmed once opened, still listed. The contrast is the point: what is
-        // full-strength here is what has not been dealt with yet. A row this phone
-        // did not receive has nothing to open, so it never dims.
-        .opacity(item.openedAt == nil ? 1 : 0.5)
+        .padding(.vertical, isNew ? 14 : 4)
         // A never-arrived send is the one row on this screen that is asking for
         // something, so it is the one row with a tint behind it.
         .listRowBackground(

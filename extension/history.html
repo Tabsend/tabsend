@@ -142,6 +142,13 @@
       .again:hover { background: var(--danger-tint); }
       .again[disabled] { opacity: 0.6; cursor: default; }
 
+      .row.fresh { padding-top: 22px; padding-bottom: 22px; }
+      .fresh .tab-title { font-size: 19px; white-space: normal; }
+      .preview-description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; color: var(--muted); margin-top: 5px; }
+      .preview-image { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex: none; }
+      .fresh .preview-image { width: 104px; height: 84px; }
+      .preview-allow { margin: 0 16px 12px 64px; border: 0; background: transparent; color: var(--ink); text-decoration: underline; cursor: pointer; font: inherit; font-size: 12px; }
+      @media (max-width: 480px) { .row { flex-wrap: wrap; } .tab { flex-basis: calc(100% - 54px); } .fresh .preview-image { width: 72px; height: 72px; } .state, .again { margin-left: 48px; } }
       #empty {
         border-radius: 14px;
         padding: 32px 24px;

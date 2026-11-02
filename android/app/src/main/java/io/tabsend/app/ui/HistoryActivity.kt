@@ -25,11 +25,13 @@ import io.tabsend.app.logic.isoOf
 import io.tabsend.app.logic.parseIsoMillis
 import io.tabsend.app.logic.relativeTime
 import io.tabsend.app.net.GroupHistory
+import io.tabsend.app.receive.Deliverer
 import io.tabsend.app.receive.LinkPolicy
 import io.tabsend.app.send.Sender
 import io.tabsend.app.store.Store
 import io.tabsend.app.wire.SendPayload
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -45,13 +47,24 @@ import java.time.ZoneId
  *
  * Notifications stay the primary surface (PRD §6.4: Tabsend never intercepts,
  * the user taps). This is the backstop, which is why an already-opened tab stays
- * listed but dimmed rather than disappearing: the screen has to be worth opening
+ * listed rather than disappearing: the screen has to be worth opening
  * even on the days nothing was lost.
  */
 class HistoryActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityHistoryBinding
     private val store by lazy { Store.get(this) }
+    private val previewJobs = mutableListOf<Job>()
+
+    private fun cancelPreviews() {
+        previewJobs.forEach { it.cancel() }
+        previewJobs.clear()
+    }
+
+    override fun onStop() {
+        cancelPreviews()
+        super.onStop()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,11 +75,12 @@ class HistoryActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         title = getString(R.string.history_title)
-        binding.historyRetention.text = getString(R.string.history_retention, History.MAX)
+        binding.historyRetention.text = getString(R.string.history_retention, History.MAX) + "\n\n" +
+            getString(R.string.history_preview_privacy)
     }
 
     // Rebuilt on every return rather than once at create: the user leaves this
-    // screen BY opening a tab, and comes back to a row that should now be dimmed.
+    // screen by opening a tab, and comes back to a row whose state has changed.
     override fun onResume() {
         super.onResume()
         // Paint the cache first, then go and ask. The relay is authoritative but
@@ -76,6 +90,15 @@ class HistoryActivity : AppCompatActivity() {
         lifecycleScope.launch {
             GroupHistory.syncNow(this@HistoryActivity)
             render()
+            // The history can see a tab for this phone before the phone has
+            // pulled it (a late or lost wake). Pull it now instead of showing
+            // "Waiting for <this phone>"; the drain refreshes history too.
+            val self = store.registration?.endpointId ?: return@launch
+            val rows = History.rows(store.history, store.inbox, self, System.currentTimeMillis())
+            if (History.hasWaitingForSelf(rows)) {
+                Deliverer.drain(this@HistoryActivity)
+                render()
+            }
         }
     }
 
@@ -85,6 +108,7 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun render() {
+        cancelPreviews()
         // No registration, an empty cache, or a relay too old to serve history all
         // land in the same place: the empty state, which explains what the screen
         // is for rather than looking broken.
@@ -188,12 +212,13 @@ class HistoryActivity : AppCompatActivity() {
      */
     private fun rowView(row: HistoryRow, grouped: Boolean): View {
         val failed = row.delivery == Delivery.NEVER_ARRIVED
+        val isNew = row.direction == Direction.RECEIVED && row.openedAt == null && openableUrl(row) != null
         val errorColor = getColor(R.color.ts_danger)
 
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            minimumHeight = dp(56)
-            setPadding(if (grouped) dp(12) else 0, dp(10), 0, dp(10))
+            minimumHeight = dp(if (isNew) 84 else 56)
+            setPadding(if (grouped) dp(12) else 0, dp(if (isNew) 18 else 10), 0, dp(if (isNew) 18 else 10))
         }
         DeviceRows.makeTappable(line) { open(row) }
 
@@ -232,6 +257,9 @@ class HistoryActivity : AppCompatActivity() {
             TextView(this).apply {
                 text = History.displayTitle(row) ?: getString(R.string.history_locked)
                 setTextAppearance(R.style.TextAppearance_Tabsend_RowTitle)
+                if (isNew) textSize = 19f
+                maxLines = if (isNew) 3 else 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
             },
         )
         column.addView(
@@ -240,6 +268,34 @@ class HistoryActivity : AppCompatActivity() {
                 setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
             },
         )
+
+        openableUrl(row)?.takeIf { HistoryPreviews.eligible(it) }?.let { url ->
+            previewJobs += lifecycleScope.launch {
+                if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@launch
+                val preview = HistoryPreviews.load(url) ?: return@launch
+                if (!line.isAttachedToWindow) return@launch
+                preview.title?.takeIf { it.isNotBlank() }?.let {
+                    (column.getChildAt(0) as TextView).text = it
+                }
+                preview.description?.takeIf { it.isNotBlank() }?.let { description ->
+                    column.addView(TextView(this@HistoryActivity).apply {
+                        text = description
+                        setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
+                        maxLines = 2
+                    })
+                }
+                preview.image?.let { bitmap ->
+                    column.addView(ImageView(this@HistoryActivity).apply {
+                        setImageBitmap(bitmap)
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, dp(if (isNew) 128 else 72),
+                        ).apply { topMargin = dp(8) }
+                    })
+                }
+            }
+        }
 
         // The delivery verdict, and only when there is one to give. An arrived
         // tab needs no line saying so; the absence IS the good news.
@@ -285,10 +341,6 @@ class HistoryActivity : AppCompatActivity() {
                 }
             },
         )
-        // Dimmed once opened, still listed. The contrast is the point: what is
-        // full-strength here is what has not been dealt with yet. Only a received
-        // row carries this — nothing "opens" a tab this phone sent away.
-        line.alpha = if (row.direction == Direction.RECEIVED && row.openedAt != null) 0.5f else 1f
         return line
     }
 

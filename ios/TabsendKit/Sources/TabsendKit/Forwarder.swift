@@ -19,19 +19,11 @@ import Foundation
 
 /// Where the forwarder lives, for this build.
 ///
-/// **There is no official forwarder instance deployed yet, so there is no default URL
-/// and there deliberately is not one.** A default pointing at an address that cannot
-/// answer would make every install look broken in a way nothing on the phone could
-/// explain. With no URL the app behaves exactly as it did before this file existed:
-/// `{transport:"none"}`, instant in the foreground, drain on open.
+/// The official forwarder is the default; a build may override it in Info.plist.
+/// Apple push also requires a provider key on the forwarder and a signed app.
 public enum ForwarderConfig {
-    /// >>> BAKE THE OFFICIAL INSTANCE URL IN HERE BEFORE STORE PUBLICATION. <<<
-    ///
-    /// One line, e.g. `"https://wake.tabsend.io"`, and the wake path turns itself on
-    /// for every user at their next pairing (P-5: instant delivery is on by default,
-    /// with an explicit opt-out — never an opt-in that silently leaves a phone
-    /// polling). Until then this stays nil and there is nothing to point at.
-    public static let officialInstance: String? = nil
+    /// Instant delivery is on by default, with an explicit opt-out (P-5).
+    public static let officialInstance: String? = "https://wake.tabsend.org"
 
     /// `TabsendForwarderURL` in the app's Info.plist. This is how a development build,
     /// or somebody running their own forwarder alongside their own relay, points the
@@ -56,7 +48,7 @@ public enum ForwarderConfig {
     /// configured at run time; the shipped app resolves the URL above and never calls it.
     public static func setOverride(_ url: String?) {
         lock.withLock {
-            override = url.map { $0.isEmpty ? nil : Pairing.normalizeRelayUrl($0) }
+            override = .some(url.flatMap { $0.isEmpty ? nil : Pairing.normalizeRelayUrl($0) })
         }
     }
 

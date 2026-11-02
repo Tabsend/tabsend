@@ -14,7 +14,9 @@ name: CI
 # The daily run is skipped (the `changes` job, a few seconds on Linux) when
 # nothing but docs reached main in the last 25 hours; 25, not 24, so a late
 # start of the scheduler cannot leave a gap. The debug APK that the owner
-# installs from is built by the daily run, a manual run and a release tag.
+# installs from is built by the daily run, a manual run and a release tag. A
+# release tag also builds the release APK that goes on the public GitHub release
+# (a manual run with `release_tag` set builds it for a tag that already exists).
 on:
   schedule:
     - cron: '0 8 * * *' # 08:00 UTC, early morning in the US
@@ -22,6 +24,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Build the release APK of this existing tag (for example v0.9.0); leave empty for a normal run'
+        required: false
+        default: ''
 
 # A newer run for the same branch or tag cancels the one still going: only the
 # latest result is read.
@@ -162,9 +169,14 @@ jobs:
     needs: changes
     if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
+    env:
+      # Set on a release tag push, or by a manual run's `release_tag`.
+      RELEASE_TAG: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -215,6 +227,15 @@ jobs:
           TABSEND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           TABSEND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           TABSEND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Google push [ADR-0034, G6 closed 2026-11-02]. Repository VARIABLES, not
+          # secrets: none of the four is secret (they ship inside every Firebase app),
+          # and the one that can send a push lives only on the forwarder. Unset means a
+          # build without Google push, exactly as before.
+          TABSEND_FCM_APP_ID: ${{ vars.TABSEND_FCM_APP_ID }}
+          TABSEND_FCM_PROJECT_ID: ${{ vars.TABSEND_FCM_PROJECT_ID }}
+          TABSEND_FCM_API_KEY: ${{ vars.TABSEND_FCM_API_KEY }}
+          TABSEND_FCM_SENDER_ID: ${{ vars.TABSEND_FCM_SENDER_ID }}
+          TABSEND_WAKE_FORWARDER_URL: ${{ vars.TABSEND_WAKE_FORWARDER_URL }}
         run: ./gradlew --no-daemon :app:assembleDebug
 
       # retention-days keeps main-branch APKs from piling up for the repo's
@@ -227,6 +248,35 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+          overwrite: true
+
+      # The APK for the public GitHub release: the release build type, signed with
+      # the same stable key, so it installs over the debug builds (and they over it).
+      # Only for release tags; the owner attaches it to the release on Tabsend/tabsend.
+      - name: Build release APK
+        if: env.RELEASE_TAG != '' && github.event_name != 'pull_request'
+        working-directory: android
+        env:
+          TABSEND_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TABSEND_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          TABSEND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "${TABSEND_KEYSTORE_FILE:-}" ]; then
+            echo "::error::A release APK needs the stable signing key (ANDROID_KEYSTORE_BASE64)."
+            exit 1
+          fi
+          ./gradlew --no-daemon :app:assembleRelease
+          v=${RELEASE_TAG#v}
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/tabsend-$v.apk"
+
+      - name: Upload release APK artifact
+        if: env.RELEASE_TAG != '' && github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v5
+        with:
+          name: tabsend-release-apk
+          path: android/app/build/outputs/apk/release/tabsend-*.apk
+          if-no-files-found: error
+          retention-days: 90
           overwrite: true
 
   # The iOS job lives in ios.yml, filtered to ios/** -- it runs on macOS, which
