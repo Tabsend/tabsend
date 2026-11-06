@@ -7,8 +7,9 @@ import { defineConfig } from 'vitest/config'
  * run in isolation. shared/ joined the list once it grew runtime logic (the
  * protocol handshake) rather than types alone.
  *
- * control/ (account.tabsend.org) is private: the public repo is exported without it
- * (scripts/public-allowlist.txt), and Vitest refuses a project folder that is not there.
+ * control/ (account.tabsend.org) and demo/ (the App Review demo relay's helper) are private:
+ * the public repo is exported without them (scripts/public-allowlist.txt), and Vitest
+ * refuses a project folder that is not there.
  */
 export default defineConfig({
   test: {
@@ -17,6 +18,7 @@ export default defineConfig({
       'server',
       'forwarder',
       ...(existsSync('control') ? ['control'] : []),
+      ...(existsSync('demo') ? ['demo'] : []),
       'extension',
       'console',
     ],

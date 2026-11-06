@@ -1,3 +1,5 @@
+import { failureText } from '../lib/failure-text'
+import { t } from '../lib/i18n'
 import type { PairingView } from '../lib/model'
 import { qrElement } from '../lib/qr'
 import { pairingLocalOnlyLine } from '../lib/strings'
@@ -43,7 +45,7 @@ async function openPairingBox(els: PairingBoxEls): Promise<void> {
   els.box.classList.add('visible')
   els.box.classList.remove('failed')
   els.box.classList.add('pending')
-  els.note.replaceChildren('Getting a setup link…')
+  els.note.replaceChildren(t('pairing.box.gettingLink'))
   els.localOnly.classList.remove('visible')
   els.trigger.disabled = true
   els.copyNote.textContent = ''
@@ -54,7 +56,7 @@ async function openPairingBox(els: PairingBoxEls): Promise<void> {
   } catch (err) {
     // The SW hands back user-ready copy (see rpc.ts `mintPairing`); anything
     // else that lands here is a page<->SW failure, which is its own message.
-    renderFailure(els, err instanceof Error ? err.message : String(err))
+    renderFailure(els, failureText(err))
   } finally {
     els.trigger.disabled = false
   }
@@ -87,12 +89,12 @@ function renderPairing(els: PairingBoxEls, pairing: PairingView): void {
   els.copy.onclick = () => {
     void navigator.clipboard.writeText(pairing.link).then(
       () => {
-        els.copyNote.textContent = 'Copied ✓'
+        els.copyNote.textContent = t('pairing.box.copied')
       },
       () => {
         els.link.focus()
         els.link.select()
-        els.copyNote.textContent = 'Copy failed — the link is selected'
+        els.copyNote.textContent = t('pairing.box.copyFailed')
       },
     )
   }
@@ -106,7 +108,7 @@ function renderFailure(els: PairingBoxEls, message: string): void {
   const retry = document.createElement('button')
   retry.type = 'button'
   retry.className = 'linkish'
-  retry.textContent = 'Try again'
+  retry.textContent = t('pairing.box.tryAgain')
   retry.addEventListener('click', () => void openPairingBox(els))
 
   // The common cause (relay not up yet) is transient, so keep the retry right

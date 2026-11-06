@@ -1,5 +1,6 @@
 package io.tabsend.app
 
+import io.tabsend.app.logic.DatePatterns
 import io.tabsend.app.logic.GroupResetRecord
 import io.tabsend.app.logic.GroupResets
 import io.tabsend.app.receive.GroupResetWatcher
@@ -14,6 +15,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.IOException
 import java.time.ZoneId
+import java.util.Locale
 
 /** The reset that waits (PLANS.md P-18 item 12): which reset to alert about and show. */
 class GroupResetsTest {
@@ -97,28 +99,64 @@ class GroupResetsTest {
         assertNull(WireJson.decodeFromString(GroupStateResponse.serializer(), "{}").reset)
     }
 
-    // --- dates in the phone's own time zone ----------------------------------
+    // --- dates in the phone's own time zone and language ---------------------
+
+    /** What Android's own date patterns give for [locale], from ICU. */
+    private fun day(iso: String, zone: ZoneId, locale: Locale = Locale.US) =
+        GroupResets.day(iso, zone, locale, IcuDatePatterns)
+
+    private fun time(iso: String, zone: ZoneId, locale: Locale = Locale.US) =
+        GroupResets.time(iso, zone, locale, IcuDatePatterns)
 
     @Test
     fun `days and times are written in the phone's time zone`() {
         val chicago = ZoneId.of("America/Chicago")
-        assertEquals("October 27", GroupResets.day(first.requestedAt, chicago))
-        assertEquals("October 30", GroupResets.day(first.resetsAt, chicago))
-        assertEquals("9:00 AM", GroupResets.time(first.resetsAt, chicago))
+        assertEquals("October 27", day(first.requestedAt, chicago))
+        assertEquals("October 30", day(first.resetsAt, chicago))
+        assertEquals("9:00 AM", time(first.resetsAt, chicago))
 
         val berlin = ZoneId.of("Europe/Berlin")
-        assertEquals("3:00 PM", GroupResets.time(first.resetsAt, berlin))
+        assertEquals("3:00 PM", time(first.resetsAt, berlin))
         // Late in the day in UTC is already tomorrow further east.
         val tokyo = ZoneId.of("Asia/Tokyo")
-        assertEquals("October 31", GroupResets.day("2026-10-30T20:15:00.000Z", tokyo))
-        assertEquals("5:15 AM", GroupResets.time("2026-10-30T20:15:00.000Z", tokyo))
+        assertEquals("October 31", day("2026-10-30T20:15:00.000Z", tokyo))
+        assertEquals("5:15 AM", time("2026-10-30T20:15:00.000Z", tokyo))
+    }
+
+    @Test
+    fun `a German phone gets the day and the clock the way Germany writes them`() {
+        val berlin = ZoneId.of("Europe/Berlin")
+        val iso = "2026-11-05T14:05:00.000Z" // 15:05 in Berlin in November
+        assertEquals("5. November", day(iso, berlin, Locale.GERMANY))
+        assertEquals("15:05", time(iso, berlin, Locale.GERMANY))
+        // The same instant on an English phone in the same place: month first, 12 hours.
+        assertEquals("November 5", day(iso, berlin, Locale.US))
+        assertEquals("3:05 PM", time(iso, berlin, Locale.US))
+        // Another day name checks that the month word itself follows the language.
+        assertEquals("30. Oktober", day(first.resetsAt, berlin, Locale.GERMANY))
+    }
+
+    @Test
+    fun `other languages keep their own order and clock`() {
+        val paris = ZoneId.of("Europe/Paris")
+        val iso = "2026-11-05T14:05:00.000Z"
+        assertEquals("5 novembre", day(iso, paris, Locale.FRANCE))
+        assertEquals("15:05", time(iso, paris, Locale.FRANCE))
+    }
+
+    @Test
+    fun `a pattern the formatter cannot read still gives a date`() {
+        val broken = DatePatterns { _, _ -> "{" } // reserved letter: ofPattern refuses it
+        val utc = ZoneId.of("UTC")
+        assertEquals("2:05 PM", GroupResets.time("2026-11-05T14:05:00.000Z", utc, Locale.US, broken))
+        assertEquals("November 5, 2026", GroupResets.day("2026-11-05T14:05:00.000Z", utc, Locale.US, broken))
     }
 
     @Test
     fun `a time that does not parse gives no words rather than wrong ones`() {
         val utc = ZoneId.of("UTC")
-        assertNull(GroupResets.day("soon", utc))
-        assertNull(GroupResets.time("", utc))
+        assertNull(day("soon", utc))
+        assertNull(time("", utc))
     }
 
     // --- the record on the phone ---------------------------------------------

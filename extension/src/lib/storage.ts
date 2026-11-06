@@ -239,6 +239,17 @@ export async function setCachedEndpoints(v: Endpoint[]): Promise<void> {
 }
 
 /**
+ * Call `listener` each time a fresh device list lands in the cache. For pages that
+ * stay open: unlike a port to the service worker, this survives the worker going
+ * to sleep. Watches the time, written last, so both keys are in place by then.
+ */
+export function onEndpointsCacheChanged(listener: () => void): void {
+  ext.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes[KEYS.endpointsAt]) listener()
+  })
+}
+
+/**
  * The "new device joined" record (PLANS.md P-10): the device ids in the last
  * list this browser accepted, and the joined devices nobody has answered yet.
  * Written only by background/newdevices.ts.
@@ -310,6 +321,7 @@ export const SETTINGS_VERSION = 2
 const V1_DEFAULTS: ClientSettings = {
   toolbarClickMode: 'chooser',
   showSuccessToast: true,
+  websiteImages: true,
   showPendingRow: true,
   contextMenusVisible: true,
   searchThreshold: 7,

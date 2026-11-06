@@ -1,0 +1,98 @@
+{
+  "history.title": {
+    "message": "History",
+    "description": "Heading of the History tab."
+  },
+  "history.clear": {
+    "message": "Clear local copy",
+    "description": "Small button next to the History heading that empties what this browser has saved."
+  },
+  "history.clear.hint": {
+    "message": "Empties this browser cache. Group history comes back from the relay on the next refresh. Older per-console copies only exist here, so those are gone for good.",
+    "description": "Tooltip on the “Clear local copy” button. Explains what is lost and what comes back. A “relay” is the server that passes tabs between devices."
+  },
+  "history.intro.group": {
+    "message": "Every tab sent in your group, newest first, and what became of it. This includes tabs sent before this console was paired, and tabs that never arrived.",
+    "description": "Paragraph under the History heading when the relay keeps the group's history. A “group” is the set of devices that can send to each other."
+  },
+  "history.intro.copies": {
+    "message": "Tabs sent in your group. The sender locked each one, and it is unlocked here.",
+    "description": "Paragraph under the History heading when the relay is too old to keep the group's history. “Locked” and “unlocked” mean encrypted and decrypted, in plain words."
+  },
+  "history.retention": {
+    "message": "The relay keeps group history for a limited window and then drops it. This browser caches what you see here, so the panel still reads while the relay is unreachable.",
+    "description": "Small note under the History intro. Says the list is not kept forever. A “relay” is the server that passes tabs between devices."
+  },
+  "history.oldRelay": {
+    "message": "This relay is too old to share the group’s history. This list only has the copies senders made for this console, and it cannot say whether a tab arrived. Update the relay to see every tab sent in the group.",
+    "description": "Yellow note shown when the relay is older than this console and cannot list the group's history. A “relay” is the server that passes tabs between devices."
+  },
+  "history.awaitingKey": {
+    "message": "This console has not received the group’s history key yet, so tabs are listed without their content. The key comes from another paired device the next time one is awake. This console cannot make one itself.",
+    "description": "Yellow note shown when history is listed but this console cannot read what was sent, because no key has arrived yet. The “key” is the encryption key for the group's history."
+  },
+  "history.empty.group": {
+    "message": "Nothing here yet. When a device in your group sends a tab, it appears here with what became of it.",
+    "description": "Shown in place of the list when it is empty and the relay keeps the group's history."
+  },
+  "history.empty.copies": {
+    "message": "Nothing here yet. This relay is too old to share the group’s history, so only tabs a sender made a copy of for this console can appear.",
+    "description": "Shown in place of the list when it is empty and the relay is too old to keep the group's history."
+  },
+  "history.route.sentBy": {
+    "message": "Sent by",
+    "description": "Tooltip on the small paper-plane icon beside the name of the device that sent a tab."
+  },
+  "history.route.sentTo": {
+    "message": "Sent to",
+    "description": "Tooltip on the small tray icon beside the name of the device a tab was sent to."
+  },
+  "history.sent": {
+    "message": "sent {ago}",
+    "description": "Part of the grey line under a history entry. {ago} is a short time such as “5m ago”. Lowercase."
+  },
+  "history.state.arrived": {
+    "message": "Delivered",
+    "description": "Small label on a history entry: the receiving device picked the tab up. One or two words. Same word as in the browser extension."
+  },
+  "history.state.arrivedNote": {
+    "message": "The receiving device confirmed this tab.",
+    "description": "Tooltip on the “Delivered” label. The “receiving device” is the device the tab was sent to."
+  },
+  "history.state.waiting": {
+    "message": "Waiting",
+    "description": "Small label on a history entry: the tab is still waiting at the relay for the receiving device. One or two words. Same word as in the browser extension."
+  },
+  "history.state.waitingNote": {
+    "message": "The relay is holding this tab until the receiving device picks it up.",
+    "description": "Tooltip on the “Waiting” label. The “receiving device” is the device the tab was sent to."
+  },
+  "history.state.neverArrived": {
+    "message": "Never arrived",
+    "description": "Small label on a history entry: the tab expired at the relay without the receiving device ever picking it up. One or two words. Same words as in the browser extension."
+  },
+  "history.state.neverArrivedNote": {
+    "message": "The receiving device never confirmed this tab, and the relay has stopped holding it.",
+    "description": "Tooltip on the “Never arrived” label. The “receiving device” is the device the tab was sent to."
+  },
+  "history.sealed.title": {
+    "message": "Waiting for the key that opens this one",
+    "description": "Quiet line in place of a history entry's title when this console cannot read the entry because it lacks the group's encryption key. Same words as in the browser extension."
+  },
+  "history.sealed.note": {
+    "message": "This console can see that a tab was sent, not what it was. The key comes from another paired device.",
+    "description": "Tooltip on that line. The “key” is the encryption key for the group's history."
+  },
+  "history.batch.heading": {
+    "message": "{count, plural, one {# tab} other {# tabs}}",
+    "description": "Heading of a block of tabs that were sent together, when every tab of the send is listed. {count} is the number of tabs. Same words as in the browser extension."
+  },
+  "history.batch.partial": {
+    "message": "{here} of {count, plural, one {# tab} other {# tabs}}",
+    "description": "Heading of such a block when only some of the tabs are listed. {here} is how many are listed; {count} is how many the sender put in the send (more than {here}). Same words as in the browser extension."
+  },
+  "history.unknownDevice": {
+    "message": "Unknown device",
+    "description": "Name shown on a history entry for a device that is not in the group any more and whose name this console never saw. Same words as in the browser extension."
+  }
+}

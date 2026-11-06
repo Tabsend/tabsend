@@ -41,8 +41,10 @@ import {
   stopGroupReset,
 } from './api'
 import { generateKeyPair, keyId } from './crypto'
+import { failureText } from './failure-text'
 import { syncGroupKeys } from './group-keys'
 import { changedRows, mergeTimeline, projectGroupHistory } from './history'
+import { t } from './i18n'
 import { sortKeys } from './keyring'
 import type { ConnectionMode, ConsoleSession, HistoryEntry } from './model'
 import {
@@ -53,6 +55,7 @@ import {
 } from './pairing'
 import { defaultHistoryStore, type HistoryStore } from './persist'
 import { consumePending, sortHistory } from './receive'
+import { UserFacingError } from './relay-errors'
 import {
   clearPairingVouch,
   clearSession,
@@ -106,6 +109,9 @@ export interface ControllerDeps {
 }
 
 const POLL_INTERVAL_MS = 20_000 // < the 90s presence window; keeps the console "online"
+
+/** How long Unpair waits to hear from the relay before clearing this browser anyway. */
+const LEAVE_PATIENCE_MS = 3_000
 
 /**
  * How long to leave group history alone after a relay says it has no such route.
@@ -167,6 +173,7 @@ export class Controller {
   readonly status: Signal<StatusLine> = signal<StatusLine>({ kind: 'idle', message: '' })
   readonly pairing: Signal<PairingView | null> = signal<PairingView | null>(null)
   readonly busy: Signal<boolean> = signal<boolean>(false)
+  private leaving = false
 
   private stream: StreamClient | null = null
   private pollTimer: ReturnType<typeof setInterval> | null = null
@@ -238,20 +245,20 @@ export class Controller {
   async join(rawInput: string, label: string): Promise<void> {
     const parsed = parsePairingInput(rawInput)
     if (!parsed) {
-      this.status.set({ kind: 'error', message: 'Enter a complete setup link.' })
+      this.status.set({ kind: 'error', message: t('status.enterLink') })
       return
     }
     const relayUrl = parsed.relayUrl
-    const deviceName = label.trim() === '' ? 'Web console' : label.trim()
+    const deviceName = label.trim() === '' ? t('onboarding.name.default') : label.trim()
 
     this.busy.set(true)
-    this.status.set({ kind: 'info', message: 'Pairing…' })
+    this.status.set({ kind: 'info', message: t('status.pairing') })
     try {
       // First-run pairing needs a relay that creates the bootstrap group and
       // code at startup. Check before register so an older, reachable relay is
       // named as stale instead of producing a vague pairing failure.
       const protocolError = protocolMismatchMessage(await getConfig(this.opts(relayUrl)))
-      if (protocolError) throw new Error(protocolError)
+      if (protocolError) throw new UserFacingError(protocolError)
       const kp = await generateKeyPair()
       const kid = await keyId(kp.publicKey)
       const res = await register(this.opts(relayUrl), {
@@ -287,15 +294,50 @@ export class Controller {
       await this.refresh()
       this.goLive()
     } catch (err) {
-      this.status.set({ kind: 'error', message: joinError(err, relayUrl) })
+      this.status.set({ kind: 'error', message: failureText(err, 'join', relayUrl) })
     } finally {
       this.busy.set(false)
     }
   }
 
-  /** Forget this console's pairing locally. Does NOT remove the endpoint server-side —
-   *  do that from the devices panel (it names the consequence). */
-  unpair(): void {
+  /**
+   * Unpair: ask the relay to drop this console, then forget it here [PLANS P-28]. It used
+   * to do only the second half, so the old entry stayed in the group, in every device
+   * list, and every send kept sealing a history copy to a key nobody holds.
+   *
+   * Best effort, like the phones and the extension: a relay that is down or refuses must
+   * not keep anyone from leaving. The wait is capped so a dead relay's timeouts do not hold
+   * up the page; the request itself carries on and a slow relay still gets it.
+   */
+  async unpair(): Promise<void> {
+    if (this.leaving) return
+    const session = this.session.get()
+    if (!session) {
+      this.forget()
+      return
+    }
+    this.leaving = true
+    this.teardown() // no reconnects or polls racing the removal, which closes this socket
+    this.busy.set(true)
+    // Called now: its token and address are read before the wipe below takes them.
+    const removal = deleteEndpoint(this.opts(), session.deviceToken, session.endpointId).catch(
+      () => undefined,
+    )
+    let patience: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([
+      removal,
+      new Promise((resolve) => {
+        patience = setTimeout(resolve, LEAVE_PATIENCE_MS)
+      }),
+    ])
+    clearTimeout(patience)
+    this.forget()
+    this.busy.set(false)
+    this.leaving = false
+  }
+
+  /** The local half of leaving: this browser keeps nothing of the pairing. */
+  private forget(): void {
     this.teardown()
     clearSession(this.deps.kv) // clears the device token, the keypair AND the keyring
     void this.deps.store.clear()
@@ -496,7 +538,7 @@ export class Controller {
       const message =
         err instanceof TypeError
           ? groupResetCopy.stopFailedOffline
-          : groupResetCopy.stopFailed(describe(err, 'Request failed.'))
+          : failureText(err, 'stopReset', session.relayUrl)
       this.status.set({ kind: 'error', message })
     } finally {
       this.busy.set(false)
@@ -536,7 +578,7 @@ export class Controller {
       await this.refresh()
       this.status.set({ kind: 'idle', message: '' })
     } catch (err) {
-      this.status.set({ kind: 'error', message: describe(err, 'Rename failed.') })
+      this.status.set({ kind: 'error', message: failureText(err, 'rename', session.relayUrl) })
     } finally {
       this.busy.set(false)
     }
@@ -556,15 +598,15 @@ export class Controller {
       }
       // Removing our own console endpoint invalidates this session.
       if (id === session.endpointId) {
-        this.unpair()
-        this.status.set({ kind: 'info', message: 'This console was removed from the group.' })
+        this.forget() // the relay has already done its half
+        this.status.set({ kind: 'info', message: t('status.removedSelf') })
         return
       }
       this.recordRemoval(id, session)
       await this.refresh()
       this.status.set({ kind: 'idle', message: '' })
     } catch (err) {
-      this.status.set({ kind: 'error', message: describe(err, 'Remove failed.') })
+      this.status.set({ kind: 'error', message: failureText(err, 'remove', session.relayUrl) })
     } finally {
       this.busy.set(false)
     }
@@ -586,12 +628,12 @@ export class Controller {
       )
       const copyLink = withVouch(res.browserLink ?? res.link, tags)
       const parsed = parsePairingInput(copyLink)
-      if (!parsed) throw new Error('The relay returned an invalid setup link.')
+      if (!parsed) throw new UserFacingError(t('pairing.error.invalidLink'))
       const qrLink = withVouch(res.link, tags)
       const qrParsed = parsePairingInput(qrLink)
-      if (!qrParsed) throw new Error('The relay returned an invalid QR setup link.')
+      if (!qrParsed) throw new UserFacingError(t('pairing.error.invalidQrLink'))
       const qrRelayUrl = pairingLinkRelayUrl(qrLink)
-      if (!qrRelayUrl) throw new Error('The relay returned an invalid QR pairing route.')
+      if (!qrRelayUrl) throw new UserFacingError(t('pairing.error.invalidQrRoute'))
       this.pairing.set({
         relayUrl: parsed.relayUrl,
         link: copyLink,
@@ -599,7 +641,10 @@ export class Controller {
         expiresAt: res.expiresAt,
         ...(parsed.relayUrl !== qrRelayUrl
           ? {
-              routeNote: `The copied link pairs browser extensions through ${parsed.relayUrl}. The QR pairs phones through ${qrRelayUrl}. Each device saves its route to this same relay; it can be changed later in its connection settings.`,
+              routeNote: t('pairing.routeNote', {
+                browserUrl: parsed.relayUrl,
+                phoneUrl: qrRelayUrl,
+              }),
             }
           : {}),
         // The relay names its own address; an unconfigured dev relay names a
@@ -607,7 +652,10 @@ export class Controller {
         localOnly: isLoopbackRelayUrl(qrRelayUrl),
       })
     } catch (err) {
-      this.status.set({ kind: 'error', message: describe(err, 'Could not make a setup link.') })
+      this.status.set({
+        kind: 'error',
+        message: failureText(err, 'pairingLink', session.relayUrl),
+      })
     } finally {
       this.busy.set(false)
     }
@@ -778,19 +826,4 @@ export function detectPlatform(): Platform {
   if (raw.includes('iphone') || raw.includes('ipad') || raw.includes('ios')) return 'ios'
   if (raw.includes('linux')) return 'linux'
   return 'unknown'
-}
-
-function describe(err: unknown, fallback: string): string {
-  if (err instanceof Error && err.message) return err.message
-  return fallback
-}
-
-function joinError(err: unknown, relayUrl: string): string {
-  // A raw fetch rejection (TypeError) means the relay was unreachable.
-  if (err instanceof TypeError) {
-    const where = relayUrl === '' ? 'this relay' : relayUrl
-    return `Couldn't reach ${where}. Is the relay running and reachable?`
-  }
-  if (err instanceof Error && err.message) return err.message
-  return 'Pairing failed.'
 }

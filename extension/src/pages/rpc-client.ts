@@ -1,5 +1,7 @@
 import { ext } from '../lib/ext'
+import { t } from '../lib/i18n'
 import type { RpcRequest, RpcResponse } from '../lib/model'
+import { UserFacingError } from '../lib/relay-errors'
 
 /** Send an RPC to the service worker and await its typed response. */
 export function rpc(req: RpcRequest): Promise<RpcResponse> {
@@ -13,10 +15,9 @@ export async function rpcOk<T extends RpcResponse & { ok: true }>(req: RpcReques
   // stopped or failed before replying. Do not leak a JavaScript property-access
   // crash into the connection UI; tell the user the one useful recovery step.
   if (!res || typeof res !== 'object' || !('ok' in res)) {
-    throw new Error(
-      'The Tabsend background service did not respond. Reload this page and try again.',
-    )
+    throw new UserFacingError(t('chooser.rpc.noResponse'))
   }
-  if (!res.ok) throw new Error(res.error)
+  // `res.error` is a sentence the background chose from the catalog (rpc.ts), so it is safe to show.
+  if (!res.ok) throw new UserFacingError(res.error)
   return res as T
 }

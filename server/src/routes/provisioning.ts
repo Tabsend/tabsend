@@ -1,5 +1,11 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import { AUTH_SCHEME, type EndpointId, type GroupId } from '@tabsend/shared'
+import {
+  AUTH_SCHEME,
+  type EndpointId,
+  type GroupId,
+  type GroupServiceState,
+  type IsoTimestamp,
+} from '@tabsend/shared'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { mintFirstPairingForGroup } from '../bootstrap'
 import {
@@ -20,7 +26,9 @@ import {
   deleteGroupCascade,
   groupUsage,
   runDueGroupReset,
+  SERVICE_STATES,
   scheduleGroupReset,
+  setGroupService,
   setGroupSuspended,
 } from '../tenancy'
 import { iso } from '../time'
@@ -245,6 +253,33 @@ function readResetsAt(body: unknown, now: Date): string {
     fail('invalid_request', 'resetsAt must be at most 30 days from now.')
   }
   return iso(new Date(parsed))
+}
+
+/**
+ * Read `{ "state": "trial" | "trial_ended" | "account", "trialEndsAt": "<ISO>" | null }`, or
+ * `null` to clear [PLANS P-19]. `trialEndsAt` is required for `trial` and `trial_ended` and
+ * must be absent or null for `account`, so a phone is never handed a half-said plan.
+ */
+function readService(body: unknown): GroupServiceState | null {
+  const object = asObject(body)
+  if (object.state === null) return null
+  const state = SERVICE_STATES.find((s) => s === object.state)
+  if (!state) fail('invalid_request', 'state must be "trial", "trial_ended" or "account".')
+  const value = object.trialEndsAt
+  if (state === 'account') {
+    if (value !== undefined && value !== null) {
+      fail('invalid_request', 'trialEndsAt must be absent or null for "account".')
+    }
+    return { state, trialEndsAt: null }
+  }
+  const parsed = typeof value === 'string' && ISO_INSTANT.test(value) ? Date.parse(value) : NaN
+  if (Number.isNaN(parsed)) {
+    fail(
+      'invalid_request',
+      `trialEndsAt must be an ISO-8601 date and time with a zone for "${state}".`,
+    )
+  }
+  return { state, trialEndsAt: iso(new Date(parsed)) as IsoTimestamp }
 }
 
 export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -560,6 +595,29 @@ export function registerProvisioningRoutes(app: FastifyInstance, ctx: AppContext
         },
       )
     }
+
+    // PUT /admin/provisioning/groups/:id/service — the plan words the group's phones are
+    // shown [PLANS P-19]: the free trial and its end, the trial ended, or just "an account".
+    // The relay knows no plan (HOSTED_PLAN section 2.2) and decides nothing from this; the
+    // account site writes it when a trial starts, a plan changes or a group is paused, and
+    // `GET /v1/group` hands it to the group's own devices. A plain overwrite, so a retried
+    // call lands the same row. `{ "state": null }` clears it.
+    scope.put<{ Params: { id: string } }>(
+      '/admin/provisioning/groups/:id/service',
+      { config: { provisioningOperation: 'set_service' } },
+      async (request) => {
+        const groupId = request.params.id
+        request.provisioningAudit = { groupId }
+        const service = readService(request.body)
+        const { exists } = await setGroupService(ctx.db, groupId, service)
+        if (!exists) fail('not_found', 'No such group on this relay.')
+        request.provisioningAudit = { groupId, serviceState: service?.state ?? null }
+        // After the commit: a phone with the app open learns the change at once; nobody's
+        // doorbell is rung for it.
+        ctx.hub.toGroup(groupId as GroupId, { type: 'group_updated' })
+        return { groupId: groupId as GroupId, service }
+      },
+    )
 
     // POST /admin/provisioning/groups/:id/reset — schedule a reset that waits
     // [P-18 item 12]. The relay HOLDS it, shows it to the group's devices, and lets any

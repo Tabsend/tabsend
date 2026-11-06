@@ -7,12 +7,14 @@ import {
   groupHistory,
   groupState,
   HISTORY_MAX,
+  type HistoryGroup,
   hostOf,
   labelIndex,
   mergeHistory,
   projectItem,
   projectRow,
   recordItem,
+  splitLatest,
 } from './history'
 import type { HistoryRow, InboxItem } from './model'
 
@@ -360,5 +362,43 @@ describe('hostOf', () => {
 
   it('hands back anything it cannot parse rather than throwing', () => {
     expect(hostOf('not a url')).toBe('not a url')
+  })
+})
+
+describe('splitLatest', () => {
+  const row = (id: string, over: Partial<HistoryRow> = {}): HistoryRow => ({
+    id,
+    direction: 'sent',
+    state: 'arrived',
+    sourceEndpointId: 'a',
+    targetEndpointId: 'b',
+    sourceLabel: 'A',
+    targetLabel: 'B',
+    sentAt: '2026-11-03T10:00:00.000Z',
+    sortAt: '2026-11-03T10:00:00.000Z',
+    url: `https://example.com/${id}`,
+    ...over,
+  })
+  const single = (r: HistoryRow): HistoryGroup => ({ rows: [r] })
+
+  it('takes the newest two, opened or not, in any direction', () => {
+    const { latest, earlier } = splitLatest(
+      [single(row('1', { direction: 'received' })), single(row('2')), single(row('3'))],
+      () => true,
+    )
+    expect(latest.map((r) => r.id)).toEqual(['1', '2'])
+    expect(earlier.map((g) => g.rows[0]?.id)).toEqual(['3'])
+  })
+
+  it('leaves a failed send, a batch and an unopenable row in the list, in order', () => {
+    const failed = single(row('1', { state: 'never-arrived' }))
+    const batch: HistoryGroup = { batchId: 'b', sentCount: 2, rows: [row('2'), row('3')] }
+    const locked = single(row('4'))
+    const { latest, earlier } = splitLatest(
+      [failed, batch, locked, single(row('5'))],
+      (r) => r.id !== '4',
+    )
+    expect(latest.map((r) => r.id)).toEqual(['5'])
+    expect(earlier).toEqual([failed, batch, locked])
   })
 })

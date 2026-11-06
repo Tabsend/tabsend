@@ -53,6 +53,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         didReceiveRemoteNotification userInfo: [AnyHashable: Any],
         fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
     ) {
+        // Only the silent ring lands here. A phone rung in the `alert` style (P-29) is
+        // answered by the notification extension instead, and this is not called.
+        //
         // `userInfo` is NOT read, here or anywhere. There is nothing in it: the wake is
         // a doorbell, and treating its payload as data would be the first step towards
         // a forwarder that carries content. The arrival is the whole signal.
@@ -110,7 +113,12 @@ enum RemoteNotifications {
     @MainActor
     static func deviceTokenArrived(_ apnsToken: String) async {
         let model = AppModel.shared
-        let minted = await WakePath.deviceTokenArrived(apnsToken, store: model.store)
+        // The ring style rides the same sign-up (docs/PLANS.md P-29): a visible "new link"
+        // push the notification extension fills in, while notifications are allowed.
+        let style = WakePath.preferredRingStyle(notificationsAllowed: await Notifications.enabled())
+        let minted = await WakePath.deviceTokenArrived(
+            apnsToken, ringStyle: style, store: model.store
+        )
         // A fresh wake token is only useful once the relay has it, and the relay learns
         // it on a heartbeat. Rotating immediately rather than waiting for the next
         // foreground is what makes "reinstalled, re-paired, token rotated" recover on

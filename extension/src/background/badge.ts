@@ -1,4 +1,5 @@
 import { ext } from '../lib/ext'
+import { getLocale, t } from '../lib/i18n'
 
 /**
  * Action-badge feedback (ADR-0008 MVP: badge ✓/✗ is the always-available signal;
@@ -17,13 +18,17 @@ const RED = '#cf222e'
 const AMBER = '#9a6700'
 const BLUE = '#0969da'
 const CLEAR_MS = 2500
-const DEFAULT_TITLE = 'Tabsend — send this tab'
 
 let clearTimer: ReturnType<typeof setTimeout> | undefined
 let titleTimer: ReturnType<typeof setTimeout> | undefined
 let unreadCount = 0
 /** The tooltip for devices that aren't connected any more (P-20); '' when none. */
 let unreachableTitle = ''
+
+/** "3", or "9+" past nine: the number as this language writes it. */
+function unreadText(count: number): string {
+  return count > 9 ? t('badge.unreadOverflow') : new Intl.NumberFormat(getLocale()).format(count)
+}
 
 /** What the badge shows when no send flash is in progress. */
 function renderIdleBadge(): void {
@@ -34,7 +39,7 @@ function renderIdleBadge(): void {
     void ext.action.setBadgeText({ text: '!' })
   } else if (unreadCount > 0) {
     void ext.action.setBadgeBackgroundColor({ color: BLUE })
-    void ext.action.setBadgeText({ text: unreadCount > 9 ? '9+' : String(unreadCount) })
+    void ext.action.setBadgeText({ text: unreadText(unreadCount) })
   } else {
     void ext.action.setBadgeText({ text: '' })
   }
@@ -101,7 +106,8 @@ export function clearBadge(): void {
 }
 
 function idleTitle(): string {
-  return unreachableTitle || DEFAULT_TITLE
+  // The same words the browser shows before this worker has set anything (the manifest's).
+  return unreachableTitle || t('manifest.actionTitle')
 }
 
 /**

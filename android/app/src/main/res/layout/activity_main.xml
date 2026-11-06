@@ -3,14 +3,17 @@
   Home (docs/APP_UI.md "Phones: native-leaning"). One activity, two screens, of
   which exactly one is visible:
 
-  - joinCard: the first-run pairing screen, the app's one signature moment. The
-    generic ground / card / ink / shadow tokens, the Archivo wordmark and headline,
-    the outlined card with a hard offset shadow, and the one outlined, shadowed
-    button ("Scan code").
-  - pairedCard: everything after pairing, in plain Material 3. A top app bar with
-    the title, petrol subheaders, a tonal panel for the received list, plain
-    device rows, a petrol switch, and an extended FAB for "Add a device". No
-    outlines, no offset shadows.
+  - joinCard: the first-run pairing screen, the app's one signature moment. It sits
+    on the phone ground like every other screen (one ground per phone app, APP_UI);
+    its card is white in light mode and the phone panel in dark (ts_card). Ink,
+    outline and shadow stay the generic tokens, with the Archivo wordmark and
+    headline, the outlined card with a hard offset shadow, and the one outlined,
+    shadowed button ("Scan code").
+  - pairedCard: everything after pairing, in plain Material 3, as three bottom
+    tabs (docs/HISTORY_PREVIEWS_PLAN.md). Home: notices, waiting tabs, Latest, plain
+    device rows and an extended FAB for "Add a device". History: the timeline.
+    Settings: the rest. A top app bar with the tab's title and petrol subheaders
+    throughout. No outlines, no offset shadows.
 
   MainActivity toggles the two and repaints the status bar to match.
 -->
@@ -24,7 +27,7 @@
         android:id="@+id/joinCard"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/ts_ground"
+        android:background="@color/ts_phone_ground"
         android:fillViewport="true">
 
         <LinearLayout
@@ -200,6 +203,45 @@
                 android:text="@string/pairing_paste_instead"
                 android:textColor="@color/ts_accent" />
 
+            <!-- The second door (P-19, frame a1): make an account in a sheet. Shown by
+                 AccountFlow only when the account rule allows it and no link is in hand. -->
+            <LinearLayout
+                android:id="@+id/accountDoor"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <View
+                    style="@style/Widget.Tabsend.Hairline"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="14dp"
+                    android:background="@color/ts_line" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="@string/account_door_lead"
+                    android:textAppearance="@style/TextAppearance.Tabsend.PairingDetail" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/accountSetupButton"
+                    style="@style/Widget.Tabsend.Button.Tonal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:text="@string/account_door_button" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center_horizontal"
+                    android:text="@string/account_door_note"
+                    android:textAppearance="@style/TextAppearance.Tabsend.PairingDetail" />
+            </LinearLayout>
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/howPairingButton"
                 style="@style/Widget.Tabsend.Button.Tertiary"
@@ -224,335 +266,745 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- ===================== PAIRED (device management) ===================== -->
-    <androidx.coordinatorlayout.widget.CoordinatorLayout
+    <!-- ===================== NAME THIS PHONE (after the account was made) =====================
+         Frame a4. Shown instead of joinCard while AccountFlow holds the setup link the account
+         site handed back. The link itself is never shown. -->
+    <ScrollView
+        android:id="@+id/nameCard"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/ts_phone_ground"
+        android:fillViewport="true"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textAppearance="@style/TextAppearance.Tabsend.ScreenTitle" />
+
+            <!-- Only when this sign-up made the account: a returning person is never told a
+                 trial has started. -->
+            <LinearLayout
+                android:id="@+id/accountStartedNotice"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_panel"
+                android:gravity="top"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_icon_container"
+                    android:importantForAccessibility="no"
+                    android:padding="9dp"
+                    android:src="@drawable/ic_check"
+                    app:tint="@color/ts_on_tonal" />
+
+                <TextView
+                    android:id="@+id/accountStartedText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginStart="16dp"
+                    android:layout_weight="1"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowTitle" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="26dp"
+                android:accessibilityHeading="true"
+                android:text="@string/name_phone_title"
+                android:textAppearance="@style/TextAppearance.Tabsend.ScreenHeadline" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/name_phone_body"
+                android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                android:textSize="16sp" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:hint="@string/name_phone_field"
+                app:helperText="@string/name_phone_help"
+                app:helperTextEnabled="true">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/arrivalNameInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:imeOptions="actionDone"
+                    android:inputType="textCapWords"
+                    android:singleLine="true" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <TextView
+                android:id="@+id/arrivalStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:accessibilityLiveRegion="polite"
+                android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+
+            <Space
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:minHeight="24dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/arrivalPairButton"
+                style="@style/Widget.Tabsend.Button.Primary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/join_button" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- ===================== PAIRED (three tabs) ===================== -->
+    <LinearLayout
         android:id="@+id/pairedCard"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/ts_phone_ground"
+        android:orientation="vertical"
         android:visibility="gone">
 
-        <com.google.android.material.appbar.AppBarLayout
-            style="@style/Widget.Tabsend.AppBar"
+        <androidx.coordinatorlayout.widget.CoordinatorLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:liftOnScroll="true"
-            app:liftOnScrollTargetViewId="@+id/pairedScroll">
+            android:layout_height="0dp"
+            android:layout_weight="1">
 
-            <com.google.android.material.appbar.MaterialToolbar
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                app:title="@string/app_name"
-                app:titleTextAppearance="@style/TextAppearance.Tabsend.ScreenTitle" />
-
-            <View style="@style/Widget.Tabsend.Hairline" />
-        </com.google.android.material.appbar.AppBarLayout>
-
-        <androidx.core.widget.NestedScrollView
-            android:id="@+id/pairedScroll"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingBottom="96dp"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior">
-
-            <LinearLayout
+            <com.google.android.material.appbar.AppBarLayout
+                android:id="@+id/pairedAppBar"
+                style="@style/Widget.Tabsend.AppBar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="16dp"
-                android:paddingTop="4dp"
-                android:paddingEnd="16dp">
+                app:liftOnScroll="true"
+                app:liftOnScrollTargetViewId="@+id/homeScroll">
 
-                <TextView
-                    android:id="@+id/pairedTitle"
+                <com.google.android.material.appbar.MaterialToolbar
+                    android:id="@+id/pairedToolbar"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/paired_title"
-                    android:textAppearance="@style/TextAppearance.Tabsend.Body" />
+                    android:layout_height="?attr/actionBarSize"
+                    app:title="@string/app_name"
+                    app:titleTextAppearance="@style/TextAppearance.Tabsend.ScreenTitle" />
 
-                <TextView
-                    android:id="@+id/pairedInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+                <View style="@style/Widget.Tabsend.Hairline" />
+            </com.google.android.material.appbar.AppBarLayout>
 
-                <!-- ===== Relay outage, then the tabs stuck behind it =====
-                     Two separate blocks on purpose (wireframe option A). "The relay
-                     is down" and "we are still holding these tabs" are different
-                     facts, and the list has to read correctly on its own: the phone
-                     having been in a tunnel is not an outage, but the tabs are
-                     waiting just the same. Both hidden unless they have something
-                     to say. Gated behind a 30s grace so a container restart or a
-                     radio handover doesn't cry wolf. -->
-                <TextView
-                    android:id="@+id/relayOutage"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:background="@drawable/bg_warning"
-                    android:padding="16dp"
-                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:textColor="@color/relay_warning"
-                    android:visibility="gone" />
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-                <!-- ===== A reset that waits (PLANS.md P-18 item 12) =====
-                     One red card while a reset of the whole group is pending and
-                     not answered "It was me" on this phone. Filled in code
-                     (MainActivity.renderGroupReset); empty and invisible otherwise.
-                     First of the notices: unless someone stops it, every device
-                     is removed, this one too. -->
-                <LinearLayout
-                    android:id="@+id/groupResetList"
+                <!-- ===================== HOME ===================== -->
+                <androidx.core.widget.NestedScrollView
+                    android:id="@+id/homeScroll"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:accessibilityLiveRegion="polite"
-                    android:orientation="vertical"
-                    android:visibility="gone" />
-
-                <!-- ===== New devices (PLANS.md P-10) =====
-                     One amber card per device that joined since this phone last
-                     looked and has not been answered here. Filled in code
-                     (MainActivity.renderNewDevices); empty and invisible otherwise.
-                     Near the top on purpose: a device the user did not add could
-                     read the links they send. -->
-                <LinearLayout
-                    android:id="@+id/newDevicesList"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:accessibilityLiveRegion="polite"
-                    android:orientation="vertical"
-                    android:visibility="gone" />
-
-                <!-- ===== Received: a tonal panel ===== -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:accessibilityHeading="true"
-                    android:paddingBottom="8dp"
-                    android:text="@string/section_received"
-                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
-
-                <LinearLayout
-                    android:id="@+id/receivedCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_panel"
-                    android:orientation="vertical"
-                    android:paddingStart="16dp"
-                    android:paddingTop="4dp"
-                    android:paddingEnd="16dp"
-                    android:paddingBottom="4dp">
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingBottom="96dp">
 
                     <LinearLayout
-                        android:id="@+id/receivedList"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="vertical" />
+                        android:orientation="vertical"
+                        android:paddingStart="16dp"
+                        android:paddingTop="4dp"
+                        android:paddingEnd="16dp">
 
-                    <TextView
-                        android:id="@+id/receivedEmpty"
+                        <!-- ===== A reset that waits (PLANS.md P-18 item 12) =====
+                             One red card while a reset of the whole group is pending and
+                             not answered "It was me" on this phone. Filled in code
+                             (MainActivity.renderGroupReset); empty and invisible otherwise.
+                             First of the notices: unless someone stops it, every device
+                             is removed, this one too. -->
+                        <LinearLayout
+                            android:id="@+id/groupResetList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:accessibilityLiveRegion="polite"
+                            android:orientation="vertical"
+                            android:visibility="gone" />
+
+                        <!-- ===== The free trial has ended (P-19, frame a8) =====
+                             Amber card, shown by AccountFlow only on the relay's word
+                             (`service` = trial_ended). Says what happened and that an email
+                             has the next step; names no price and has no button to pay. -->
+                        <LinearLayout
+                            android:id="@+id/trialEndedCard"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:background="@drawable/bg_warning"
+                            android:gravity="top"
+                            android:orientation="horizontal"
+                            android:padding="16dp"
+                            android:visibility="gone">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:background="@drawable/bg_icon_amber"
+                                android:importantForAccessibility="no"
+                                android:padding="9dp"
+                                android:src="@drawable/ic_clock"
+                                app:tint="@color/ts_waiting_glyph" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="16dp"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:accessibilityHeading="true"
+                                    android:text="@string/trial_ended_title"
+                                    android:textAppearance="@style/TextAppearance.Material3.TitleSmall"
+                                    android:textColor="?attr/colorOnSurface" />
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:text="@string/trial_ended_body"
+                                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                                    android:textColor="?attr/colorOnSurface" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- ===== New devices (PLANS.md P-10) =====
+                             One amber card per device that joined since this phone last
+                             looked and has not been answered here. Filled in code
+                             (MainActivity.renderNewDevices); empty and invisible otherwise.
+                             Near the top on purpose: a device the user did not add could
+                             read the links they send. -->
+                        <LinearLayout
+                            android:id="@+id/newDevicesList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:accessibilityLiveRegion="polite"
+                            android:orientation="vertical"
+                            android:visibility="gone" />
+
+                        <!-- ===== Relay outage, then the tabs stuck behind it =====
+                             Two separate blocks on purpose (wireframe option A). "The relay
+                             is down" and "we are still holding these tabs" are different
+                             facts, and the list has to read correctly on its own: the phone
+                             having been in a tunnel is not an outage, but the tabs are
+                             waiting just the same. Both hidden unless they have something
+                             to say. Gated behind a 30s grace so a container restart or a
+                             radio handover doesn't cry wolf. -->
+                        <TextView
+                            android:id="@+id/relayOutage"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:background="@drawable/bg_warning"
+                            android:padding="16dp"
+                            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                            android:textColor="@color/relay_warning"
+                            android:visibility="gone" />
+
+                        <!-- ===== Tabs held on this phone ===== -->
+                        <TextView
+                            android:id="@+id/heldTabsHeading"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="28dp"
+                            android:accessibilityHeading="true"
+                            android:textAppearance="@style/TextAppearance.Tabsend.Subheader"
+                            android:textColor="@color/ts_waiting_text"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/heldTabsHint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="@string/held_tabs_hint"
+                            android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                            android:visibility="gone" />
+
+                        <LinearLayout
+                            android:id="@+id/heldTabsList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="vertical" />
+
+                        <!-- With notifications denied this list is the ONLY place a failed or
+                             held send shows up, so it stops being optional. -->
+                        <TextView
+                            android:id="@+id/notificationsOffHint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="@string/notifications_off_hint"
+                            android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                            android:textColor="@color/ts_danger"
+                            android:visibility="gone" />
+
+                        <!-- ===== Latest: the newest two tabs, as cards (LatestCards) ===== -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:accessibilityHeading="true"
+                                android:text="@string/latest_title"
+                                android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/seeAllButton"
+                                style="@style/Widget.Tabsend.Button.Tertiary"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="-12dp"
+                                android:text="@string/latest_see_all" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/latestList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:baselineAligned="false"
+                            android:orientation="horizontal" />
+
+                        <TextView
+                            android:id="@+id/latestEmpty"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/latest_empty"
+                            android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                            android:visibility="gone" />
+
+                        <!-- ===== Your devices: plain list rows ===== -->
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="28dp"
+                            android:accessibilityHeading="true"
+                            android:text="@string/devices_title"
+                            android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                        <LinearLayout
+                            android:id="@+id/devicesList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:orientation="vertical" />
+
+                        <!-- Only this phone is in the group (frame a5). -->
+                        <TextView
+                            android:id="@+id/devicesEmpty"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/devices_empty"
+                            android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                            android:visibility="gone" />
+
+                        <!-- ===== Tabsend service: the free trial and its end (P-19, frame a5) =====
+                             On the relay's word only (`service` = trial). -->
+                        <LinearLayout
+                            android:id="@+id/serviceGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="28dp"
+                                android:accessibilityHeading="true"
+                                android:text="@string/service_title"
+                                android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:background="@drawable/bg_panel"
+                                android:gravity="center_vertical"
+                                android:minHeight="56dp"
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="16dp"
+                                android:paddingVertical="12dp">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/service_trial_label"
+                                    android:textAppearance="@style/TextAppearance.Tabsend.RowTitle" />
+
+                                <TextView
+                                    android:id="@+id/serviceTrialValue"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:text="@string/service_trial_footer"
+                                android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+                        </LinearLayout>
+
+                    </LinearLayout>
+                </androidx.core.widget.NestedScrollView>
+
+                <!-- ===================== HISTORY ===================== -->
+                <androidx.core.widget.NestedScrollView
+                    android:id="@+id/historyScroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone">
+
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:paddingTop="12dp"
-                        android:paddingBottom="8dp"
-                        android:text="@string/received_empty"
-                        android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
-                        android:visibility="gone" />
+                        android:orientation="vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingBottom="24dp">
 
-                    <View
-                        style="@style/Widget.Tabsend.Hairline"
-                        android:layout_marginTop="4dp" />
+                        <TextView
+                            android:id="@+id/historyEmpty"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="24dp"
+                            android:text="@string/history_empty"
+                            android:textAppearance="@style/TextAppearance.Tabsend.Body"
+                            android:visibility="gone" />
 
-                    <!-- P-7 / ADR-0028: the way back to a tab whose notification is gone,
-                         and the only place a tab that never arrived is ever named. -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/historyButton"
-                        style="@style/Widget.Tabsend.Button.Tertiary"
-                        android:layout_width="wrap_content"
+                        <!-- Rows are built in code (HistoryScreen), the same way the
+                             held-tabs list is, so grouping stays one code path. -->
+                        <LinearLayout
+                            android:id="@+id/historyList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+
+                        <TextView
+                            android:id="@+id/historyRetention"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+                    </LinearLayout>
+                </androidx.core.widget.NestedScrollView>
+
+                <!-- ===================== SETTINGS ===================== -->
+                <androidx.core.widget.NestedScrollView
+                    android:id="@+id/settingsScroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="-12dp"
-                        android:text="@string/history_open" />
-                </LinearLayout>
+                        android:orientation="vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingBottom="24dp">
 
-                <!-- ===== Tabs held on this phone ===== -->
-                <TextView
-                    android:id="@+id/heldTabsHeading"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="28dp"
-                    android:accessibilityHeading="true"
-                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader"
-                    android:textColor="@color/ts_waiting_text"
-                    android:visibility="gone" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:accessibilityHeading="true"
+                            android:text="@string/section_this_phone"
+                            android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
 
-                <TextView
-                    android:id="@+id/heldTabsHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/held_tabs_hint"
-                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
-                    android:visibility="gone" />
+                        <TextView
+                            android:id="@+id/settingsName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:textAppearance="@style/TextAppearance.Tabsend.Body" />
 
-                <LinearLayout
-                    android:id="@+id/heldTabsList"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:orientation="vertical" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/renameButton"
+                            style="@style/Widget.Tabsend.Button.Row"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/rename_device" />
 
-                <!-- With notifications denied this list is the ONLY place a failed or
-                     held send shows up, so it stops being optional. -->
-                <TextView
-                    android:id="@+id/notificationsOffHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="@string/notifications_off_hint"
-                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
-                    android:textColor="@color/ts_danger"
-                    android:visibility="gone" />
+                        <!-- ===== Privacy: opt-outs, off by default ===== -->
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:accessibilityHeading="true"
+                            android:text="@string/section_privacy"
+                            android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
 
-                <!-- ===== Your devices: plain list rows ===== -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="28dp"
-                    android:accessibilityHeading="true"
-                    android:text="@string/devices_title"
-                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+                        <LinearLayout
+                            android:id="@+id/avoidGoogleRow"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:minHeight="56dp"
+                            android:orientation="horizontal"
+                            android:paddingVertical="6dp">
 
-                <LinearLayout
-                    android:id="@+id/devicesList"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:orientation="vertical" />
+                            <TextView
+                                android:id="@+id/avoidGoogleLabel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/privacy_no_google"
+                                android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+                                android:textColor="?attr/colorOnSurface" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/refreshButton"
-                    style="@style/Widget.Tabsend.Button.Tertiary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="-12dp"
-                    android:text="@string/refresh" />
+                            <ImageButton
+                                android:id="@+id/avoidGoogleInfo"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/ic_info" />
 
-                <!-- ===== Delivery ===== -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="28dp"
-                    android:accessibilityHeading="true"
-                    android:text="@string/section_delivery"
-                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/avoidGoogleSwitch"
+                                style="@style/Widget.Tabsend.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
 
-                <com.google.android.material.materialswitch.MaterialSwitch
-                    android:id="@+id/instantSwitch"
-                    style="@style/Widget.Tabsend.Switch"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/instant_switch" />
+                        <LinearLayout
+                            android:id="@+id/onlyWhenOpenRow"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:minHeight="56dp"
+                            android:orientation="horizontal"
+                            android:paddingVertical="6dp">
 
-                <TextView
-                    android:id="@+id/instantHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/instant_switch_hint"
-                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+                            <TextView
+                                android:id="@+id/onlyWhenOpenLabel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/privacy_only_when_open"
+                                android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+                                android:textColor="?attr/colorOnSurface" />
 
-                <!-- P-11 option C: one switch above, and the app says which way it honoured
-                     it. Hidden when instant delivery is off, because there is no mechanism
-                     to report. -->
-                <TextView
-                    android:id="@+id/instantStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
-                    android:visibility="gone" />
+                            <ImageButton
+                                android:id="@+id/onlyWhenOpenInfo"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/ic_info" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/instantMethodButton"
-                    style="@style/Widget.Tabsend.Button.Tonal"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:visibility="gone" />
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/onlyWhenOpenSwitch"
+                                style="@style/Widget.Tabsend.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
 
-                <!-- A second choice, shown only when wake-ups through Google stopped arriving:
-                     trying again is one answer, giving Google up is the other (G10). -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/instantSecondaryButton"
-                    style="@style/Widget.Tabsend.Button.Tonal"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:visibility="gone" />
+                        <LinearLayout
+                            android:id="@+id/noImagesRow"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:minHeight="56dp"
+                            android:orientation="horizontal"
+                            android:paddingVertical="6dp">
 
-                <!-- ===== This phone: settings-style rows ===== -->
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="28dp"
-                    android:accessibilityHeading="true"
-                    android:text="@string/section_this_phone"
-                    android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+                            <TextView
+                                android:id="@+id/noImagesLabel"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/privacy_no_images"
+                                android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+                                android:textColor="?attr/colorOnSurface" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/renameButton"
-                    style="@style/Widget.Tabsend.Button.Row"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/rename_device" />
+                            <ImageButton
+                                android:id="@+id/noImagesInfo"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="?attr/selectableItemBackgroundBorderless"
+                                android:src="@drawable/ic_info" />
 
-                <!-- P-4, merged 2026-07-29: one field, a Check, a verdict, then exactly
-                     one matching action (switch the address, or start fresh there). -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/relayMoveButton"
-                    style="@style/Widget.Tabsend.Button.Row"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/relay_move_button" />
+                            <com.google.android.material.materialswitch.MaterialSwitch
+                                android:id="@+id/noImagesSwitch"
+                                style="@style/Widget.Tabsend.Switch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/unpairButton"
-                    style="@style/Widget.Tabsend.Button.Danger"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="-12dp"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/unpair" />
+                        <!-- Shown only when wake-ups through Google stopped arriving (G10). -->
+                        <TextView
+                            android:id="@+id/instantStatus"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                            android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/pairedStatus"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/instantMethodButton"
+                            style="@style/Widget.Tabsend.Button.Tonal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="@string/instant_retry_google"
+                            android:visibility="gone" />
 
-                <!-- Build identity (see joinBuildInfo above). -->
-                <TextView
-                    android:id="@+id/buildInfo"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
-                    android:textIsSelectable="true" />
-            </LinearLayout>
-        </androidx.core.widget.NestedScrollView>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="28dp"
+                            android:accessibilityHeading="true"
+                            android:text="@string/section_relay"
+                            android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
 
-        <!-- "Pair a device" (APP_UI: an extended FAB, tonal, radius 16). Mints a
-             setup link exactly as the old full-width button did. -->
-        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-            android:id="@+id/addDeviceButton"
-            style="@style/Widget.Tabsend.ExtendedFab"
-            android:layout_width="wrap_content"
+                        <TextView
+                            android:id="@+id/settingsRelay"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:textIsSelectable="true"
+                            android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+
+                        <!-- P-4, merged 2026-07-29: one field, a Check, a verdict, then exactly
+                             one matching action (switch the address, or start fresh there). -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/relayMoveButton"
+                            style="@style/Widget.Tabsend.Button.Row"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/relay_move_button" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/refreshButton"
+                            style="@style/Widget.Tabsend.Button.Tertiary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="20dp"
+                            android:layout_marginStart="-12dp"
+                            android:text="@string/refresh" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/unpairButton"
+                            style="@style/Widget.Tabsend.Button.Danger"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="-12dp"
+                            android:layout_marginTop="4dp"
+                            android:text="@string/unpair" />
+
+                        <!-- ===== Account (P-19, frame a7) =====
+                             Only when this phone uses Tabsend's service and the account rule
+                             allows it (AccountFlow). Both rows open the account site in a
+                             sheet; Delete account asks once first. -->
+                        <LinearLayout
+                            android:id="@+id/accountGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="28dp"
+                                android:accessibilityHeading="true"
+                                android:text="@string/section_account"
+                                android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/accountManageButton"
+                                style="@style/Widget.Tabsend.Button.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/account_manage"
+                                app:icon="@drawable/ic_open_in_new"
+                                app:iconGravity="end"
+                                app:iconTint="@color/ts_phone_muted" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/accountDeleteButton"
+                                style="@style/Widget.Tabsend.Button.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/account_delete"
+                                android:textColor="@color/ts_danger"
+                                app:icon="@drawable/ic_open_in_new"
+                                app:iconGravity="end"
+                                app:iconTint="@color/ts_phone_muted" />
+                        </LinearLayout>
+
+                        <!-- Build identity (see joinBuildInfo above). -->
+                        <TextView
+                            android:id="@+id/buildInfo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="24dp"
+                            android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
+                            android:textIsSelectable="true" />
+                    </LinearLayout>
+                </androidx.core.widget.NestedScrollView>
+            </FrameLayout>
+
+            <!-- "Add a device" (APP_UI: an extended FAB, tonal, radius 16), on Home only.
+                 Mints a setup link exactly as the old full-width button did. -->
+            <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+                android:id="@+id/addDeviceButton"
+                style="@style/Widget.Tabsend.ExtendedFab"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="16dp"
+                android:text="@string/add_device"
+                app:icon="@drawable/ic_add" />
+        </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+        <View style="@style/Widget.Tabsend.Hairline" />
+
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottomTabs"
+            style="@style/Widget.Tabsend.BottomNav"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="16dp"
-            android:text="@string/add_device"
-            app:icon="@drawable/ic_add" />
-    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+            app:menu="@menu/bottom_tabs" />
+    </LinearLayout>
 </FrameLayout>

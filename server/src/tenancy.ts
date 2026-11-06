@@ -1,4 +1,9 @@
-import type { GroupResetState, IsoTimestamp } from '@tabsend/shared'
+import type {
+  GroupResetState,
+  GroupServiceState,
+  GroupServiceStateName,
+  IsoTimestamp,
+} from '@tabsend/shared'
 import type { Kysely } from 'kysely'
 import { sql } from 'kysely'
 import { leftoverEndpoints } from './bootstrap'
@@ -319,6 +324,59 @@ export async function readGroupReset(
     .where('id', '=', groupId)
     .executeTakeFirst()
   return row ? resetFromRow(row) : null
+}
+
+/** The plan words the account site may write, in the order a phone cares about them. */
+export const SERVICE_STATES: readonly GroupServiceStateName[] = ['trial', 'trial_ended', 'account']
+
+/**
+ * Write what the account site wants this group's phones to be told about its plan
+ * [PLANS P-19], or clear it with `null`. A plain overwrite: the control plane sends the
+ * whole value each time, so a retry lands the same row. Nothing here is read for a
+ * decision; `readGroupService` only hands it to the group's own devices.
+ *
+ * `exists: false` means there is no such group.
+ */
+export async function setGroupService(
+  db: Kysely<Database>,
+  groupId: string,
+  service: GroupServiceState | null,
+): Promise<{ exists: boolean }> {
+  const result = await db
+    .updateTable('groups')
+    .set({
+      service_state: service?.state ?? null,
+      service_trial_ends_at: service?.trialEndsAt ?? null,
+    })
+    .where('id', '=', groupId)
+    .executeTakeFirst()
+  return { exists: Number(result.numUpdatedRows) > 0 }
+}
+
+/**
+ * The plan words a group's phones are shown, or null when no account site wrote any
+ * (every self-hosted group). A stored state this build does not know reads as null:
+ * showing a phone a word it cannot read would be a guess.
+ */
+export function serviceFromRow(
+  row: Pick<Database['groups'], 'service_state' | 'service_trial_ends_at'>,
+): GroupServiceState | null {
+  const state = SERVICE_STATES.find((s) => s === row.service_state)
+  if (!state) return null
+  return { state, trialEndsAt: (row.service_trial_ends_at ?? null) as IsoTimestamp | null }
+}
+
+/** The plan words of a group a device belongs to; null when none (or no group). */
+export async function readGroupService(
+  db: Kysely<Database>,
+  groupId: string,
+): Promise<GroupServiceState | null> {
+  const row = await db
+    .selectFrom('groups')
+    .select(['service_state', 'service_trial_ends_at'])
+    .where('id', '=', groupId)
+    .executeTakeFirst()
+  return row ? serviceFromRow(row) : null
 }
 
 /**

@@ -2,7 +2,7 @@
 
 **Move one browser tab, on demand, to a specific other browser or device.** That's it. The tab will open on the target within about a second when it's awake, and queued to open when it wakes if it isn't.
 
-**Current release: v0.9.0** ([v0.9.0 on GitHub](https://github.com/Tabsend/tabsend/tree/v0.9.0)). Tabsend is pre-1.0 software intended for self-hosting and
+**Current release: v0.11.0** ([v0.11.0 on GitHub](https://github.com/Tabsend/tabsend/tree/v0.11.0)). Tabsend is pre-1.0 software intended for self-hosting and
 dogfooding; the platform-specific evidence and limitations are recorded under [Status](#status).
 
 Every link is **end-to-end encrypted** (libsodium `crypto_box`, X25519 + XSalsa20-Poly1305).
@@ -121,9 +121,9 @@ which Docker commands would destroy the pairings and the certificate every phone
 |---|---|---|
 | Relay (`server/`) | **Working** | Durable queue, Web Push, WS, TTL sweeper; SQLite + Postgres; rate limiting, body caps, dead-subscription pruning (Chunk 6b). |
 | Chrome / Chromium extension | **Working** *(Chrome Web Store, unlisted)* | Full send/receive/chooser/onboarding, group history, arrival badge and arrival notification (on by default); `pnpm e2e` + `pnpm e2e:push` green. |
-| Firefox extension | **Working** *(manual verify; in AMO review)* | Builds; `web-ext lint` clean. Runtime not machine-verified (Playwright can't load extensions into Firefox) — verify once with `web-ext run`. |
-| Android app | **Working** *(dogfood)* | Builds an installable APK; libsodium interop vector green (BC-backed crypto, Chunk 6b). Device verification is a manual dogfood step. |
-| iOS app | **Engineering preview** | App, share extension and core tests exist. End-to-end behavior is verified in the Simulator; physical-device, signing, background-delivery and distribution qualification remain open. |
+| Firefox extension | **Working** *(manual verify; v0.10.0 approved on addons.mozilla.org)* | Builds; `web-ext lint` clean. Runtime not machine-verified (Playwright can't load extensions into Firefox) — verify once with `web-ext run`. |
+| Android app | **Working** *(Google Play closed testing)* | Builds an installable APK; libsodium interop vector green (BC-backed crypto, Chunk 6b). Device verification is a manual dogfood step. |
+| iOS app | **Engineering preview** *(TestFlight)* | App, share extension, notification extension and core tests exist. End-to-end behavior is verified in the Simulator; physical-device, signing, background-delivery and distribution qualification remain open. |
 | Web console | **Working** | Pairs in, manages devices, renders decrypted history; controller tests cover group history (the live end-to-end test predates it). |
 
 ## License

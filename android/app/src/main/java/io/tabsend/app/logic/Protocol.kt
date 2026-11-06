@@ -1,5 +1,6 @@
 package io.tabsend.app.logic
 
+import io.tabsend.app.R
 import io.tabsend.app.wire.ServerConfigResponse
 
 /**
@@ -54,20 +55,26 @@ object Protocol {
      * action that fixes it; neither mentions reachability, because the relay
      * answered fine. The outdated case is advisory — it accompanies a successful
      * pairing rather than replacing one.
+     *
+     * The version numbers are passed as text: they are protocol versions ("v3"), not
+     * counts, so a language must not turn them into its own digits or plural forms.
      */
-    fun message(check: Check): String? = when (check) {
+    fun message(text: TextSource, check: Check): String? = when (check) {
         is Check.Ok -> null
-        is Check.Outdated ->
-            "Linked. A newer Tabsend build is available " +
-                "(this app speaks v${check.clientProtocol}, the relay prefers v${check.recommended}) — " +
-                "everything works, but it's worth updating."
-        is Check.ClientTooOld ->
-            "This version of the Tabsend app is too old for that relay " +
-                "(app speaks v${check.clientProtocol}, relay needs v${check.relayRequires}). " +
-                "Install the latest build, then pair again."
-        is Check.RelayTooOld ->
-            "That relay is running an older version of Tabsend than this app " +
-                "(relay speaks v${check.relayProtocol}, app needs v${check.clientRequires}). " +
-                "Update the relay, then pair again."
+        is Check.Outdated -> text.string(
+            R.string.protocol_outdated,
+            check.clientProtocol.toString(),
+            check.recommended.toString(),
+        )
+        is Check.ClientTooOld -> text.string(
+            R.string.protocol_client_too_old,
+            check.clientProtocol.toString(),
+            check.relayRequires.toString(),
+        )
+        is Check.RelayTooOld -> text.string(
+            R.string.protocol_relay_too_old,
+            check.relayProtocol.toString(),
+            check.clientRequires.toString(),
+        )
     }
 }

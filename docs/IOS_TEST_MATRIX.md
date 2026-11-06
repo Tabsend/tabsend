@@ -84,6 +84,11 @@ Tester / UTC time:
 | [ ] | PAIR-08 | BLOCKING | Rename, pair-another-device, and unpair update the relay and all relevant screens without stale entries. |
 | [ ] | PAIR-09 | BLOCKING | Unpair/revoke prevents later send/drain operations with the old credential and gives a clear recovery path. |
 | [ ] | PAIR-10 | SUPPLEMENTAL | QR scanning works in dim light, with a small code, and after camera permission is denied then enabled in Settings. |
+| [ ] | ACCT-01 | BLOCKING | US App Store build, TestFlight: "Set up an account", then the email's link tapped in **Apple Mail** opens the app (not Safari) and shows "Name this phone" with the trial notice (PLANS P-19). Run it with a signed build that has the Associated Domains capability; a locally signed build cannot. |
+| [ ] | ACCT-02 | BLOCKING | The same link tapped in Gmail or another mail app either opens the app or lands on the web sign-in with the setup link to paste; nothing is lost and no account is made twice. A link opened a second time says it has expired. |
+| [ ] | ACCT-03 | BLOCKING | After pairing, the home list shows "Tabsend service / Free trial / Until <date>" from the relay's words; on a phone paired to a self-hosted relay none of it shows, and Settings has no Account group. |
+| [ ] | ACCT-04 | BLOCKING | After the trial ends (owner pauses a test group with the trial words), the amber "Your free trial has ended" card shows on every paired phone; paying turns it off within a minute. |
+| [ ] | ACCT-05 | BLOCKING | Settings > Account > Manage account, sign in by email: the link opens the app, and the sheet is signed in on the account page. Delete account opens the delete section. |
 
 ## 3. Share extension and sending
 

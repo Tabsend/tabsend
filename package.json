@@ -1,6 +1,6 @@
 {
   "name": "tabsend",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "description": "Tabsend — move one browser tab, on demand, to a specific other browser endpoint. Monorepo root.",
   "license": "Apache-2.0",
@@ -23,6 +23,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.4",
     "@types/node": "26.1.1",
+    "parse5": "8.1.0",
     "typescript": "7.0.2",
     "vitest": "4.1.10"
   }

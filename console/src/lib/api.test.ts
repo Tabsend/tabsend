@@ -108,6 +108,27 @@ describe('api client', () => {
   })
 })
 
+describe("the relay's own text", () => {
+  it("is not kept: the error says the console's sentence for the code", async () => {
+    const fetchImpl = fakeFetch(
+      409,
+      { error: { code: 'limit_reached', message: 'Relay wording that must not show up.' } },
+      [],
+    )
+    const err = await listEndpoints({ relayUrl: '', fetchImpl }, 'tok').catch((e) => e)
+    expect(err).toBeInstanceOf(ApiClientError)
+    expect(err.message).toBe('Your relay has reached a limit for your group.')
+    expect(err.noEnvelope).toBe(false)
+  })
+
+  it('is not asked for when the reply has no envelope: only the status is said', async () => {
+    const fetchImpl = fakeFetch(502, {}, [])
+    const err = await listEndpoints({ relayUrl: '', fetchImpl }, 'tok').catch((e) => e)
+    expect(err.message).toBe('Request failed (502).')
+    expect(err.noEnvelope).toBe(true)
+  })
+})
+
 describe('telling an old relay from a broken one', () => {
   it('reads the refusals a pre-ADR-0028 relay gives as "no such feature"', () => {
     // ?history=1 is an unknown query to it (400 invalid_request); /v1/group-keys

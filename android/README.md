@@ -60,14 +60,123 @@ app/src/main/java/io/tabsend/app/
   wire/      kotlinx.serialization mirrors of shared/src/types.ts
   net/       ApiClient (OkHttp), Registrar (register + heartbeat + rename), Stream (WS fast path [0015])
   store/     Store (SharedPreferences: identity, registration, MRU, seen-set, outbound, endpoint cache)
-  logic/     Mru, Chooser, SeenSet, Labels, Pairing, Strings — pure, unit-tested
+  logic/     Mru, Chooser, SeenSet, Labels, Pairing, TextSource (the sentences) — pure, unit-tested
   send/      ShareActivity (share-sheet target), Sender (seal → POST → outbound queue)
   receive/   Deliverer (one idempotent deliver path), Notifications, StreamService (default instant delivery)
   work/      DrainWorker, HeartbeatWorker, Scheduling, PollReceiver (~5-min chain), BootReceiver
-  ui/        MainActivity (pair + manage devices)
-app/src/test/  CryptoInteropTest, LogicTest  (+ resources/interop-vector.json)
+  ui/        MainActivity (pair + manage devices), AccountFlow + AccountModel (the account door, below)
+app/src/test/  CryptoInteropTest, LogicTest, TestText (reads strings.xml)  (+ resources/interop-vector.json)
+tools/check-l10n.mjs  the strings check (run by scripts/check.sh); check-l10n.test.mjs tests it
 tools/gen-interop-vector.mjs  regenerates the interop vector from the TS/libsodium side
 ```
+
+## First run and the account door (PLANS.md P-19, P-25)
+
+The app is free and has no purchase code. A newcomer can start on the phone:
+
+- **First screen:** "Scan code", "Paste a setup link instead", and under them "New to Tabsend? /
+  Set up an account". It opens the account site's `/start?from=app` in a **Chrome Custom Tab**
+  (a sheet over the app, in the person's own browser). The site emails a link,
+  `https://account.tabsend.org/app-start#t=...`; tapped in a mail app it opens Tabsend (two exact
+  paths in the manifest, `/app-start` and `/app-signin`, `autoVerify`). The app uses the token
+  itself (`AccountSiteClient`, `POST /api/app/redeem`), is handed the group's first setup link,
+  and shows "Name this phone" (with "your trial has started" only when that sign-up made the
+  account), keeping the link out of sight. `/app-signin` opens the sheet on the sign-in page with
+  the token. The link opens the app only once the account site serves
+  `/.well-known/assetlinks.json` for it (built in `control/` and deployed 2026-11-05, with the Play
+  and the GitHub signing certificates); where the phone does not hand the link over, the person
+  lands on the web sign-in and pastes the setup link. A setup link that arrives within a day of "Set up an
+  account" is taken for that account's own (a name is asked, nothing is shown).
+- **The plan comes from the relay**, never from a guess: `GET /v1/group` carries `service`
+  (`trial` with the end date, `trial_ended`, `account`) only when the account site wrote it.
+  `GroupResetWatcher.check` keeps it with the reset. It drives the "Tabsend service / Free trial"
+  line, the amber "Your free trial has ended" card, "Paused" on the device rows, and the Account
+  group in Settings (Manage account, Delete account). A self-hosted relay says nothing, so none of
+  it shows.
+- **Which of it shows** is one rule, `AccountSetup.allowsAccountSetup`, for the door, the sheet and
+  the Account group. **Owner ruling, 2026-11-05:** Google Play allows a link out to a web sign-up
+  that leads to payment only for people in the US, through its "External content links" program.
+  So the Play build (a release build) shows the door only when **Google itself says** the link-out
+  is available (`PlayLinkOut`, below): the US, and an app Google has approved. Until Google has
+  approved the app it says no and the door is off. A debug build (the GitHub test APK) offers it
+  everywhere and opens the pages plainly.
+- **Google's link-out in the Play build** (`ui/PlayLinkOut.kt`, `logic/LinkOut.kt`; PLANS P-19): the
+  Play Billing Library 8.3.0 is in the app for this and nothing else (no product, no purchase, no
+  purchases listener). On each start of a release build it asks `isBillingProgramAvailableAsync`;
+  "yes" shows the door. A tap on "Set up an account" or "Manage account" asks Google for a fresh
+  token (`createBillingProgramReportingDetailsAsync`), adds it to the address as `?gpt=`, calls
+  `launchExternalLink` (Google shows its own notice) and, on OK, opens the page in the sheet
+  (`CALLER_WILL_LAUNCH_LINK`). The delete page leads to no offer and opens plainly. The account site
+  reports a purchase to Google with the token (`control/`, `docs/HOSTED_RUNBOOK.md` section 12).
+  A phone with no Play Store, a build Play does not know, or a person Google does not allow gets
+  no door; a connection that dropped is asked again when the screen returns. Not provable without
+  Google's approval and a Play-installed build: nothing here was run against Google's service.
+  Outside the US the first screen is the plain pairing card with no line about tabsend.org
+  (the iPhone's plain line is not copied: Google is stricter outside the US). The trial line, the
+  "trial ended" card and the "Paused" rows show in every country, because they name no price and
+  have no button.
+- **Looking at it in an emulator.** A debug build reads two launch extras:
+  `--es io.tabsend.app.DEBUG_ACCOUNT_SITE http://10.0.2.2:8790` (a local account site; only `localhost`, `127.0.0.1` and `10.0.2.2` are accepted; the debug
+  network config allows cleartext to the emulator's host alias) and
+  `--es io.tabsend.app.DEBUG_ACCOUNT_PLAY yes` (act as the Play build where Google says yes, or `no`
+  where it says no; the pages still open plainly, with no token). The
+  emailed link can be handed to the app with an explicit `am start -a android.intent.action.VIEW
+  -d '<link>' -n io.tabsend.app/.ui.MainActivity`, which needs no `assetlinks.json`.
+- **How pairing works** (the small button on the first screen) is a short bottom sheet of three
+  lines, the iPhone's words (`sheet_pairing_help.xml`), not the long alert it was.
+
+## Text and languages
+
+Every sentence the app shows is in `app/src/main/res/values/strings.xml`, so a language can be
+added by translating that file only. English is the one shipped language and the last fallback.
+The shared rules are in `docs/L10N.md`; this is the Android part.
+
+**How to add a string**
+
+1. Add it to `strings.xml` with a key that says where and why (`send_failure_phone_offline`, not the
+   English). Put a comment right above it: where it shows, what each placeholder holds (`%1$s is the
+   device's name`), and a length limit if the space is tight. One whole sentence, with positional
+   placeholders (`%1$s`, `%2$s`), never pieces joined in code.
+2. A number that counts something is a `<plurals>` with at least `one` and `other`, read with
+   `getQuantityString` (or `TextSource.plural`). Never `if (count == 1)` to pick words.
+3. Show it with `getString(R.string.…)`, `@string/…` in a layout or the manifest, or, in `logic/`, by
+   taking a `TextSource` and returning `text.string(R.string.…)`. `Context.texts()` makes one; the
+   JVM tests use `XmlText` (`TestText.kt`), which reads the real `strings.xml`.
+4. A relay error is shown with `RelayErrorText.line(text, e.code, RelayErrorText.Action.…)`, never
+   with the relay's `message`. A new relay error code gets its sentence there. Ages ("5m ago") use
+   `relativeTime`; a date or time is never built by hand: use `GroupResets.day` and `time`, which take
+   the phone's own pattern for its language (`DatePatterns`).
+5. Run `node android/tools/check-l10n.mjs` (it is in `scripts/check.sh`) and `./gradlew test`. Text that
+   is not for people (a log line, a header, an exception message) is not moved; mark a literal the
+   check reports with `// l10n-ignore: <reason>`.
+
+**How to add a language** (German as the example)
+
+1. Create `app/src/main/res/values-de/strings.xml` with every entry of the English file except the
+   ones marked `translatable="false"`, same keys and placeholders. Give each `<plurals>` the forms
+   German needs (`one`, `other`).
+2. Nothing else changes: no Gradle line, no code. Android packs every `values-xx` folder and picks one
+   from the phone's language list (`de-AT`, then `de`, then English). Dates, times and plural forms
+   already follow the language.
+3. `node android/tools/check-l10n.mjs` now also fails if German lacks a key, has a stale one, has other
+   placeholders than English, or uses a plural form CLDR does not have.
+4. Set a phone or emulator to German and look at every screen, the share sheet, the notifications and
+   the Direct Share row. Point `XmlText` at the new file to test a sentence in German.
+5. The Play listing text is separate (`docs/STORE_LISTING.md`); add the language there when the build is
+   ready.
+
+**Checking the text** (what the check cannot see)
+
+- `node android/tools/check-l10n.mjs` fails on a sentence-like literal in Kotlin code, on literal
+  `android:text` and the like in layouts, on the relay's `message` in a screen, on a count compared to
+  1 beside a string resource, on a `strings.xml` entry with no comment or an unexplained placeholder,
+  on a number outside `<plurals>`, on an unused or missing key, and on a new em dash or exclamation
+  mark in English. It does not see a sentence assembled at run time.
+- **Pseudo-locale.** Debug builds (not release) include `en-XA`: accented letters, about 40 percent
+  longer, in brackets, and `ar-XB`, right to left. Install the debug APK, turn on Developer options, and
+  add "English (XA)" under Settings > System > Languages. Any text shown plain, without brackets, never
+  went through `strings.xml`; text that is cut off or overlaps shows where German needs more room. Names
+  of devices and web pages stay plain: they are the person's own data.
 
 ## Owner test drive
 

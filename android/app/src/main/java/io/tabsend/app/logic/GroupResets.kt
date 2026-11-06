@@ -58,16 +58,27 @@ object GroupResets {
     /** This phone stopped it and the relay agreed: nothing is pending any more. */
     fun stopped(record: GroupResetRecord): GroupResetRecord = record.copy(reset = null)
 
-    /** "October 27", in [zone]; null for a time that does not parse. */
-    fun day(iso: String, zone: ZoneId): String? = format(iso, zone, DAY)
+    /**
+     * The day, without its year, in [zone] and in [locale]'s own style ("October 27" in English,
+     * "27. Oktober" in German); null for a time that does not parse.
+     */
+    fun day(
+        iso: String,
+        zone: ZoneId,
+        locale: Locale = Locale.getDefault(),
+        patterns: DatePatterns = PlatformDatePatterns,
+    ): String? = format(iso, zone, patterns.formatter(locale, DateSkeleton.DAY))
 
-    /** "3:05 PM", in [zone]; null for a time that does not parse. */
-    fun time(iso: String, zone: ZoneId): String? = format(iso, zone, TIME)
-
-    // English, like every other word in the app: a month in another language
-    // would sit oddly inside an English sentence.
-    private val DAY = DateTimeFormatter.ofPattern("MMMM d", Locale.ENGLISH)
-    private val TIME = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
+    /**
+     * The time of day in [zone], on the clock [locale] uses ("3:05 PM" in English, "15:05" in
+     * German); null for a time that does not parse.
+     */
+    fun time(
+        iso: String,
+        zone: ZoneId,
+        locale: Locale = Locale.getDefault(),
+        patterns: DatePatterns = PlatformDatePatterns,
+    ): String? = format(iso, zone, patterns.formatter(locale, DateSkeleton.TIME))
 
     private fun format(iso: String, zone: ZoneId, formatter: DateTimeFormatter): String? {
         val millis = parseIsoMillis(iso) ?: return null

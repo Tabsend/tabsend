@@ -92,7 +92,9 @@ class StreamService : Service() {
 
         private fun ensureChannel(context: Context) {
             val mgr = context.getSystemService(NotificationManager::class.java) ?: return
-            if (mgr.getNotificationChannel(CHANNEL_CONNECTION) != null) return
+            // Created again every time, on purpose: for a channel that already exists this only updates its
+            // name and description (never the importance the person may have changed), which is how the
+            // channel names follow the phone's language after a language change or an update.
             val channel = NotificationChannel(
                 CHANNEL_CONNECTION,
                 context.getString(R.string.channel_connection_name),

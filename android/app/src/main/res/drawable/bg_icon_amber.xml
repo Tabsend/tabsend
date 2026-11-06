@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 40dp round icon container in the waiting amber: the clock on the "free trial has ended"
+     card. The glyph on it is ts_waiting_glyph, dark in both modes. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/ts_waiting" />
+</shape>

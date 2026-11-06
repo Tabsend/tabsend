@@ -54,7 +54,9 @@ describe('Http2ApnsSender', () => {
     const send = sender()
     const apnsToken = fakeApnsToken()
 
-    expect(await send.wake({ apnsToken, environment: 'production' })).toEqual({ ok: true })
+    expect(
+      await send.wake({ apnsToken, environment: 'production', ringStyle: 'background' }),
+    ).toEqual({ ok: true })
     const sent = apple.sends[0]
     expect(sent?.path).toBe(`/3/device/${apnsToken}`)
     expect(sent?.headers['apns-push-type']).toBe('background')
@@ -64,7 +66,9 @@ describe('Http2ApnsSender', () => {
     expect(JSON.parse(sent?.body ?? '')).toEqual({ aps: { 'content-available': 1 } })
 
     apple.answer = () => ({ status: 410, body: { reason: 'Unregistered' } })
-    expect(await send.wake({ apnsToken, environment: 'production' })).toEqual({
+    expect(
+      await send.wake({ apnsToken, environment: 'production', ringStyle: 'background' }),
+    ).toEqual({
       ok: false,
       deviceGone: true,
       status: 410,
@@ -85,7 +89,11 @@ describe('Http2ApnsSender', () => {
 
     const outcomes = await Promise.all(
       Array.from({ length: 50 }, () =>
-        send.wake({ apnsToken: fakeApnsToken(), environment: 'production' }),
+        send.wake({
+          apnsToken: fakeApnsToken(),
+          environment: 'production',
+          ringStyle: 'background',
+        }),
       ),
     )
 
@@ -124,7 +132,13 @@ describe('Http2ApnsSender', () => {
     await vi.waitFor(() => expect(apple.connections).toBe(2))
 
     for (let i = 0; i < 3; i++) {
-      expect(await send.wake({ apnsToken: fakeApnsToken(), environment: 'sandbox' })).toEqual({
+      expect(
+        await send.wake({
+          apnsToken: fakeApnsToken(),
+          environment: 'sandbox',
+          ringStyle: 'background',
+        }),
+      ).toEqual({
         ok: true,
       })
     }
@@ -137,7 +151,7 @@ describe('Http2ApnsSender', () => {
     apple.answer = () => ({ status: 200, hang: true })
 
     const pending = Array.from({ length: 8 }, () =>
-      send.wake({ apnsToken: fakeApnsToken(), environment: 'production' }),
+      send.wake({ apnsToken: fakeApnsToken(), environment: 'production', ringStyle: 'background' }),
     )
     const dropped = await Promise.race([
       Promise.all(pending.slice(5)),
@@ -154,7 +168,13 @@ describe('Http2ApnsSender', () => {
   it('gives up on a stalled Apple at its deadline', async () => {
     const send = sender({}, { timeoutMs: 300 })
     apple.answer = () => ({ status: 200, hang: true })
-    expect(await send.wake({ apnsToken: fakeApnsToken(), environment: 'production' })).toEqual({
+    expect(
+      await send.wake({
+        apnsToken: fakeApnsToken(),
+        environment: 'production',
+        ringStyle: 'background',
+      }),
+    ).toEqual({
       ok: false,
       deviceGone: false,
       status: 0,

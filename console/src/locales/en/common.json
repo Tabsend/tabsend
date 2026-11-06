@@ -1,0 +1,34 @@
+{
+  "common.cancel": {
+    "message": "Cancel",
+    "description": "Button that closes a dialog without doing anything. Short."
+  },
+  "common.save": {
+    "message": "Save",
+    "description": "Button in the rename dialog that keeps the new device name. Short."
+  },
+  "common.done": {
+    "message": "Done",
+    "description": "Button that closes the “Add a device” dialog once the other device has the link. Short."
+  },
+  "common.dismiss": {
+    "message": "Dismiss",
+    "description": "Button on a warning card that hides it. Short."
+  },
+  "common.rename": {
+    "message": "Rename",
+    "description": "Button on a device row that opens the rename dialog. Short."
+  },
+  "common.remove": {
+    "message": "Remove",
+    "description": "Button on a device row, and the confirming button in the remove dialog, that takes the device out of the group. Short."
+  },
+  "common.copyLink": {
+    "message": "Copy link",
+    "description": "Small button that copies a web address to the clipboard: on a history entry, and in the “Add a device” dialog. Short."
+  },
+  "common.copied": {
+    "message": "Copied",
+    "description": "Replaces “Copy link” for a moment after the address was copied. Short."
+  }
+}

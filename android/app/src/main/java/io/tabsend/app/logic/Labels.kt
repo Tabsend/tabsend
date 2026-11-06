@@ -9,14 +9,23 @@ package io.tabsend.app.logic
  * (PATCH /v1/endpoints).
  */
 object Labels {
-    fun defaultDeviceLabel(settingsDeviceName: String?, manufacturer: String?, model: String?): String {
+    /**
+     * [fallback] is the name offered when the phone says neither its name nor its make
+     * (a catalog message, so it is in the person's language).
+     */
+    fun defaultDeviceLabel(
+        settingsDeviceName: String?,
+        manufacturer: String?,
+        model: String?,
+        fallback: String,
+    ): String {
         val named = settingsDeviceName?.trim().orEmpty()
         if (named.isNotEmpty()) return named
 
         val make = manufacturer?.trim().orEmpty().replaceFirstChar { it.uppercase() }
         val cleanModel = model?.trim().orEmpty()
         return when {
-            cleanModel.isEmpty() && make.isEmpty() -> "Phone"
+            cleanModel.isEmpty() && make.isEmpty() -> fallback
             cleanModel.isEmpty() -> make
             make.isEmpty() -> cleanModel
             // Avoid "OnePlus OnePlus 9": if the model already names the maker, keep the model.

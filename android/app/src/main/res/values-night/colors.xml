@@ -2,9 +2,10 @@
 <!-- Dark values for every ts_ token in values/colors.xml (docs/APP_UI.md). The
      non-ts_ colours there keep their single value. -->
 <resources>
-    <!-- Generic tokens: the pairing screen. -->
-    <color name="ts_ground">#0A2C29</color>
-    <color name="ts_card">#0F3B36</color>
+    <!-- Generic tokens: the pairing screen's card, outline and shadow. Its ground is the
+         phone ground below (one ground per phone app, APP_UI), so there is no generic
+         ground here. The card is the phone panel. -->
+    <color name="ts_card">#1A2422</color>
     <color name="ts_chip">#14544C</color>
     <!-- #EAF1EF at 14% alpha. -->
     <color name="ts_line">#24EAF1EF</color>

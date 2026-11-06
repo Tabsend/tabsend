@@ -139,6 +139,20 @@ public enum ApnsEnvironment {
     }
 }
 
+/// How the forwarder rings this phone (docs/PLANS.md P-29, `forwarder/PROTOCOL.md` §3.2).
+///
+/// `background` is the silent wake: no text, and a push Apple treats as optional and may
+/// hold back for a long time. `alert` is a visible notification with a fixed "new link"
+/// text and nothing about the link; iOS delivers it at once and first runs the app's
+/// notification extension (`TabsendNotify`), which fetches the link from the relay and
+/// shows its title and address instead. iOS runs neither the notification nor the
+/// extension for an app whose notifications are off, so the phone asks for `alert` only
+/// while they are allowed (`WakePath.preferredRingStyle`).
+public enum RingStyle: String, Codable, Sendable {
+    case background
+    case alert
+}
+
 /// What this device holds for the wake path: Apple's doorbell address, which Apple
 /// environment issued it, and the wake token the forwarder minted in exchange.
 ///
@@ -153,12 +167,22 @@ public struct WakeRegistration: Codable, Sendable, Equatable {
     public var apnsToken: String
     public var environment: String
     public var wakeToken: String?
+    /// The style the wake token was asked for. Nil on a record kept before P-29, which
+    /// was registered without one and is therefore rung `background`.
+    public var ringStyle: RingStyle?
 
-    public init(apnsToken: String, environment: String, wakeToken: String? = nil) {
+    public init(
+        apnsToken: String, environment: String, wakeToken: String? = nil,
+        ringStyle: RingStyle = .background
+    ) {
         self.apnsToken = apnsToken
         self.environment = environment
         self.wakeToken = wakeToken
+        self.ringStyle = ringStyle
     }
+
+    /// How this phone is rung today.
+    public var effectiveRingStyle: RingStyle { ringStyle ?? .background }
 }
 
 public enum ForwarderError: Error, Sendable {
@@ -209,6 +233,9 @@ public actor ForwarderClient {
     private struct RegisterBody: Encodable {
         var apnsToken: String
         var environment: String
+        /// A forwarder from before P-29 ignores it and rings `background`, which is what
+        /// it did anyway.
+        var ringStyle: String
     }
 
     private struct RegisterResult: Decodable {
@@ -221,10 +248,14 @@ public actor ForwarderClient {
     /// kills the previous wake token in the same transaction, which is what makes a
     /// leaked token stop working the moment the phone notices. So this is also the
     /// right call to make when Apple rotates the device token.
-    public func register(apnsToken: String, environment: String) async throws -> String {
+    public func register(
+        apnsToken: String, environment: String, ringStyle: RingStyle = .background
+    ) async throws -> String {
         let result: RegisterResult = try await post(
             "/v1/register",
-            body: RegisterBody(apnsToken: apnsToken, environment: environment),
+            body: RegisterBody(
+                apnsToken: apnsToken, environment: environment, ringStyle: ringStyle.rawValue
+            ),
             bearer: nil
         )
         guard !result.wakeToken.isEmpty else { throw ForwarderError.malformedResponse }
@@ -272,6 +303,7 @@ public actor ForwarderClient {
             let parsed = try? Wire.decoder.decode(ApiErrorBody.self, from: data)
             throw ForwarderError.api(
                 status: http.statusCode,
+                // l10n-ignore: internal error text, logged and never shown
                 message: parsed?.error.message ?? "The wake-up service refused that request."
             )
         }

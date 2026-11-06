@@ -90,6 +90,11 @@ data class SendPayload(
     val sentAt: String,
     val historyOf: HistoryOf? = null,
     val batch: BatchInfo? = null,
+    /**
+     * The page's preview picture, as an https address the sender found. Best-effort,
+     * and every receiver checks it before using it (docs/HISTORY_PREVIEWS_PLAN.md).
+     */
+    val image: String? = null,
 )
 
 @Serializable
@@ -319,11 +324,20 @@ data class GroupKeyResponse(
 data class GroupResetState(val requestedAt: String, val resetsAt: String)
 
 /**
- * GET /v1/group, and the answer to POST /v1/group/reset/stop (always `reset: null`).
- * An absent `reset` reads as none, like an explicit null.
+ * What Tabsend's own service (the account site) has told this group about its plan, in the
+ * three words a phone needs [PLANS.md P-19]: `trial` with the end date, `trial_ended`, or
+ * `account`. Mirrors GroupServiceState in shared/src/types.ts. Missing on every relay with
+ * no account site; the phone then shows no trial line and no Account group.
  */
 @Serializable
-data class GroupStateResponse(val reset: GroupResetState? = null)
+data class GroupServiceState(val state: String, val trialEndsAt: String? = null)
+
+/**
+ * GET /v1/group, and the answer to POST /v1/group/reset/stop (always `reset: null`).
+ * An absent `reset` or `service` reads as none, like an explicit null.
+ */
+@Serializable
+data class GroupStateResponse(val reset: GroupResetState? = null, val service: GroupServiceState? = null)
 
 @Serializable
 data class CreatePairingResponse(

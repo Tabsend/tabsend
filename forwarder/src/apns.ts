@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { constants, type SecureClientSessionOptions } from 'node:http2'
 import { ApnsTokenSource, loadApnsPrivateKey } from './apns-jwt'
-import type { ApnsConfig, ApnsEnvironment, Config } from './config'
+import type { ApnsConfig, ApnsEnvironment, Config, RingStyle } from './config'
 import { KeptSession } from './h2-session'
 import type { WakeOutcome } from './outcome'
 
@@ -9,10 +9,17 @@ import type { WakeOutcome } from './outcome'
  * The Apple side, behind a one-method interface so tests inject a fake and never reach
  * the network — the same shape `server/src/push.ts` uses for Web Push.
  *
- * Invariant: the wake is a CONTENT-FREE background push. The payload is
- * `{"aps":{"content-available":1}}` and there is no code path that adds a field to it.
- * The phone wakes and fetches from its own relay; nothing about what is waiting passes
- * through this file (PROTOCOL.md §1, §3.2).
+ * Invariant: the wake carries NO CONTENT. It is one of two fixed payloads, chosen by the
+ * phone's ring style and by nothing else (PROTOCOL.md §1, §3.2):
+ *
+ * - `background`: `{"aps":{"content-available":1}}`, a silent push.
+ * - `alert` [2026-11-05, docs/PLANS.md P-29]: a visible notification whose only text is
+ *   the key `NEW_LINK`, which the phone looks up in its own language, with
+ *   `mutable-content` so the app's notification extension may fetch from its own relay
+ *   and replace it before it is shown.
+ *
+ * There is no code path that adds a field to either. The phone fetches from its own
+ * relay; nothing about what is waiting passes through this file.
  */
 
 export interface ApnsWakeRequest {
@@ -20,6 +27,7 @@ export interface ApnsWakeRequest {
    *  ours — and is never logged (PROTOCOL.md §6). */
   apnsToken: string
   environment: ApnsEnvironment
+  ringStyle: RingStyle
 }
 
 /**
@@ -41,20 +49,64 @@ const APNS_HOSTS: Record<ApnsEnvironment, string> = {
   sandbox: 'https://api.sandbox.push.apple.com',
 }
 
-/** The whole payload. Deliberately the only string in this file that reaches a device. */
+/**
+ * The two whole payloads, one per ring style. Deliberately the only strings in this file
+ * that reach a device.
+ */
 const WAKE_PAYLOAD = JSON.stringify({ aps: { 'content-available': 1 } })
+const ALERT_PAYLOAD = JSON.stringify({
+  aps: { alert: { 'loc-key': 'NEW_LINK' }, sound: 'default', 'mutable-content': 1 },
+})
 
 /**
- * A doorbell that stops ringing after five minutes. Beyond that the phone finds the
+ * A silent doorbell stops ringing after five minutes. Beyond that the phone finds the
  * message when it opens, which is the honest fallback anyway (PROTOCOL.md §3.2).
  */
 const WAKE_EXPIRATION_SECONDS = 300
 
 /**
- * Apple collapses rings that share this id, so a replayed or duplicated wake becomes one
- * ring at Apple's end as well as at ours.
+ * A visible one is kept for a day: five minutes would lose the notification for a phone in
+ * airplane mode. Apple keeps only the newest push per phone, and the extension collects
+ * everything waiting when it runs.
+ */
+const ALERT_EXPIRATION_SECONDS = 24 * 60 * 60
+
+/**
+ * Apple collapses silent rings that share this id, so a replayed or duplicated wake
+ * becomes one ring at Apple's end as well as at ours. Not sent with an `alert` ring: there,
+ * a second link would replace the first on screen.
  */
 const WAKE_COLLAPSE_ID = 'wake'
+
+/** The headers and body that differ between the two ring styles (PROTOCOL.md §3.2). */
+function ringShape(style: RingStyle): {
+  headers: Record<string, string>
+  payload: string
+} {
+  const now = Math.floor(Date.now() / 1000)
+  if (style === 'alert') {
+    return {
+      // A visible notification, delivered now.
+      headers: {
+        'apns-push-type': 'alert',
+        'apns-priority': '10',
+        'apns-expiration': String(now + ALERT_EXPIRATION_SECONDS),
+      },
+      payload: ALERT_PAYLOAD,
+    }
+  }
+  return {
+    // Background push, priority 5, content-available: the three fields that make this a
+    // silent wake rather than a notification.
+    headers: {
+      'apns-push-type': 'background',
+      'apns-priority': '5',
+      'apns-expiration': String(now + WAKE_EXPIRATION_SECONDS),
+      'apns-collapse-id': WAKE_COLLAPSE_ID,
+    },
+    payload: WAKE_PAYLOAD,
+  }
+}
 
 /**
  * True only for the APNs answer that PROVES a device token is dead: `410 Unregistered`.
@@ -218,6 +270,7 @@ export class Http2ApnsSender implements ApnsSender {
     const result = await this.send({
       apnsToken: CREDENTIAL_CHECK_DEVICE_TOKEN,
       environment: this.config.defaultEnvironment,
+      ringStyle: 'background',
     })
     const prefix = 'apns credential check: '
     if (!result.ok && result.status === 400 && result.reason === 'BadDeviceToken') {
@@ -275,23 +328,18 @@ export class Http2ApnsSender implements ApnsSender {
   }
 
   private async send(request: ApnsWakeRequest): Promise<ApnsResult> {
-    const expiration = Math.floor(Date.now() / 1000) + WAKE_EXPIRATION_SECONDS
+    const { headers, payload } = ringShape(request.ringStyle)
     const reply = await this.connection(request.environment).request(
       {
         [constants.HTTP2_HEADER_METHOD]: 'POST',
         [constants.HTTP2_HEADER_PATH]: `/3/device/${request.apnsToken}`,
         [constants.HTTP2_HEADER_AUTHORIZATION]: `bearer ${this.tokens.current()}`,
         'apns-topic': this.config.topic,
-        // Background push, priority 5, content-available: the three fields that make this
-        // a silent wake rather than a notification (PROTOCOL.md §3.2).
-        'apns-push-type': 'background',
-        'apns-priority': '5',
-        'apns-expiration': String(expiration),
-        'apns-collapse-id': WAKE_COLLAPSE_ID,
+        ...headers,
         [constants.HTTP2_HEADER_CONTENT_TYPE]: 'application/json',
-        [constants.HTTP2_HEADER_CONTENT_LENGTH]: Buffer.byteLength(WAKE_PAYLOAD),
+        [constants.HTTP2_HEADER_CONTENT_LENGTH]: Buffer.byteLength(payload),
       },
-      WAKE_PAYLOAD,
+      payload,
     )
     if (!reply.answered) {
       return { ok: false, deviceGone: false, status: 0, reason: reply.reason }

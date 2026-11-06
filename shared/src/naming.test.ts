@@ -7,6 +7,7 @@ import {
   detectPlatform,
   deviceNameFromLabel,
   endpointLabel,
+  isPhonePlatform,
   PLACEHOLDER_BROWSER_NAME,
   resolveBrowserName,
   uniqueBrowserName,
@@ -42,6 +43,14 @@ describe('ua detection (ADR-0004 label seeding)', () => {
     expect(endpointLabel('', 'Box')).toBe('Browser · Box')
     expect(browserLabel('firefox')).toBe('Firefox')
     expect(defaultDeviceName('macos')).toBe('Mac')
+  })
+
+  it('tells a phone from a computer, and reads an unreadable platform as a computer', () => {
+    expect(isPhonePlatform('ios')).toBe(true)
+    expect(isPhonePlatform('android')).toBe(true)
+    for (const computer of ['macos', 'windows', 'linux', 'unknown'] as const) {
+      expect(isPhonePlatform(computer)).toBe(false)
+    }
   })
 
   it('recovers the device name from a label (pre-deviceName-field endpoints)', () => {

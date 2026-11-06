@@ -1,0 +1,1 @@
+Tabsend web console [content=Tabsend sends a web page from one of your devices to another. This is the web console, a page that lists your devices and shows what you sent. Learn more at tabsend.org.] Tabsend sends a web page from one of your devices to another. This web console needs JavaScript to run. Learn more at tabsend.org .

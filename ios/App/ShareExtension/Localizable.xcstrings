@@ -1,0 +1,142 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Cancel" : {
+      "comment" : "Button in the share sheet that closes it without sending. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "Close" : {
+      "comment" : "Button on the send toast that closes it. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "Devices" : {
+      "comment" : "Heading above the list of devices in the share sheet. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geräte"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devices"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "comment" : "Button on the share sheet's message screen (for example when Tabsend is not linked yet). Closes the sheet. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "Send tab to" : {
+      "comment" : "Title of the share sheet, in the navigation bar. The list of devices to send the tab to follows. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab senden an"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send tab to"
+          }
+        }
+      }
+    },
+    "Sending to %@…" : {
+      "comment" : "Headline of the toast while a tab is being sent. %@ is the name of the receiving device, such as \"Work laptop\". Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird an %1$@ gesendet…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sending to %@…"
+          }
+        }
+      }
+    },
+    "Tabsend isn't linked yet. Open the app to pair this phone." : {
+      "comment" : "Message in the share sheet when Tabsend has not been paired yet. Pairing means linking this phone to the user's other devices.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend ist noch nicht gekoppelt. Öffne die App, um dieses Smartphone zu koppeln."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend isn't linked yet. Open the app to pair this phone."
+          }
+        }
+      }
+    },
+    "That device isn't in your group any more. Pick another." : {
+      "comment" : "Note in the share sheet above the device list, shown when the device chosen from the share-sheet suggestions has left the group.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Gerät ist nicht mehr in deiner Gruppe. Wähle ein anderes."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That device isn't in your group any more. Pick another."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

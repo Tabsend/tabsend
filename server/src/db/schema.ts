@@ -73,6 +73,16 @@ export interface GroupsTable {
   reset_requested_at: string | null
   reset_at: string | null
   reset_stopped_at: string | null
+  /**
+   * What the account site told this group about its plan (PLANS P-19): 'trial',
+   * 'trial_ended' or 'account', and the trial's end for the first two. Both NULL on a
+   * group no account site ever wrote to, which is every self-hosted group. The relay
+   * knows no plan (HOSTED_PLAN section 2.2): it never reads these for a decision and
+   * only shows them to the group's own devices (`GET /v1/group`). Set only through the
+   * provisioning API.
+   */
+  service_state: string | null
+  service_trial_ends_at: string | null
 }
 
 export interface EndpointsTable {

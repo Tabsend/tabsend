@@ -154,6 +154,10 @@ export async function migrate(db: Kysely<Database>): Promise<void> {
     .addColumn('reset_requested_at', 'text')
     .addColumn('reset_at', 'text')
     .addColumn('reset_stopped_at', 'text')
+    // ADDITIVE [P-19]: what the account site told the group about its plan. Nullable:
+    // NULL is "no account site ever wrote here", which is every self-hosted group.
+    .addColumn('service_state', 'text')
+    .addColumn('service_trial_ends_at', 'text')
     .execute()
 
   await db.schema
@@ -371,6 +375,12 @@ export async function migrate(db: Kysely<Database>): Promise<void> {
   await ensureColumn(db, 'groups', 'reset_requested_at', 'text')
   await ensureColumn(db, 'groups', 'reset_at', 'text')
   await ensureColumn(db, 'groups', 'reset_stopped_at', 'text')
+
+  // ADDITIVE migration [P-19]: `groups.service_*`, the plan words the account site writes
+  // for the group's phones. Same in-place upgrade path. Nullable, so every pre-existing
+  // group reads as "no account site wrote here", which is what it is.
+  await ensureColumn(db, 'groups', 'service_state', 'text')
+  await ensureColumn(db, 'groups', 'service_trial_ends_at', 'text')
 
   // ADDITIVE [0031]: which group a control-plane `Idempotency-Key` already created
   // (HOSTED_PLAN §4.2). The header was read and logged from the start and honoured

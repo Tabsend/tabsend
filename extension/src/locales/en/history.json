@@ -1,0 +1,142 @@
+{
+  "history.pageTitle": {
+    "message": "Tabsend history",
+    "description": "Title of the browser tab that shows the History page (the list of sent and received tabs). “Tabsend” is the product name."
+  },
+  "history.retention": {
+    "message": "Your relay decides how far back the list goes. The newest {max} are kept on this browser, so the page still works offline. Pictures load from linked sites, which can see requests from this device. You can turn them off in Tabsend settings.",
+    "description": "Small note at the bottom of the History page. {max} is how many of the newest entries this browser keeps (currently 50). “Your relay” is the server that passes tabs between devices. “Pictures” are the website images beside each entry; “Tabsend settings” is the settings page, linked just below this note."
+  },
+  "history.intro": {
+    "message": "Every tab your devices send each other, newest first.",
+    "description": "Sentence under the History heading, explaining what the page lists."
+  },
+  "history.latest": {
+    "message": "Latest",
+    "description": "Section heading on the History page above the large cards for the newest tabs. Short."
+  },
+  "history.earlier": {
+    "message": "Earlier",
+    "description": "Section heading on the History page above the compact list of older tabs. Short."
+  },
+  "history.card.sent": {
+    "message": "Sent to {target}",
+    "description": "First line of a large card on the History page, for a tab this browser sent. {target} is the receiving device's name."
+  },
+  "history.card.received": {
+    "message": "From {source}",
+    "description": "First line of a large card on the History page, for a tab this browser received. {source} is the sending device's name."
+  },
+  "history.card.other": {
+    "message": "{source} → {target}",
+    "description": "First line of a large card on the History page, for a tab between two other devices. {source} is the sending device's name, {target} the receiving device's name. The arrow means “to”."
+  },
+  "history.empty.title": {
+    "message": "Nothing here yet",
+    "description": "Bold heading of the History page when there are no entries at all."
+  },
+  "history.empty.body": {
+    "message": "Tabs your devices send each other are listed here, sent and received together, newest first.",
+    "description": "Sentence under “Nothing here yet” on the History page."
+  },
+  "history.empty.aside": {
+    "message": "A relay older than this extension does not keep the shared list. Until it is updated, only tabs this browser received show up here.",
+    "description": "Smaller note under the empty History page. A “relay” is the server that passes tabs between devices; “this extension” is Tabsend in the browser."
+  },
+  "history.settingsLink": {
+    "message": "Tabsend settings",
+    "description": "Link at the bottom of the History page that opens Tabsend's settings page. “Tabsend” is the product name."
+  },
+  "history.direction.sent": {
+    "message": "Sent from this browser",
+    "description": "Tooltip and spoken label of the small icon at the left of a History entry that this browser sent."
+  },
+  "history.direction.received": {
+    "message": "Received on this browser",
+    "description": "Tooltip and spoken label of the small icon at the left of a History entry that this browser received."
+  },
+  "history.direction.other": {
+    "message": "Between two of your other devices",
+    "description": "Tooltip and spoken label of the small icon at the left of a History entry that went between two other devices, not this browser."
+  },
+  "history.state.arrived": {
+    "message": "Delivered",
+    "description": "Small label on a History entry: the receiving device picked the tab up. One or two words."
+  },
+  "history.state.waiting": {
+    "message": "Waiting",
+    "description": "Small label on a History entry: the tab is still waiting at the relay for the receiving device. One or two words."
+  },
+  "history.state.neverArrived": {
+    "message": "Never arrived",
+    "description": "Small label on a History entry: the tab expired at the relay without the receiving device ever picking it up. One or two words."
+  },
+  "history.where": {
+    "message": "{direction, select, sent {to {target}} received {from {source}} other {{source} → {target}}}",
+    "description": "Part of the small grey line under a History entry: which device it went to or came from. {direction} is “sent” (this browser sent it), “received” (this browser received it) or “other” (between two other devices). {target} is the receiving device's name, {source} the sending device's name. The arrow means “to”."
+  },
+  "history.row.sub": {
+    "message": "{hasHost, select, yes {{host} · {where} · {ago}} other {{where} · {ago}}}",
+    "description": "Small grey line under a History entry's title. {hasHost} is “yes” when the website name is known. {host} is the website's address (e.g. example.com). {where} is the phrase from history.where (e.g. “to Pixel 9”). {ago} is a short time such as “5m ago”. The dots are separators."
+  },
+  "history.group.meta": {
+    "message": "{where} · {ago}",
+    "description": "Grey line next to the heading of a multi-tab entry in History. {where} is the phrase from history.where (e.g. “from iPad”). {ago} is a short time such as “5m ago”. The dot is a separator."
+  },
+  "history.row.waitingForKey": {
+    "message": "Waiting for the key that opens this one",
+    "description": "Quiet italic line in place of a History entry's title when this browser cannot read the entry yet because it lacks the group's encryption key."
+  },
+  "history.row.cannotOpen": {
+    "message": "This link cannot be opened here",
+    "description": "Quiet italic line in place of a History entry's title when the link is not a normal web address that this page will open."
+  },
+  "history.sendAgain.button": {
+    "message": "Send again",
+    "description": "Button on a History entry that never arrived: sends the same tab to the same device again. Short."
+  },
+  "history.sendAgain.sending": {
+    "message": "Sending",
+    "description": "Text on the “Send again” button while the tab is being sent. Short."
+  },
+  "history.sendAgain.sent": {
+    "message": "Sent again",
+    "description": "Text on the “Send again” button after it worked. Short."
+  },
+  "history.sendAgain.retry": {
+    "message": "Try again",
+    "description": "Text on the “Send again” button after it failed; clicking it tries once more. Short."
+  },
+  "history.openAll": {
+    "message": "Open all",
+    "description": "Button in the heading of a multi-tab entry in History: opens every tab of that send. Short."
+  },
+  "history.thisBrowser": {
+    "message": "This browser",
+    "description": "Stands in for this browser's own device name on a History entry received here, when its name is not known."
+  },
+  "history.unknownDevice": {
+    "message": "Unknown device",
+    "description": "Name shown on a History entry for a device that is no longer in the group and was never listed in this browser."
+  },
+  "history.batch.heading": {
+    "message": "{count, plural, one {# tab} other {# tabs}}",
+    "description": "Heading of a multi-tab entry in History when every tab of the send is listed. {count} is the number of tabs."
+  },
+  "history.batch.partial": {
+    "message": "{here} of {count, plural, one {# tab} other {# tabs}}",
+    "description": "Heading of a multi-tab entry in History when only some of the send's tabs are listed. {here} is how many are listed; {count} is how many the sender put in the send (more than {here})."
+  },
+  "history.time.months": {
+    "message": "{count, plural, other {#mo ago}}",
+    "description": "Short relative time on a History entry: months ago. {count} is 1 to 11. Keep it very short; “mo” abbreviates months."
+  },
+  "history.time.years": {
+    "message": "{count, plural, other {#y ago}}",
+    "description": "Short relative time on a History entry: years ago. {count} is 1 or more. Keep it very short; “y” abbreviates years."
+  },
+  "history.time.unknown": {
+    "message": "unknown",
+    "description": "Short relative time on a History entry when the time could not be read. Lowercase, one word."
+  }
+}

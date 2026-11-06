@@ -2,6 +2,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
+import { PSEUDO_LOCALE } from '../shared/src/i18n'
+import { catalogMessages, localizedHtml, nativeLocales } from './tools/i18n-vite'
 
 /**
  * libsodium-wrappers 0.7.x ships a broken ESM entry: `modules-esm/
@@ -27,7 +29,18 @@ export const libsodiumCjs = require.resolve('libsodium-wrappers')
  * manifest never leaks into a build).
  */
 const TARGET = process.env.TABSEND_TARGET === 'firefox' ? 'firefox' : 'chrome'
-const OUT_DIR = TARGET === 'firefox' ? 'dist-firefox' : 'dist'
+
+/**
+ * Development only: `TABSEND_LOCALE=en-XA` builds the pseudo-locale (every sentence from the
+ * catalog, accented, longer, in brackets, so text that never reached a catalog stands out).
+ * It writes to its own folder, `dist-pseudo` / `dist-firefox-pseudo`, so it can never land
+ * in a folder that gets packaged for a store. Any other value is refused.
+ */
+const FORCED_LOCALE = process.env.TABSEND_LOCALE ?? ''
+if (FORCED_LOCALE !== '' && FORCED_LOCALE !== PSEUDO_LOCALE) {
+  throw new Error(`TABSEND_LOCALE must be empty or ${PSEUDO_LOCALE}, not "${FORCED_LOCALE}".`)
+}
+const OUT_DIR = `${TARGET === 'firefox' ? 'dist-firefox' : 'dist'}${FORCED_LOCALE ? '-pseudo' : ''}`
 const MANIFEST_SRC = TARGET === 'firefox' ? 'manifest.firefox.json' : 'manifest.json'
 
 /**
@@ -82,11 +95,17 @@ export default defineConfig({
   publicDir: false,
   define: {
     __TABSEND_PLATFORM__: JSON.stringify(TARGET),
+    __TABSEND_LOCALE__: JSON.stringify(FORCED_LOCALE),
   },
   resolve: {
     alias: { 'libsodium-wrappers': libsodiumCjs },
   },
-  plugins: [staticAssets()],
+  plugins: [
+    catalogMessages(),
+    localizedHtml(FORCED_LOCALE),
+    nativeLocales(FORCED_LOCALE),
+    staticAssets(),
+  ],
   build: {
     outDir: resolve(import.meta.dirname, OUT_DIR),
     emptyOutDir: true,

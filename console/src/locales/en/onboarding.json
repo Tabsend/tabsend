@@ -1,0 +1,58 @@
+{
+  "onboarding.title": {
+    "message": "Tabsend web console",
+    "description": "Main heading of the first screen, before this console is paired. “Tabsend” is the product name."
+  },
+  "onboarding.what": {
+    "message": "Tabsend sends a web page from one of your devices to another, such as from your computer to your phone. The console is a web page that lists your devices and shows what you sent. It can't send tabs itself. Use the Tabsend browser extension or phone app for that.",
+    "description": "Paragraph under the main heading of the first screen. Explains what Tabsend and this “console” are for a first-time visitor."
+  },
+  "onboarding.newHere": {
+    "message": "New to Tabsend? <link>Learn more at tabsend.org</link>.",
+    "description": "Short line under that paragraph. The part in <link>…</link> is a link to the Tabsend website and stays inside the link. “tabsend.org” is an address: keep it."
+  },
+  "onboarding.pair.title": {
+    "message": "Pair this console",
+    "description": "Heading of the box where the person pastes a setup link."
+  },
+  "onboarding.pair.body": {
+    "message": "Open Tabsend on a device you already use, choose Add a device, and paste its setup link here.",
+    "description": "Instruction in that box. “Add a device” is the exact button label in the apps and the browser extension: use the same words."
+  },
+  "onboarding.setupLink.label": {
+    "message": "Setup link",
+    "description": "Label of the first text box, where the pairing link is pasted."
+  },
+  "onboarding.setupLink.placeholder": {
+    "message": "https://your-relay/pair#c=…",
+    "description": "Grey example inside the empty setup-link box. Shows the shape of a link, not a real address; keep the address shape."
+  },
+  "onboarding.name.label": {
+    "message": "Console name",
+    "description": "Label of the second text box, where the person names this browser in the group."
+  },
+  "onboarding.name.placeholder": {
+    "message": "Name this console (e.g. \"Ben's web console\")",
+    "description": "Grey hint inside the empty name box, with an example name in quotes."
+  },
+  "onboarding.name.default": {
+    "message": "Web console",
+    "description": "Name given to this console when the person leaves the name box empty; other devices show it in their lists. Short."
+  },
+  "onboarding.name.deviceSeed": {
+    "message": "{platform, select, macos {Mac} windows {Windows PC} linux {Linux PC} android {Android} ios {iPhone} other {This device}}",
+    "description": "Second part of the name suggested in the name box, chosen by the computer's system: the suggestion reads “Web console · Mac”. The person can change it. Mac, Windows, Linux, Android and iPhone are product names; translate only the word PC (if your language says it otherwise) and “This device”. Keep it short. Same words as the browser extension's setup page."
+  },
+  "onboarding.name.withBrowser": {
+    "message": "{browser} console",
+    "description": "Suggested name when the browser could name itself. {browser} is the browser's name, such as Firefox. Short."
+  },
+  "onboarding.submit": {
+    "message": "Pair console",
+    "description": "Button under the two text boxes that pairs this console with the group."
+  },
+  "onboarding.privacy": {
+    "message": "Tabsend encrypts what you send on your devices. The server holds no key to read it, and the console never opens tabs.",
+    "description": "Small print under the pairing button about privacy."
+  }
+}

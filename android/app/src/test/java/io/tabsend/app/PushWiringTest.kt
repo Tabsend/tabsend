@@ -138,11 +138,24 @@ class PushWiringTest {
     @Test
     fun `Unpair and Start fresh both leave through the one path that retires the wake token`() {
         val activity = source("src/main/java/io/tabsend/app/ui/MainActivity.kt")
-        assertTrue(body(activity, "private fun confirmUnpair(").contains("leaveGroup()"))
-        assertTrue(body(activity, "private fun confirmStartFresh(").contains("leaveGroup()"))
+        assertTrue(body(activity, "private fun confirmUnpair(").contains("leaveGroup("))
+        assertTrue(body(activity, "private fun confirmStartFresh(").contains("leaveGroup("))
         assertTrue(body(activity, "private fun leaveGroup(").contains("store.leavePairing()"))
         // A bare wipe anywhere in the activity would be a way out that skips the retirement.
         assertFalse(activity.contains("store.clear()"))
+    }
+
+    @Test
+    fun `leaving asks the relay to drop this phone before the wipe takes its token`() {
+        // PLANS P-28: the old entry stayed in the group beside the next pairing.
+        val activity = source("src/main/java/io/tabsend/app/ui/MainActivity.kt")
+        val leave = body(activity, "private fun leaveGroup(")
+        assertOrder(leave, "val leaving = store.registration", "Registrar.leaveRelay(leaving, AppScope)")
+        assertOrder(leave, "Registrar.leaveRelay(leaving, AppScope)", "store.leavePairing()")
+        // Off the main thread, and the wipe is not conditional on what the relay said.
+        val registrar = source("src/main/java/io/tabsend/app/net/Registrar.kt")
+        assertTrue(body(registrar, "internal suspend fun leaveRelay(").contains("background.launch(Dispatchers.IO)"))
+        assertFalse(leave.substringBefore("store.leavePairing()").contains("return"))
     }
 
     @Test

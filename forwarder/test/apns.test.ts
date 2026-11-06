@@ -23,7 +23,11 @@ describe('APNs sender selection', () => {
 
     expect(sender).toBeInstanceOf(NoopApnsSender)
     await expect(
-      sender.wake({ apnsToken: 'a'.repeat(64), environment: 'production' }),
+      sender.wake({
+        apnsToken: 'a'.repeat(64),
+        environment: 'production',
+        ringStyle: 'background',
+      }),
     ).resolves.toEqual({ ok: true })
   })
 })
@@ -65,7 +69,11 @@ describe('what counts as a dead device token', () => {
 describe('FakeApnsSender', () => {
   it('records every ring and can be told to fail exactly once', async () => {
     const sender = new FakeApnsSender()
-    const request = { apnsToken: 'b'.repeat(64), environment: 'sandbox' } as const
+    const request = {
+      apnsToken: 'b'.repeat(64),
+      environment: 'sandbox',
+      ringStyle: 'background',
+    } as const
 
     sender.failNext = { ok: false, deviceGone: true, status: 410, reason: 'Unregistered' }
     expect(await sender.wake(request)).toEqual({

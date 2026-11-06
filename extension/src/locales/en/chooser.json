@@ -1,0 +1,114 @@
+{
+  "chooser.multi": {
+    "message": "{count, plural, one {# tab selected. A click sends it.} other {# tabs selected. A click sends all #.}}",
+    "description": "Strip at the top of the popup when several tabs are highlighted: every device row sends all of them. {count} is the number of tabs."
+  },
+  "chooser.pending.row": {
+    "message": "⏳ {count} waiting for {device}",
+    "description": "Row in the popup: {count} tabs are at the relay waiting for a sleeping device. Starts with an hourglass symbol. {device} is the device's name."
+  },
+  "chooser.held.heading": {
+    "message": "{count, plural, one {Waiting on this browser} other {# tabs waiting on this browser}}",
+    "description": "Heading above the list of tabs still held on this browser because the relay has not taken them. {count} is the number of tabs."
+  },
+  "chooser.title": {
+    "message": "Send to…",
+    "description": "Heading at the top of the toolbar popup, and the title of the popup window. It introduces the list of devices a tab can be sent to. Short."
+  },
+  "chooser.pair.aria": {
+    "message": "Add a phone or browser",
+    "description": "Spoken label (for screen readers) of the “Add a device” button in the popup header. Its visible text is “Add a device”."
+  },
+  "chooser.pair.backAria": {
+    "message": "Back to your devices",
+    "description": "Spoken label (for screen readers) of the back arrow on the “Add a device” screen of the popup. It returns to the list of devices."
+  },
+  "chooser.empty.title": {
+    "message": "You're the only device here.",
+    "description": "Bold first line of the popup when no other device has joined the group yet. Followed by chooser.empty.body."
+  },
+  "chooser.empty.body": {
+    "message": "Pair another browser or your phone to start sending tabs.",
+    "description": "Second line of the popup when no other device has joined the group yet. Follows chooser.empty.title; a “Set up Tabsend” button comes after it."
+  },
+  "chooser.footer.settingsTitle": {
+    "message": "Open Tabsend settings",
+    "description": "Tooltip of the Settings button at the bottom of the popup. Tabsend is the product name."
+  },
+  "chooser.footer.historyTitle": {
+    "message": "Open Tabsend history",
+    "description": "Tooltip of the History button at the bottom of the popup. Tabsend is the product name."
+  },
+  "chooser.row.aria": {
+    "message": "{count, plural, one {Send to {device}} other {Send # tabs to {device}}}{isMain, select, yes {, main} other {}}, {presence}",
+    "description": "Spoken name (for screen readers) of a device row in the popup. {count} is how many tabs a click sends (1 or more). {device} is the device name. {isMain} is “yes” for the main device, otherwise “no”; “yes” adds “, main”. {presence} is a phrase from chooser.row.spoken.online, .offline or .unknown. Example: “Send to Pixel 9, main, online”."
+  },
+  "chooser.row.spoken.online": {
+    "message": "online",
+    "description": "Said at the end of a device row’s spoken name when the device is connected right now. Lowercase, one word if possible. See chooser.row.aria."
+  },
+  "chooser.row.spoken.offline": {
+    "message": "offline, last seen {ago}",
+    "description": "Said at the end of a device row’s spoken name when the device is not connected. {ago} is a short relative time such as “5m ago”. See chooser.row.aria."
+  },
+  "chooser.row.spoken.unknown": {
+    "message": "status unknown, last seen {ago}",
+    "description": "Said at the end of a device row’s spoken name when Tabsend cannot reach the relay and so does not know whether the device is connected. {ago} is a short relative time such as “5m ago”. See chooser.row.aria."
+  },
+  "chooser.row.main": {
+    "message": "Main",
+    "description": "Small label beside the name of the main device in the popup list. Very short: it sits on the same line as the name."
+  },
+  "chooser.row.sub": {
+    "message": "{kind} · {status}",
+    "description": "Second line of a device row in the popup. {kind} is the device kind (devices.kind.phone, .computer or .browser). {status} is one of the chooser.row.status.* messages, or “not connected”, shown in its own colour; the status is kept as it is, so keep {status} in the message. The dot between them is a separator symbol."
+  },
+  "chooser.row.status.online": {
+    "message": "online",
+    "description": "Status on a device row in the popup when the device is connected right now. Lowercase, short."
+  },
+  "chooser.row.status.offline": {
+    "message": "offline · seen {ago}",
+    "description": "Status on a device row in the popup when the device is not connected. {ago} is a short relative time such as “5m ago”. Lowercase, short: the row is narrow."
+  },
+  "chooser.row.status.inactive": {
+    "message": "inactive",
+    "description": "Status on a device row in the popup when the device has been offline for a month or more. Lowercase, one word if possible."
+  },
+  "chooser.row.status.unknown": {
+    "message": "status unknown · seen {ago}",
+    "description": "Status on a device row in the popup when Tabsend cannot reach the relay and so does not know whether the device is connected. {ago} is a short relative time such as “5m ago”. Lowercase, short."
+  },
+  "chooser.row.status.unknownInactive": {
+    "message": "status unknown · inactive",
+    "description": "Status on a device row in the popup when Tabsend cannot reach the relay and the device was last seen a month or more ago. Lowercase, short."
+  },
+  "chooser.row.sending": {
+    "message": "sending…",
+    "description": "Replaces the status on a device row for a moment after the person clicks it, while the tab is on its way. Lowercase, short."
+  },
+  "chooser.fallback.device": {
+    "message": "a device",
+    "description": "Stands in for a device’s name when it is unknown, in “⏳ 2 waiting for {device}” and “→ {device}” (the held-tab list). Must read as a noun phrase after “for”."
+  },
+  "chooser.held.to": {
+    "message": "→ {device}",
+    "description": "Second part of a row in the list of tabs held on this browser: where the tab will go. Starts with an arrow symbol; keep it. {device} is the target device’s name, or chooser.fallback.device."
+  },
+  "chooser.held.stopTitle": {
+    "message": "Stop waiting to send this tab",
+    "description": "Tooltip of the small × button on a held tab in the popup. It makes Tabsend stop trying to send that tab; it cannot take back a tab that already arrived."
+  },
+  "chooser.held.stopAria": {
+    "message": "Stop waiting to send {tab}",
+    "description": "Spoken name (for screen readers) of the small × button on a held tab. {tab} is the tab’s title or its site."
+  },
+  "chooser.held.sendToMenuAria": {
+    "message": "Send to… {tab}",
+    "description": "Spoken name (for screen readers) of the drop-down that picks another device for a held tab. {tab} is the tab’s title or its site. The visible first entry of the drop-down is “Send to…”."
+  },
+  "chooser.rpc.noResponse": {
+    "message": "The Tabsend background service did not respond. Reload this page and try again.",
+    "description": "Error shown on any Tabsend page (popup, settings, history, setup) when the part of Tabsend that runs in the background gave no answer, usually because the browser stopped it. “Tabsend” is the product name."
+  }
+}

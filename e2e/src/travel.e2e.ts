@@ -155,6 +155,12 @@ describe('a tab travels Chrome A → Chrome B', () => {
   })
 
   it('B pairs with the link, then create-or-selects a device (via the ack proxy)', async () => {
+    // A's lists stay open, untouched, while B joins: they must follow on their own.
+    const settingsA = await openPage(profileA, extUrl(profileA, 'options.html'))
+    await settingsA.waitForSelector('#device-list li')
+    const manageA = await openPage(profileA, extUrl(profileA, 'firstrun.html'))
+    await manageA.waitForSelector('#screen-manage:not(.hidden)')
+
     profileB = await launchProfile()
     firstrunB = await openPage(profileB, extUrl(profileB, 'firstrun.html'))
     await firstrunB.waitForSelector('body[data-ready="1"]')
@@ -176,6 +182,11 @@ describe('a tab travels Chrome A → Chrome B', () => {
     expect(regB.relayUrl).toBe(proxy.url)
     expect(regB.endpointId).not.toBe(regA.endpointId)
     expect(regB.label).toBe('Rig B · Mac B')
+
+    await settingsA.waitForSelector('#device-list li:has-text("Rig B · Mac B")')
+    await manageA.waitForSelector('#device-list li:has-text("Rig B · Mac B")')
+    await settingsA.close()
+    await manageA.close()
   })
 
   it('A sends its active tab to B — one click, legible confirmation, tab OPENS in B', async () => {
@@ -267,17 +278,19 @@ describe('a tab travels Chrome A → Chrome B', () => {
     expect(targetTabs(profileB).length).toBe(0)
 
     const history = await openPage(profileB, extUrl(profileB, 'history.html'))
-    await history.waitForSelector('.tab')
-    expect(await history.locator('.tab').count()).toBe(1)
+    // The newest two tabs are shown as large "Latest" cards (the History facelift), so a lone
+    // received tab is a card, not a list row.
+    await history.waitForSelector('.card-tab')
+    expect(await history.locator('.card-tab').count()).toBe(1)
     expect(await history.locator('#empty.hidden').count()).toBe(1)
 
-    // The row names who sent it, using the label snapshot taken at receipt.
-    expect(await history.textContent('.tab-sub')).toContain('from Rig A · Mac A')
+    // The card names who sent it, using the label snapshot taken at receipt.
+    expect(await history.textContent('.card-route')).toContain('From Rig A · Mac A')
     // A single send gets no "1 tabs" heading — only real batches are grouped.
     expect(await history.locator('.group-head').count()).toBe(0)
 
     // Clicking it opens the tab again, which is the recovery this page exists for.
-    await history.click('.tab')
+    await history.click('.card-tab')
     await until(() => targetTabs(profileB).length === 1, {
       what: 'the tab to re-open from the history page',
     })

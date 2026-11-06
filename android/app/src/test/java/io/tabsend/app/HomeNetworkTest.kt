@@ -48,8 +48,9 @@ class HomeNetworkTest {
 
     @Test
     fun `the hint says why and what to do, without an em dash`() {
-        assertTrue(HomeNetwork.HINT.contains("home network"))
-        assertTrue(HomeNetwork.HINT.contains("VPN"))
-        assertFalse(HomeNetwork.HINT.contains("—"))
+        val line = EN.string(R.string.relay_down_line_home_network, "http://192.168.1.20:8786", "5m ago")
+        assertTrue(line.contains("home network"))
+        assertTrue(line.contains("VPN"))
+        assertFalse(line.contains("—"))
     }
 }

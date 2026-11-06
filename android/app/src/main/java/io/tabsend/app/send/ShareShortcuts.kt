@@ -123,7 +123,7 @@ object ShareShortcuts {
     private fun build(context: Context, target: ShortcutTarget): ShortcutInfoCompat =
         ShortcutInfoCompat.Builder(context, ShortcutPlan.shortcutIdFor(target.endpointId))
             .setShortLabel(target.label)
-            .setLongLabel("Send to ${target.label}")
+            .setLongLabel(context.getString(R.string.share_shortcut_long_label, target.label))
             .setIcon(IconCompat.createWithResource(context, iconFor(target.kind)))
             .setCategories(setOf(CATEGORY_SEND_TARGET))
             // Long-lived so the system may cache and rank it; without this the

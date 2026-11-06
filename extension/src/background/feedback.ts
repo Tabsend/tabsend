@@ -1,4 +1,5 @@
 import { ext } from '../lib/ext'
+import { t } from '../lib/i18n'
 import type { FeedbackOrigin } from '../lib/model'
 import type { SendBanner } from '../lib/strings'
 import { badgeError, badgeQueued, badgeSuccess, badgeTitle } from './badge'
@@ -60,10 +61,18 @@ const DWELL_MS: Record<SendBanner['tone'], number> = {
   error: 9000,
 }
 
+/** The words on the banner's buttons, in the person's language. Passed in because the page-side function carries nothing with it. */
+interface BannerLabels {
+  undo: string
+  undone: string
+  dismiss: string
+}
+
 /**
  * Runs IN THE PAGE (content-script world). Must be self-contained — no closure
- * capture beyond its args. Shadow-isolated so the host page's CSS can't touch
- * it, and (when undoable) wires an Undo button that messages the SW.
+ * capture beyond its args, which is why its words (`labels`) arrive as an argument
+ * instead of coming from the catalog. Shadow-isolated so the host page's CSS can't
+ * touch it, and (when undoable) wires an Undo button that messages the SW.
  */
 function bannerInPage(
   tone: 'success' | 'pending' | 'error',
@@ -74,6 +83,7 @@ function bannerInPage(
   undoId: string | null,
   durationMs: number,
   expectedUrl: string,
+  labels: BannerLabels,
 ): boolean {
   // The tab may have moved on to another page since the send: then this
   // outcome is not this page's business, and the badge carries it alone.
@@ -123,6 +133,7 @@ function bannerInPage(
   const glyph = tone === 'success' ? '✓' : tone === 'pending' ? '↑' : '!'
 
   const style = document.createElement('style')
+  // i18n-ignore: stylesheet, not text
   style.textContent = `
     @keyframes ts-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
     .card {
@@ -231,7 +242,7 @@ function bannerInPage(
   actions.className = 'actions'
   if (undoId) {
     const undo = document.createElement('button')
-    undo.textContent = 'Undo'
+    undo.textContent = labels.undo
     undo.addEventListener('click', (event) => {
       // A real click only. A page can't reach this button through a closed
       // root, but a synthetic event is never the user changing their mind.
@@ -244,7 +255,7 @@ function bannerInPage(
       }
       // Keep the title row: "Send undone" + the tab's name confirms WHICH send
       // was cancelled, which matters most when two were fired in quick succession.
-      headlineEl.textContent = 'Send undone'
+      headlineEl.textContent = labels.undone
       actions.remove()
       timer = window.setTimeout(() => host.remove(), 1500)
     })
@@ -253,7 +264,7 @@ function bannerInPage(
   if (tone === 'error') {
     const dismiss = document.createElement('button')
     dismiss.className = 'dismiss'
-    dismiss.textContent = 'Dismiss'
+    dismiss.textContent = labels.dismiss
     dismiss.addEventListener('click', (event) => {
       if (!event.isTrusted) return
       window.clearTimeout(timer)
@@ -304,7 +315,20 @@ export function feedbackBadge(banner: SendBanner): void {
   if (banner.tone === 'success') badgeSuccess()
   else if (banner.tone === 'pending') badgeQueued()
   else badgeError()
-  badgeTitle(banner.detail ? `${banner.headline}. ${banner.detail}` : banner.headline)
+  badgeTitle(
+    banner.detail
+      ? t('badge.titleLine', { headline: banner.headline, detail: banner.detail })
+      : banner.headline,
+  )
+}
+
+/** Looked up here, in the worker, and handed to the page: the injected function has no catalog. */
+function bannerLabels(): BannerLabels {
+  return {
+    undo: t('toast.undo'),
+    undone: t('toast.undone'),
+    dismiss: t('common.dismiss'),
+  }
 }
 
 /**
@@ -336,6 +360,7 @@ export async function showFeedback(
         opts.undoId ?? null,
         opts.durationMs ?? DWELL_MS[banner.tone],
         origin.url,
+        bannerLabels(),
       ],
     })
     return results?.[0]?.result === true

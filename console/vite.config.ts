@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
+import { PSEUDO_LOCALE } from '../shared/src/i18n'
+import { catalogMessages, localizedHtml } from './tools/i18n-vite'
 
 /**
  * Tabsend web console — a small Vite + TypeScript SPA. No UI framework: the app is
@@ -27,11 +29,27 @@ const libsodiumCjs = require.resolve('libsodium-wrappers')
  */
 const relayTarget = process.env.TABSEND_RELAY ?? 'http://localhost:8787'
 
+/**
+ * Development only: `TABSEND_LOCALE=en-XA` builds (or serves) the pseudo-locale: every
+ * sentence from the catalog, accented, longer, in brackets, so text that never reached a
+ * catalog stands out. A build goes to its own folder, `dist-pseudo`, so it can never land
+ * in the folder that gets served or packaged. Any other value is refused.
+ */
+const FORCED_LOCALE = process.env.TABSEND_LOCALE ?? ''
+if (FORCED_LOCALE !== '' && FORCED_LOCALE !== PSEUDO_LOCALE) {
+  throw new Error(`TABSEND_LOCALE must be empty or ${PSEUDO_LOCALE}, not "${FORCED_LOCALE}".`)
+}
+const OUT_DIR = FORCED_LOCALE ? 'dist-pseudo' : 'dist'
+
 export default defineConfig({
   root: resolve(import.meta.dirname),
   // Relative asset URLs so `dist/` is servable from any origin OR sub-path
   // (root of the relay, `/console`, a static bucket — all work unchanged).
   base: './',
+  define: { __TABSEND_LOCALE__: JSON.stringify(FORCED_LOCALE) },
+  // Catalog files are { key: { message, description } }; the app takes only the messages.
+  // index.html's title, description and no-script text are filled from the English catalog.
+  plugins: [catalogMessages(), localizedHtml(FORCED_LOCALE)],
   resolve: {
     alias: { 'libsodium-wrappers': libsodiumCjs },
   },
@@ -46,7 +64,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: resolve(import.meta.dirname, 'dist'),
+    outDir: resolve(import.meta.dirname, OUT_DIR),
     emptyOutDir: true,
     target: 'es2022',
   },

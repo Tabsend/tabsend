@@ -1,5 +1,6 @@
-import { type Endpoint, HOME_NETWORK_HINT, isHomeNetworkRelay } from '@tabsend/shared'
+import { type Endpoint, isHomeNetworkRelay } from '@tabsend/shared'
 import { type DeliveryState, deliveryState } from './history'
+import { getLocale, t } from './i18n'
 import type { ConsoleSession, DeviceRow, HistoryEntry } from './model'
 import { isStaleEndpoint, relativeTime } from './time'
 
@@ -7,37 +8,57 @@ import { isStaleEndpoint, relativeTime } from './time'
  * Pure view projections shared by the UI and the tests. No DOM here.
  */
 
-/** "October 27", in this browser's time zone. An unreadable time is shown as sent. */
+/**
+ * "October 27", in this browser's time zone and the language of the text on screen. An
+ * unreadable time is shown as sent.
+ */
 export function monthDayLine(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  return d.toLocaleDateString(getLocale(), { month: 'long', day: 'numeric' })
 }
 
-/** "3:05 PM", in this browser's time zone. ICU's narrow space before AM/PM made plain. */
+/**
+ * "3:05 PM", in this browser's time zone and the language of the text on screen. ICU's
+ * narrow space before AM/PM made plain.
+ */
 export function clockLine(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, ' ')
+  return d
+    .toLocaleTimeString(getLocale(), { hour: 'numeric', minute: '2-digit' })
+    .replace(/\s/g, ' ')
 }
 
 /**
  * The reset that waits (PLANS.md P-18 item 12). Word for word the same as the
- * extension, Android and iOS. The console has no background, so the card is all.
+ * extension, Android and iOS (a test holds the console's and the extension's English to
+ * it). The console has no background, so the card is all. The words are read when asked
+ * for, never at load, so they follow the language chosen.
  */
 export const groupResetCopy = {
-  title: 'Someone asked to remove all your devices',
-  body: (requestedAt: string, resetsAt: string): string =>
-    `From your account page on ${monthDayLine(requestedAt)}. On ${monthDayLine(resetsAt)} at ${clockLine(resetsAt)}, every device is removed, this one too. If it wasn't you, stop it now, then change your email password.`,
-  stop: 'Stop the reset',
-  dismiss: 'It was me',
-  stopped: 'Reset stopped. Nothing was removed.',
-  stopFailedOffline: "Couldn't reach your relay, so the reset is still waiting. Try again.",
-  stopFailed: (reason: string): string => {
-    const r = reason.trim().replace(/[.!]?$/, '.')
-    return `Couldn't stop the reset: ${r} The reset is still waiting. Try again.`
+  get title(): string {
+    return t('devices.reset.title')
   },
-} as const
+  body: (requestedAt: string, resetsAt: string): string =>
+    t('devices.reset.body', {
+      requestedDate: monthDayLine(requestedAt),
+      resetsDate: monthDayLine(resetsAt),
+      resetsTime: clockLine(resetsAt),
+    }),
+  get stop(): string {
+    return t('devices.reset.stop')
+  },
+  get dismiss(): string {
+    return t('devices.reset.dismiss')
+  },
+  get stopped(): string {
+    return t('devices.reset.stopped')
+  },
+  get stopFailedOffline(): string {
+    return t('devices.reset.stopFailedOffline')
+  },
+}
 
 /**
  * The hover text on the header's connection badge. The console has no outage
@@ -50,11 +71,10 @@ export const groupResetCopy = {
  * origin when the console is served by the relay.
  */
 export function connectionTitle(conn: string, relayUrl: string): string {
-  if (conn === 'live') return 'Real-time updates over the WebSocket fast path'
-  if (conn === 'polling')
-    return 'Live updates are off. Refreshing every 20 seconds, so nothing is lost.'
-  const line = `Not connected to the relay at ${relayUrl}.`
-  return isHomeNetworkRelay(relayUrl) ? `${line} ${HOME_NETWORK_HINT}` : line
+  if (conn === 'live') return t('connection.live.title')
+  if (conn === 'polling') return t('connection.polling.title')
+  if (isHomeNetworkRelay(relayUrl)) return t('connection.offline.titleHomeNetwork', { relayUrl })
+  return t('connection.offline.title', { relayUrl })
 }
 
 /** Build the device-management rows: presence, stale marking, self/console flags. */
@@ -78,8 +98,8 @@ export function toDeviceRows(
       // relay; "online now" is a claim about this instant and does not.
       lastSeenLabel:
         presenceKnown && endpoint.presence === 'online'
-          ? 'online now'
-          : `last seen ${relativeTime(endpoint.lastSeenAt, now)}`,
+          ? t('devices.lastSeen.online')
+          : t('devices.lastSeen.ago', { ago: relativeTime(endpoint.lastSeenAt, now) }),
     }
   })
 }
@@ -119,19 +139,23 @@ export function deliveryBadge(entry: HistoryEntry, now: number = Date.now()): De
   if (!entry.delivery) return null
   const state = deliveryState(entry.delivery, now)
   if (state === 'arrived') {
-    return { state, label: 'Arrived', note: 'The target confirmed this tab.' }
+    return {
+      state,
+      label: t('history.state.arrived'),
+      note: t('history.state.arrivedNote'),
+    }
   }
   if (state === 'never-arrived') {
     return {
       state,
-      label: 'Never arrived',
-      note: 'The target never confirmed this tab, and the relay has stopped holding it.',
+      label: t('history.state.neverArrived'),
+      note: t('history.state.neverArrivedNote'),
     }
   }
   return {
     state,
-    label: 'Waiting',
-    note: 'The relay is holding this tab until the target picks it up.',
+    label: t('history.state.waiting'),
+    note: t('history.state.waitingNote'),
   }
 }
 
@@ -140,9 +164,12 @@ export function deliveryBadge(entry: HistoryEntry, now: number = Date.now()): De
  * console does not hold. The transfer is still true and still listed; only its
  * content is missing, and the row says which of the two it is.
  */
-export const SEALED_ROW_TITLE = 'Sealed to a key this console does not hold'
-export const SEALED_ROW_NOTE =
-  'This console can see that the transfer happened, not what was sent. The key reaches it from another paired device.'
+export function sealedRowTitle(): string {
+  return t('history.sealed.title')
+}
+export function sealedRowNote(): string {
+  return t('history.sealed.note')
+}
 
 /**
  * One rendered block of the history list: either a single send, or every row of
@@ -201,7 +228,9 @@ export function groupHistory(entries: HistoryEntry[]): HistoryGroup[] {
 export function batchHeading(group: HistoryGroup): string {
   const arrived = group.entries.length
   const sent = Math.max(group.sentCount ?? arrived, arrived)
-  return arrived === sent ? `${sent} tabs` : `${arrived} of ${sent} tabs`
+  return arrived === sent
+    ? t('history.batch.heading', { count: sent })
+    : t('history.batch.partial', { here: arrived, count: sent })
 }
 
 /** A safe hostname for a URL (for the history row's secondary line). */
@@ -221,16 +250,22 @@ export function hostOf(url: string): string {
  * the intro explains it instead.
  */
 export const introCopy = {
-  title: 'Tabsend web console',
-  what: "Tabsend sends a web page from one of your devices to another, such as from your computer to your phone. The console is a web page that lists your devices and shows what you sent. It can't send tabs itself. Use the Tabsend browser extension or phone app for that.",
-  newHere: 'New to Tabsend?',
-  newHereLink: 'Learn more at tabsend.org',
-  pairTitle: 'Pair this console',
-  pairBody:
-    'Open Tabsend on a device you already use, choose Add a device, and paste its setup link here.',
-  privacy:
-    'Tabsend encrypts what you send on your devices. The server holds no key to read it, and the console never opens tabs.',
-} as const
+  get title(): string {
+    return t('onboarding.title')
+  },
+  get what(): string {
+    return t('onboarding.what')
+  },
+  get pairTitle(): string {
+    return t('onboarding.pair.title')
+  },
+  get pairBody(): string {
+    return t('onboarding.pair.body')
+  },
+  get privacy(): string {
+    return t('onboarding.privacy')
+  },
+}
 
 export interface ProjectLink {
   label: string
@@ -247,13 +282,13 @@ export const HOSTED_HOST = 'app.tabsend.org'
  * at our policy would say something untrue.
  */
 export function projectLinks(hostname: string): ProjectLink[] {
-  const links: ProjectLink[] = [{ label: 'tabsend.org', href: 'https://tabsend.org' }]
+  const links: ProjectLink[] = [{ label: t('app.footer.site'), href: 'https://tabsend.org' }]
   if (hostname === HOSTED_HOST) {
     links.push(
-      { label: 'Privacy', href: 'https://tabsend.org/privacy' },
-      { label: 'Terms', href: 'https://tabsend.org/terms' },
+      { label: t('app.footer.privacy'), href: 'https://tabsend.org/privacy' },
+      { label: t('app.footer.terms'), href: 'https://tabsend.org/terms' },
     )
   }
-  links.push({ label: 'Support', href: 'https://tabsend.org/support' })
+  links.push({ label: t('app.footer.support'), href: 'https://tabsend.org/support' })
   return links
 }

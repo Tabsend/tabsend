@@ -53,7 +53,12 @@ data class HistoryItem(
     /** The sender's own clock, which is what every other surface displays. */
     val sentAt: String? = null,
     override val batch: BatchInfo? = null,
+    /** The page's preview picture, when the sender found one. */
+    val image: String? = null,
 ) : Batched
+
+/** The line above a Latest card's title, which says which way the tab went. */
+enum class LatestLine { NEW_FROM, FROM, SENT_TO, BETWEEN }
 
 /** One row as the screen shows it: a cached record plus this phone's view of it. */
 data class HistoryRow(
@@ -70,6 +75,8 @@ data class HistoryRow(
     /** Received rows only: epoch ms the user opened the link, null while they haven't. */
     val openedAt: Long? = null,
     override val batch: BatchInfo? = null,
+    /** The page's preview picture, when the sender found one. */
+    val image: String? = null,
 ) : Batched {
     /** False when the blob was sealed under a key this device does not hold. */
     val readable: Boolean get() = url != null
@@ -95,6 +102,9 @@ object History {
     /** How many rows this phone caches for offline reading. Stated in the UI verbatim. */
     const val MAX = Inbox.MAX
 
+    /** How many tabs the home screen's Latest shows. */
+    const val LATEST_COUNT = 2
+
     /** Read a relay row plus its opened blob, if this device could open it. */
     fun project(entry: HistoryEntry, record: HistoryRecord?): HistoryItem = HistoryItem(
         id = entry.id,
@@ -109,6 +119,7 @@ object History {
         targetLabel = record?.targetLabelAtSend,
         sentAt = record?.payload?.sentAt,
         batch = record?.payload?.batch,
+        image = record?.payload?.image,
     )
 
     /**
@@ -163,6 +174,7 @@ object History {
         max: Int = MAX,
     ): List<HistoryRow> {
         val openedById = inbox.associate { it.id to it.openedAt }
+        val imageById = inbox.associate { it.id to it.image }
         val fromRelay = items.map { item ->
             HistoryRow(
                 id = item.id,
@@ -176,6 +188,7 @@ object History {
                 at = item.sentAt ?: item.createdAt,
                 openedAt = openedById[item.id],
                 batch = item.batch,
+                image = item.image ?: imageById[item.id],
             )
         }
         val covered = items.map { it.id }.toSet()
@@ -193,6 +206,7 @@ object History {
                 at = item.sentAt,
                 openedAt = item.openedAt,
                 batch = item.batch,
+                image = item.image,
             )
         }
         return (fromRelay + fromInbox)
@@ -234,6 +248,30 @@ object History {
      */
     fun rememberAnnounced(announced: List<String>, ids: List<String>, max: Int = MAX * 2): List<String> =
         (ids + announced).distinct().take(max)
+
+    /**
+     * The newest tabs in any direction, opened or not. A send that never arrived is
+     * skipped because it needs its Send again button, so it stays a list row; so is a
+     * row with nothing to open, because a tap on a card has to do something.
+     */
+    fun latest(
+        rows: List<HistoryRow>,
+        isOpenable: (HistoryRow) -> Boolean = { it.readable },
+        max: Int = LATEST_COUNT,
+    ): List<HistoryRow> =
+        rows.filter { it.delivery != Delivery.NEVER_ARRIVED && isOpenable(it) }.take(max)
+
+    fun latestLine(row: HistoryRow): LatestLine = when (row.direction) {
+        Direction.RECEIVED -> if (row.openedAt == null) LatestLine.NEW_FROM else LatestLine.FROM
+        Direction.SENT -> LatestLine.SENT_TO
+        Direction.ELSEWHERE -> LatestLine.BETWEEN
+    }
+
+    /** The first letter of a site's name, for the tile when it has no picture. */
+    fun siteLetter(url: String?): String? {
+        val host = url?.let { Inbox.hostOf(it) }?.removePrefix("www.") ?: return null
+        return host.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString()
+    }
 
     /** What a row calls the tab, or null when this device cannot read its blob. */
     fun displayTitle(row: HistoryRow): String? =

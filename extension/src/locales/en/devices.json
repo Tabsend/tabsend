@@ -1,0 +1,110 @@
+{
+  "devices.added.title": {
+    "message": "{count, plural, one {{device} was added} other {# devices were added}}",
+    "description": "Title of the notification that new devices joined the person's group. {count} is how many; {device} is the first device's name."
+  },
+  "devices.added.message": {
+    "message": "{count, plural, one {It joined your Tabsend devices {ago}. If that wasn't you, remove it in Tabsend.} other {{devices} joined your Tabsend devices. If any wasn't you, remove it in Tabsend.}}",
+    "description": "Body of the notification that new devices joined. {ago} is a short relative time such as “5m ago”; {devices} is a list of names such as “Pixel 9 and iPad”. {count} is how many."
+  },
+  "devices.listed.title": {
+    "message": "{count, plural, one {{device} is in your group} other {# devices are in your group}}",
+    "description": "Title of the notice shown after pairing when the device the person paired with did not list every device in the group. {count} is how many; {device} is the first one's name."
+  },
+  "devices.listed.message": {
+    "message": "{count, plural, one {The device you paired with didn't list it. If it isn't yours, remove it in Tabsend.} other {{devices}. The device you paired with didn't list them. If any isn't yours, remove it in Tabsend.}}",
+    "description": "Body of that notice. {devices} is a list of names such as “Pixel 9 and iPad”; the full stop after it is part of this message. {count} is how many."
+  },
+  "devices.vanished.title": {
+    "message": "{device} joined, then disappeared",
+    "description": "Title of a warning: a device was announced as new and then disappeared from the list. {device} is its name."
+  },
+  "devices.vanished.body": {
+    "message": "It joined {ago} and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.",
+    "description": "Body of that warning. {ago} is a short relative time such as “5m ago”."
+  },
+  "devices.unreachable.title": {
+    "message": "{device} isn't connected any more",
+    "description": "Title of the card shown when the relay no longer has a device a send was meant for. {device} is its name."
+  },
+  "devices.unreachable.body": {
+    "message": "Tabs sent to it won't arrive. This happens when Tabsend is removed or reinstalled on it, or when it's removed from your devices. To keep sending to it, pair it again.",
+    "description": "Body of that card. “It” is the device."
+  },
+  "devices.unreachable.pairAgain": {
+    "message": "Pair {device} again",
+    "description": "Button on that card that starts pairing the device again. {device} is its name."
+  },
+  "devices.unreachable.rowStatus": {
+    "message": "not connected",
+    "description": "Small status text on a device's row in the list when the relay no longer has it. Lowercase, short."
+  },
+  "devices.unreachable.tooltip": {
+    "message": "{count, plural, one {{device} isn't connected any more. Open Tabsend to fix it.} other {# devices aren't connected any more. Open Tabsend to fix them.}}",
+    "description": "Tooltip of the toolbar icon while it shows a warning mark. {count} is how many devices; {device} is the first one's name."
+  },
+  "devices.reset.alertTitle": {
+    "message": "Tabsend",
+    "description": "Title of the system notification about a pending reset. The product name: keep it as it is."
+  },
+  "devices.reset.alertMessage": {
+    "message": "Someone asked to remove all your devices on {date}. Open Tabsend to stop it.",
+    "description": "Body of the system notification about a pending reset of the whole group. {date} is a date such as “October 27”."
+  },
+  "devices.reset.title": {
+    "message": "Someone asked to remove all your devices",
+    "description": "Heading of the card that warns about a pending reset of the whole group."
+  },
+  "devices.reset.body": {
+    "message": "From your account page on {requestedDate}. On {resetsDate} at {resetsTime}, every device is removed, this one too. If it wasn't you, stop it now, then change your email password.",
+    "description": "Body of that card. {requestedDate} and {resetsDate} are dates such as “October 27”; {resetsTime} is a time such as “3:05 PM”."
+  },
+  "devices.reset.stop": {
+    "message": "Stop the reset",
+    "description": "Button that cancels a pending reset of the whole group."
+  },
+  "devices.reset.stopping": {
+    "message": "Stopping…",
+    "description": "Button text while the reset is being stopped."
+  },
+  "devices.reset.dismiss": {
+    "message": "It was me",
+    "description": "Button the person presses when they started the reset themselves, to close the warning."
+  },
+  "devices.reset.stopped": {
+    "message": "Reset stopped. Nothing was removed.",
+    "description": "Confirmation after the reset was stopped."
+  },
+  "devices.reset.stopFailedOffline": {
+    "message": "Couldn't reach your relay, so the reset is still waiting. Try again.",
+    "description": "Error when stopping the reset failed because the relay did not answer."
+  },
+  "devices.kind.phone": {
+    "message": "Phone",
+    "description": "Kind of device, shown before the status on a device row in the popup (“Phone · online”). Capitalized, one word if possible."
+  },
+  "devices.kind.computer": {
+    "message": "Computer",
+    "description": "Kind of device, shown before the status on a device row in the popup (“Computer · online”): a computer that is not running the browser extension. Capitalized, one word if possible."
+  },
+  "devices.kind.browser": {
+    "message": "Browser",
+    "description": "Kind of device, shown before the status on a device row in the popup (“Browser · online”): a web browser with the Tabsend extension. Capitalized, one word if possible."
+  },
+  "devices.list.thisBrowser": {
+    "message": "This browser · {presence}",
+    "description": "Second line of the row for the browser the person is using, in the device list in settings and setup. {presence} is a phrase such as “online” or “last seen 5m ago”. The dot is a separator symbol."
+  },
+  "devices.list.renameAria": {
+    "message": "Rename {device}",
+    "description": "Spoken name (for screen readers) of the Rename button on a device row. {device} is the device’s name. The visible button text is just “Rename”."
+  },
+  "devices.list.removeAria": {
+    "message": "Remove {device}",
+    "description": "Spoken name (for screen readers) of the Remove button on a device row. {device} is the device’s name. The visible button text is just “Remove”."
+  },
+  "devices.list.removeConfirm": {
+    "message": "Remove “{device}” from the group?",
+    "description": "Question in the browser’s confirm box after the person presses Remove on a device row. {device} is the device’s name. The quotation marks around it are curly; keep quotation marks."
+  }
+}

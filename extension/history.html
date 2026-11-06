@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tabsend history</title>
+    <title data-i18n="history.pageTitle"></title>
     <link rel="icon" href="icons/tabsend-32.png" />
     <link rel="icon" sizes="16x16" href="icons/tabsend-16.png" />
     <link rel="icon" sizes="48x48" href="icons/tabsend-48.png" />
@@ -98,14 +98,6 @@
       }
       button.tab { cursor: pointer; }
       button.tab:hover { background: var(--accent-tint); }
-      .favicon {
-        width: 16px;
-        height: 16px;
-        flex: none;
-        border-radius: 3px;
-      }
-      /* Reserve the icon's space even with no favicon, so titles stay aligned. */
-      .favicon-slot { width: 16px; height: 16px; flex: none; }
       .tab-text { min-width: 0; flex: 1; }
       .tab-title {
         display: block;
@@ -142,13 +134,52 @@
       .again:hover { background: var(--danger-tint); }
       .again[disabled] { opacity: 0.6; cursor: default; }
 
-      .row.fresh { padding-top: 22px; padding-bottom: 22px; }
-      .fresh .tab-title { font-size: 19px; white-space: normal; }
-      .preview-description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; color: var(--muted); margin-top: 5px; }
-      .preview-image { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; flex: none; }
-      .fresh .preview-image { width: 104px; height: 84px; }
-      .preview-allow { margin: 0 16px 12px 64px; border: 0; background: transparent; color: var(--ink); text-decoration: underline; cursor: pointer; font: inherit; font-size: 12px; }
-      @media (max-width: 480px) { .row { flex-wrap: wrap; } .tab { flex-basis: calc(100% - 54px); } .fresh .preview-image { width: 72px; height: 72px; } .state, .again { margin-left: 48px; } }
+      .section-heading { margin: 20px 4px 10px; font-size: 15px; font-weight: 700; }
+      .section-heading:first-child { margin-top: 0; }
+      .latest { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .latest.single { grid-template-columns: minmax(0, 1fr); }
+      .card-tab {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--card);
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      .card-tab:hover { background: var(--accent-tint); }
+      .card-text { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
+      .card-route { font-size: 12px; font-weight: 700; color: var(--muted); }
+      .card-title {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.3;
+      }
+      .picture {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        overflow: hidden;
+        background: var(--chip);
+        color: var(--muted);
+        font-weight: 700;
+      }
+      .picture.thumb { width: 64px; height: 44px; border-radius: 8px; font-size: 17px; }
+      .picture.cover { height: 132px; font-size: 34px; }
+      .picture-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .picture-icon { width: 24px; height: 24px; border-radius: 4px; }
+      @media (max-width: 480px) { .row { flex-wrap: wrap; } .tab { flex-basis: calc(100% - 54px); } .state, .again { margin-left: 48px; } }
       #empty {
         border-radius: 14px;
         padding: 32px 24px;
@@ -161,6 +192,7 @@
       #empty strong { display: block; color: var(--ink); font-size: 17px; margin-bottom: 6px; }
       #empty .aside { display: block; margin-top: 12px; font-size: 13px; }
       footer { margin-top: 24px; font-size: 14px; }
+      .foot-note { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--muted); }
       footer a { font-weight: 600; }
     </style>
   </head>
@@ -168,18 +200,14 @@
     <main>
       <header class="page-title">
         <img src="icons/tabsend-48.png" alt="" />
-        <h1>History</h1>
+        <h1 data-i18n="common.history"></h1>
       </header>
-      <p class="desc" id="retention"></p>
+      <p class="desc" data-i18n="history.intro"></p>
 
       <div id="empty" class="hidden">
-        <strong>Nothing here yet</strong>
-        Tabs your devices send each other are listed here, sent and received
-        together, newest first.
-        <span class="aside">
-          A relay older than this extension does not keep the shared list. Until
-          it is updated, only tabs this browser received show up here.
-        </span>
+        <strong data-i18n="history.empty.title"></strong>
+        <span data-i18n="history.empty.body"></span>
+        <span class="aside" data-i18n="history.empty.aside"></span>
       </div>
 
       <div id="groups"></div>
@@ -209,7 +237,8 @@
       </template>
 
       <footer>
-        <a href="options.html" id="settings-link">Tabsend settings</a>
+        <p class="foot-note" id="retention"></p>
+        <a href="options.html" id="settings-link" data-i18n="history.settingsLink"></a>
       </footer>
     </main>
     <script type="module" src="/src/pages/history.ts"></script>

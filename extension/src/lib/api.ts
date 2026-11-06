@@ -23,6 +23,8 @@ import type {
   UpdateEndpointRequest,
 } from '@tabsend/shared'
 import { bearerAuth, isDefinitiveRemoval } from '@tabsend/shared'
+import { t } from './i18n'
+import { relayErrorLine } from './relay-errors'
 
 /**
  * Thin REST client for the relay (@tabsend/shared §10). Auth is a per-endpoint
@@ -39,6 +41,11 @@ export class ApiClientError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /**
+     * True when the reply carried no error envelope at all (an HTML 502 from a proxy), so
+     * `code` is only a stand-in. A screen then says the status instead of a code's sentence.
+     */
+    readonly noEnvelope = false,
   ) {
     super(message)
     this.name = 'ApiClientError'
@@ -101,10 +108,17 @@ async function parse<T>(res: Response, token: string | undefined): Promise<T> {
     if (token && res.status === 401) {
       onUnauthorized?.(isDefinitiveRemoval(err?.error?.code ?? 'unauthorized'), token)
     }
+    // The relay's `message` is English and written for a log, so it is not kept: not in the
+    // error, not on a screen. What this error says is the extension's own sentence for the
+    // code (`failureText` picks a more exact one when the caller knows what was being done).
+    const code = typeof err?.error?.code === 'string' ? err.error.code : undefined
     throw new ApiClientError(
       res.status,
-      err?.error?.code ?? 'internal',
-      err?.error?.message ?? `Request failed (${res.status}).`,
+      code ?? 'internal',
+      code === undefined
+        ? t('errors.api.requestFailed', { status: String(res.status) })
+        : relayErrorLine(code, 'other'),
+      code === undefined,
     )
   }
   if (token) onAuthorized?.()

@@ -223,10 +223,10 @@ struct SeenSetTests {
 struct FeedbackTests {
     @Test func lines() {
         #expect(Feedback.sent(to: "MacBook") == "Sent to MacBook")
-        #expect(Feedback.sentQueued(to: "MacBook") == "Sent to MacBook — opens when it wakes")
-        #expect(Feedback.sourceOffline == "No connection — will send when you're back online")
-        #expect(Feedback.noDevices == "No devices yet — pair one to start sending")
-        #expect(Feedback.sendFailed == "Couldn't send — check Tabsend is still linked")
+        #expect(Feedback.sentQueued(to: "MacBook") == "Sent to MacBook. Opens when it wakes")
+        #expect(Feedback.sourceOffline == "No connection. Will send when you're back online")
+        #expect(Feedback.noDevices == "No devices yet. Pair one to start sending")
+        #expect(Feedback.sendFailed == "Couldn't send. Check Tabsend is still linked")
     }
 }
 

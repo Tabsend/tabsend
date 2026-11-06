@@ -64,9 +64,39 @@ public enum Chooser {
 /// failure lines added by the 2026-07-29 amendment live in SendFeedback.swift and
 /// use short sentences instead.
 public enum Feedback {
-    public static func sent(to label: String) -> String { "Sent to \(label)" }
-    public static func sentQueued(to label: String) -> String { "Sent to \(label) — opens when it wakes" }
-    public static let sourceOffline = "No connection — will send when you're back online"
-    public static let noDevices = "No devices yet — pair one to start sending"
-    public static let sendFailed = "Couldn't send — check Tabsend is still linked"
+    public static func sent(to label: String) -> String {
+        String(
+            localized: "Sent to \(label)",
+            bundle: .module,
+            comment: "Share-sheet confirmation that a tab was sent. %@ is the name of the receiving device, such as \"Work laptop\". Keep it short: it is a toast."
+        )
+    }
+    public static func sentQueued(to label: String) -> String {
+        String(
+            localized: "Sent to \(label). Opens when it wakes",
+            bundle: .module,
+            comment: "Share-sheet confirmation when the receiving device is asleep and will open the tab when it wakes. %@ is the name of the receiving device. Keep it short: it is a toast."
+        )
+    }
+    public static var sourceOffline: String {
+        String(
+            localized: "No connection. Will send when you're back online",
+            bundle: .module,
+            comment: "Share-sheet message when this phone is offline. The tab is kept and sent later. Keep it short."
+        )
+    }
+    public static var noDevices: String {
+        String(
+            localized: "No devices yet. Pair one to start sending",
+            bundle: .module,
+            comment: "Share-sheet message when no other device has joined the group yet. Keep it short."
+        )
+    }
+    public static var sendFailed: String {
+        String(
+            localized: "Couldn't send. Check Tabsend is still linked",
+            bundle: .module,
+            comment: "Generic share-sheet failure when the send could not be completed. Keep it short."
+        )
+    }
 }

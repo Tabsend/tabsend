@@ -83,6 +83,15 @@ export function detectPlatform(ua: string = currentUserAgent()): Platform {
   return 'unknown'
 }
 
+/**
+ * A phone or tablet, as opposed to a computer. `unknown` counts as a computer: the
+ * browser extension is a desktop product, and a user agent we cannot read is far
+ * more likely a desktop one than a phone.
+ */
+export function isPhonePlatform(platform: Platform): boolean {
+  return platform === 'android' || platform === 'ios'
+}
+
 /** A friendly default device name from the platform, e.g. "Mac" (an editable seed). */
 export function defaultDeviceName(platform: Platform): string {
   switch (platform) {

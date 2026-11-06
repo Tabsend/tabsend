@@ -13,14 +13,15 @@
 
     <!-- ===== Archivo: titles and the wordmark only ===== -->
 
-    <!-- Top app bar title (MaterialToolbar app:titleTextAppearance). Title Large's
-         22sp, in Archivo ExtraBold. Both font attributes: the platform reads
+    <!-- Top app bar title (MaterialToolbar app:titleTextAppearance): 24sp Archivo
+         ExtraBold, as the home design has it. Both font attributes: the platform reads
          android:fontFamily, AppCompat's text helper reads fontFamily. -->
     <style name="TextAppearance.Tabsend.ScreenTitle" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:textSize">24sp</item>
         <item name="android:fontFamily">@font/archivo_extrabold</item>
         <item name="fontFamily">@font/archivo_extrabold</item>
         <item name="android:textColor">?attr/colorOnSurface</item>
-        <item name="android:letterSpacing">0</item>
+        <item name="android:letterSpacing">-0.01</item>
     </style>
 
     <!-- Top app bar: stays the screen's ground colour while content scrolls under it
@@ -47,6 +48,16 @@
         <item name="android:fontFamily">@font/archivo_extrabold</item>
         <item name="fontFamily">@font/archivo_extrabold</item>
         <item name="android:textColor">@color/ts_ink</item>
+        <item name="android:letterSpacing">-0.01</item>
+    </style>
+
+    <!-- The headline of "Name this phone" (frame a4): a screen's own title in Archivo, below
+         the app bar's "Tabsend" (APP_UI "Type": screen title 28-34 / ExtraBold). -->
+    <style name="TextAppearance.Tabsend.ScreenHeadline" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:textSize">28sp</item>
+        <item name="android:fontFamily">@font/archivo_extrabold</item>
+        <item name="fontFamily">@font/archivo_extrabold</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
         <item name="android:letterSpacing">-0.01</item>
     </style>
 
@@ -119,6 +130,16 @@
         <item name="android:minHeight">48dp</item>
     </style>
 
+    <!-- The line above a Latest card's title. -->
+    <style name="TextAppearance.Tabsend.CardLine" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+
+    <!-- A Latest card's title. -->
+    <style name="TextAppearance.Tabsend.CardTitle" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+
     <!-- Text button for a destructive action (Unpair). -->
     <style name="Widget.Tabsend.Button.Danger" parent="Widget.Tabsend.Button.Tertiary">
         <item name="android:textColor">@color/ts_danger</item>
@@ -156,6 +177,13 @@
     <style name="ShapeAppearanceOverlay.Tabsend.Corner16" parent="">
         <item name="cornerFamily">rounded</item>
         <item name="cornerSize">16dp</item>
+    </style>
+
+    <!-- The bottom tabs, on the screen's own ground so they read as part of it. Flat:
+         Material tints a raised bar with the primary colour, which here is blue. -->
+    <style name="Widget.Tabsend.BottomNav" parent="Widget.Material3.BottomNavigationView">
+        <item name="backgroundTint">@color/ts_phone_ground</item>
+        <item name="elevation">0dp</item>
     </style>
 
     <!-- The standard Material switch, on = petrol (see ThemeOverlay.Tabsend.Petrol). -->

@@ -22,6 +22,16 @@ export type ApnsEnvironment = 'production' | 'sandbox'
  */
 export type DevicePlatform = 'ios' | 'android'
 
+/**
+ * How an iPhone is rung [2026-11-05, docs/PLANS.md P-29]. `background` is the silent wake
+ * every phone had before: content-free, and a push Apple may hold back. `alert` is a
+ * visible notification with a fixed text key and no content, which iOS delivers at once
+ * and hands to the app's notification extension to fill in from the relay. The phone
+ * chooses at `POST /v1/register`; a row that never chose is `background`. Meaningless for
+ * an Android row, which always stores `background`.
+ */
+export type RingStyle = 'background' | 'alert'
+
 export interface RateLimitConfig {
   /** Max requests per window per key. <= 0 disables this limiter entirely. */
   max: number

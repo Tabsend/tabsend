@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tabsend settings</title>
+    <title data-i18n="options.page.title"></title>
     <link rel="icon" href="icons/tabsend-32.png" />
     <link rel="icon" sizes="16x16" href="icons/tabsend-16.png" />
     <link rel="icon" sizes="48x48" href="icons/tabsend-48.png" />
@@ -132,103 +132,107 @@
     <main>
       <header class="page-title">
         <img src="icons/tabsend-48.png" alt="" />
-        <h1>Settings</h1>
+        <h1 data-i18n="common.settings"></h1>
       </header>
 
       <div id="page-error" class="notice danger" role="alert"></div>
 
       <section class="section" aria-labelledby="sec-sending">
-        <h2 class="section-label" id="sec-sending">Sending</h2>
+        <h2 class="section-label" id="sec-sending" data-i18n="options.sending.heading"></h2>
         <div class="rows">
           <div class="setting stack">
             <label class="one-click">
               <input type="checkbox" id="one-click" />
               <span class="setting-text">
-                <span class="setting-title">Send in one click</span>
-                <span class="setting-detail">
-                  Clicking the Tabsend icon sends the tab right away, without asking which device.
-                </span>
+                <span class="setting-title" data-i18n="options.oneClick.title"></span>
+                <span class="setting-detail" data-i18n="options.oneClick.detail"></span>
               </span>
             </label>
-            <p class="setting-detail indent" id="one-click-off">
-              Now: clicking the icon shows your devices so you can pick one.
-            </p>
+            <p class="setting-detail indent" id="one-click-off" data-i18n="options.oneClick.off"></p>
             <div class="indent" id="one-click-on" style="display: none">
-              <label class="setting-detail" for="send-to">Send to</label>
+              <label class="setting-detail" for="send-to" data-i18n="options.oneClick.sendTo"></label>
               <select id="send-to"></select>
-              <span class="setting-detail">
-                You get 4 seconds to undo. Right-click the icon to pick a different device.
-              </span>
+              <span class="setting-detail" data-i18n="options.oneClick.undo"></span>
             </div>
           </div>
 
           <label class="setting">
             <span class="setting-text">
-              <span class="setting-title">Confirm each send</span>
-              <span class="setting-detail">An in-page toast naming the device. Errors always show.</span>
+              <span class="setting-title" data-i18n="options.confirmToast.title"></span>
+              <span class="setting-detail" data-i18n="options.confirmToast.detail"></span>
             </span>
             <input type="checkbox" class="switch" id="success-toast" />
           </label>
 
           <label class="setting">
             <span class="setting-text">
-              <span class="setting-title">Show the waiting row in the device list</span>
-              <span class="setting-detail">“⏳ 1 waiting for …” while a send is queued to an asleep device.</span>
+              <span class="setting-title" data-i18n="options.pendingRow.title"></span>
+              <span class="setting-detail" data-i18n="options.pendingRow.detail"></span>
             </span>
             <input type="checkbox" class="switch" id="pending-row" />
           </label>
 
           <label class="setting">
             <span class="setting-text">
-              <span class="setting-title">Right-click menus</span>
-              <span class="setting-detail">Show “Send tab / link to …” when you right-click a page or link.</span>
+              <span class="setting-title" data-i18n="options.contextMenus.title"></span>
+              <span class="setting-detail" data-i18n="options.contextMenus.detail"></span>
             </span>
             <input type="checkbox" class="switch" id="context-menus" />
           </label>
 
           <div class="setting">
             <span class="setting-text">
-              <span class="setting-title">Keyboard shortcut</span>
-              <span class="setting-detail">
-                <code>Ctrl/Cmd + Shift + S</code> does what the Tabsend icon does. A second
-                shortcut, not set at first, always sends in one click to the “Send to” device.
+              <span class="setting-title" data-i18n="options.shortcut.title"></span>
+              <span class="setting-detail" data-i18n-rich="options.shortcut.detail">
+                <code data-i18n-tag="code"></code>
               </span>
             </span>
-            <button type="button" class="linkish setting-control" id="open-shortcuts">Rebind…</button>
+            <button
+              type="button"
+              class="linkish setting-control"
+              id="open-shortcuts"
+              data-i18n="options.shortcut.rebind"
+            ></button>
           </div>
         </div>
       </section>
 
       <section class="section" aria-labelledby="sec-receiving">
-        <h2 class="section-label" id="sec-receiving">Receiving</h2>
+        <h2 class="section-label" id="sec-receiving" data-i18n="options.receiving.heading"></h2>
         <div class="rows">
           <label class="setting">
             <span class="setting-text">
-              <span class="setting-title">Notify when a tab arrives</span>
-              <span class="setting-detail">
-                Says which window the tab opened in; click it to go there. The toolbar badge
-                counts new tabs either way.
-              </span>
+              <span class="setting-title" data-i18n="options.notify.title"></span>
+              <span class="setting-detail" data-i18n="options.notify.detail"></span>
             </span>
             <input type="checkbox" class="switch" id="notify-receive" />
           </label>
 
           <div class="setting">
             <span class="setting-text">
-              <span class="setting-title">History</span>
-              <span class="setting-detail">
-                Every tab your devices send each other, and whether it arrived. A tab that never
-                arrived can be sent again from there. The newest 50 stay on this browser for
-                offline use.
-              </span>
+              <span class="setting-title" data-i18n="common.history"></span>
+              <span class="setting-detail" data-i18n="options.history.detail"></span>
             </span>
-            <button type="button" id="open-history" class="btn-secondary setting-control">Open history</button>
+            <button
+              type="button"
+              id="open-history"
+              class="btn-secondary setting-control"
+              data-i18n="options.history.open"
+            ></button>
           </div>
+
+          <label class="setting">
+            <span class="setting-text">
+              <span class="setting-title" data-i18n="options.websiteImages.title"></span>
+              <span class="setting-detail" data-i18n="options.websiteImages.detail"></span>
+            </span>
+            <input type="checkbox" class="switch" id="no-website-images" />
+          </label>
         </div>
       </section>
 
       <section class="section" aria-labelledby="sec-devices">
-        <h2 class="section-label" id="sec-devices">Devices</h2>
+        <h2 class="section-label" id="sec-devices" data-i18n="options.devices.heading"></h2>
         <div class="rows">
           <!-- Every device in the group, with Rename and Remove. The same list as
                the manage screen (device-list.ts); hidden until this browser is paired. -->
@@ -238,26 +242,45 @@
           </div>
           <div class="setting stack">
             <span class="setting-text">
-              <span class="setting-title">Add a device</span>
-              <span class="setting-detail">
-                Connect another browser or your phone to this group with a link or QR code.
-                Useful when “Send in one click” is on, since the icon then no longer shows your devices.
-              </span>
+              <span class="setting-title" data-i18n="common.addDevice"></span>
+              <span class="setting-detail" data-i18n="options.pairing.detail"></span>
             </span>
             <p class="setting-detail" id="pairing-unregistered" style="display: none">
-              Finish setting up Tabsend first, then come back here to add a device.
-              <button type="button" class="linkish" id="pairing-setup-link">Set up Tabsend</button>
+              <span data-i18n="options.pairing.unregistered"></span>
+              <button
+                type="button"
+                class="linkish"
+                id="pairing-setup-link"
+                data-i18n="common.setUpTabsend"
+              ></button>
             </p>
-            <div><button type="button" id="pair-device" class="btn-primary">Show QR code or link</button></div>
+            <div>
+              <button
+                type="button"
+                id="pair-device"
+                class="btn-primary"
+                data-i18n="options.pairing.show"
+              ></button>
+            </div>
             <div id="pairing-box">
               <div id="pairing-ready">
                 <div id="pairing-qr"></div>
-                <input id="pairing-link" type="text" readonly aria-label="Setup link" />
+                <input
+                  id="pairing-link"
+                  type="text"
+                  readonly
+                  data-i18n-attrs="aria-label:pairing.box.linkLabel"
+                />
                 <div class="pair-actions">
-                  <button type="button" class="linkish" id="copy-link">Copy link</button>
+                  <button
+                    type="button"
+                    class="linkish"
+                    id="copy-link"
+                    data-i18n="pairing.box.copyLink"
+                  ></button>
                   <span id="copy-note"></span>
                 </div>
-                <p class="pair-hint">Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it.</p>
+                <p class="pair-hint" data-i18n="pairing.box.hint"></p>
                 <div id="pairing-local-only" role="status"></div>
               </div>
               <div id="pairing-note"></div>
@@ -268,11 +291,11 @@
 
       <!-- id: the first-run manage screen deep-links here (options.html#connection). -->
       <section class="section" id="connection" aria-labelledby="sec-connection">
-        <h2 class="section-label" id="sec-connection">Connection</h2>
+        <h2 class="section-label" id="sec-connection" data-i18n="options.connection.heading"></h2>
         <div class="rows">
           <div class="setting stack">
             <p class="relay-line">
-              <span class="setting-title">Relay</span>
+              <span class="setting-title" data-i18n="options.relay.label"></span>
               <code id="current-relay">…</code>
             </p>
             <p id="relay-status" role="status"></p>
@@ -302,18 +325,25 @@
                own relay from a stranger (relayId + an authenticated probe), so it
                classifies instead of asking the user to. -->
           <div id="move-form" class="setting stack">
-            <label for="new-address">Where is your relay now?</label>
+            <label for="new-address" data-i18n="options.move.label"></label>
             <div class="input-row">
-              <input type="url" id="new-address" placeholder="http://192.168.1.50:8787" spellcheck="false" />
-              <button type="button" id="relay-check" class="btn-secondary">Check</button>
+              <input
+                type="url"
+                id="new-address"
+                data-i18n-attrs="placeholder:options.move.addressPlaceholder"
+                spellcheck="false"
+              />
+              <button
+                type="button"
+                id="relay-check"
+                class="btn-secondary"
+                data-i18n="options.move.check"
+              ></button>
             </div>
             <!-- The same box takes a pairing link, which is how a self-hosted user moves
                  to the hosted service; nothing on this page said so. -->
-            <p id="move-hint">
-              Moving to the Tabsend hosted service? Sign up at
-              <a href="https://tabsend.org/" target="_blank" rel="noopener">tabsend.org</a>, then
-              paste your setup link here. This browser keeps using your current relay until the
-              new one accepts it. After that, pair your other devices again.
+            <p id="move-hint" data-i18n-rich="options.move.hint">
+              <a href="https://tabsend.org/" target="_blank" rel="noopener" data-i18n-tag="link"></a>
             </p>
             <div id="probe-result">
               <div class="probe-row">
@@ -323,23 +353,21 @@
               <div class="btn-row" id="probe-actions"></div>
             </div>
             <details>
-              <summary>Advanced details</summary>
-              <p>
-                For a home-network relay, use its browser address. With the included
-                self-signed LAN setup, that is <code>http://&lt;LAN-IP&gt;:8786</code>;
-                <code>https://&lt;LAN-IP&gt;:8787</code> is for the Android app.
+              <summary data-i18n="options.advanced.summary"></summary>
+              <p data-i18n-rich="options.advanced.lanAddress">
+                <code data-i18n-tag="browser"></code>
+                <code data-i18n-tag="app"></code>
               </p>
-              <p>
-                You can paste a relay address or a setup link. Tabsend checks whether it is the
-                relay you are already on (then only
-                the address changes and your devices stay paired) or a different one (then it
-                opens setup, and keeps the current pairing until the new relay accepts this
-                browser).
-              </p>
+              <p data-i18n="options.advanced.paste"></p>
             </details>
           </div>
           <p class="setting" id="setup-line" style="display: none">
-            <button type="button" id="change-relay" class="btn-secondary">Set up Tabsend</button>
+            <button
+              type="button"
+              id="change-relay"
+              class="btn-secondary"
+              data-i18n="common.setUpTabsend"
+            ></button>
           </p>
         </div>
       </section>
@@ -348,11 +376,16 @@
     </main>
 
     <dialog id="rename-dialog">
-      <h2>Rename this device</h2>
+      <h2 data-i18n="common.renameDialog.title"></h2>
       <input id="rename-input" type="text" autocomplete="off" />
       <div class="dialog-actions">
-        <button type="button" id="rename-cancel" class="btn-secondary">Cancel</button>
-        <button type="button" id="rename-ok" class="btn-primary">OK</button>
+        <button
+          type="button"
+          id="rename-cancel"
+          class="btn-secondary"
+          data-i18n="common.cancel"
+        ></button>
+        <button type="button" id="rename-ok" class="btn-primary" data-i18n="common.ok"></button>
       </div>
     </dialog>
     <script type="module" src="/src/pages/options.ts"></script>

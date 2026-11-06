@@ -1,0 +1,10 @@
+{
+  "badge.titleLine": {
+    "message": "{headline}. {detail}",
+    "description": "Toolbar icon tooltip after a send, when the outcome has two parts. {headline} is the first sentence (e.g. “Sent to Pixel 9”) and {detail} the second (e.g. “Opens when it wakes”). The full stop after {headline} is part of this message."
+  },
+  "badge.unreadOverflow": {
+    "message": "9+",
+    "description": "Text on the toolbar icon when more than 9 received tabs have not been looked at yet. At most 4 characters; the icon is tiny."
+  }
+}

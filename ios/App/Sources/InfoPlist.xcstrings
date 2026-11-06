@@ -1,0 +1,40 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "comment" : "Name of the app under its icon on the Home Screen. The product name, which is not translated.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend"
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription" : {
+      "comment" : "Shown by iOS in the camera permission prompt, when the app first opens the camera to scan a pairing QR code. A pairing QR code is the code another device shows to link this phone.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend verwendet die Kamera nur, um QR-Codes für die Kopplung zu scannen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend uses the camera only to scan pairing QR codes."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

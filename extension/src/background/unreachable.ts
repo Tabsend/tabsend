@@ -1,5 +1,6 @@
 import type { Endpoint } from '@tabsend/shared'
 import { ext } from '../lib/ext'
+import { t } from '../lib/i18n'
 import type { SendResult } from '../lib/model'
 import {
   getUnreachableDevices,
@@ -29,7 +30,7 @@ export async function noteSendOutcome(targetEndpointId: string, result: SendResu
     await setUnreachableDevices(
       addUnreachable(list, {
         endpointId: targetEndpointId,
-        label: result.targetLabel ?? 'A device',
+        label: result.targetLabel ?? t('unreachable.fallbackDevice'),
         failedAt: new Date().toISOString(),
       }),
     )

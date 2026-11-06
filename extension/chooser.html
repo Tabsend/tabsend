@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Send to…</title>
+    <title data-i18n="chooser.title"></title>
     <link rel="icon" href="icons/tabsend-32.png" />
     <link rel="icon" sizes="16x16" href="icons/tabsend-16.png" />
     <link rel="icon" sizes="48x48" href="icons/tabsend-48.png" />
@@ -311,39 +311,39 @@
   </head>
   <body>
     <header>
-      <h1>Send to…</h1>
-      <button type="button" id="pair-header" aria-label="Add a phone or browser">
+      <h1 data-i18n="chooser.title"></h1>
+      <button type="button" id="pair-header" data-i18n-attrs="aria-label:chooser.pair.aria">
         <span class="icon" aria-hidden="true">+</span>
-        <span>Add a device</span>
+        <span data-i18n="common.addDevice"></span>
       </button>
     </header>
     <div id="confirm"></div>
     <div id="new-devices" class="hidden"></div>
     <div id="relay-down" class="notice waiting hidden" role="status"></div>
     <div id="multi" class="notice accent hidden" role="status"></div>
-    <div id="status" class="hidden">Loading…</div>
+    <div id="status" class="hidden" data-i18n="common.loading"></div>
     <div id="empty" class="hidden">
-      <strong>You're the only device here.</strong>
-      Pair another browser or your phone to start sending tabs.<br /><br />
-      <button type="button" class="linkish" id="open-firstrun">Set up Tabsend</button>
+      <strong data-i18n="chooser.empty.title"></strong>
+      <span data-i18n="chooser.empty.body"></span><br /><br />
+      <button type="button" class="linkish" id="open-firstrun" data-i18n="common.setUpTabsend"></button>
     </div>
     <ul id="targets"></ul>
     <div id="pending" class="hidden"></div>
     <div id="held" class="hidden"></div>
     <div id="pairing-box">
       <div class="pair-top">
-        <button type="button" id="pair-back" aria-label="Back to your devices">
+        <button type="button" id="pair-back" data-i18n-attrs="aria-label:chooser.pair.backAria">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
         </button>
-        <h1>Add a device</h1>
+        <h1 data-i18n="common.addDevice"></h1>
       </div>
-      <div id="pairing-hint">Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it.</div>
+      <div id="pairing-hint" data-i18n="pairing.box.hint"></div>
       <div id="pairing-ready">
         <div id="pairing-qr"></div>
-        <input id="pairing-link" type="text" readonly aria-label="Setup link" />
-        <button type="button" class="linkish" id="copy-link">Copy link</button>
+        <input id="pairing-link" type="text" readonly data-i18n-attrs="aria-label:pairing.box.linkLabel" />
+        <button type="button" class="linkish" id="copy-link" data-i18n="pairing.box.copyLink"></button>
         <div id="copy-note"></div>
         <div id="pairing-local-only" role="status"></div>
       </div>
@@ -351,23 +351,23 @@
     </div>
     <footer>
       <span class="footer-actions">
-      <button type="button" id="settings-footer" title="Open Tabsend settings">
+      <button type="button" id="settings-footer" data-i18n-attrs="title:chooser.footer.settingsTitle">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3"></circle>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
         </svg>
-        <span>Settings</span>
+        <span data-i18n="common.settings"></span>
       </button>
       <!-- The popup is a SENDER surface and stays one: this only opens the
            history page, it never lists tabs here. -->
-      <button type="button" id="history-footer" title="Open Tabsend history">
+      <button type="button" id="history-footer" data-i18n-attrs="title:chooser.footer.historyTitle">
         <!-- A clock, not the old tray: the page behind this now holds sent tabs
              too, and a tray would promise only half of it. -->
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="10"></circle>
           <polyline points="12 7 12 12 15.5 14"></polyline>
         </svg>
-        <span>History</span>
+        <span data-i18n="common.history"></span>
       </button>
       </span>
       <span id="self-label"></span>

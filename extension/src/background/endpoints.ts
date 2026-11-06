@@ -1,10 +1,14 @@
 import {
+  detectPlatform,
   deviceNameFromLabel,
   type Endpoint,
   endpointsKnownTo,
   heldTabChoices,
+  isPhonePlatform,
+  type Platform,
 } from '@tabsend/shared'
 import { getOutbox, listEndpoints } from '../lib/api'
+import { t } from '../lib/i18n'
 import type { ChooserView, DeviceRow, DevicesView, HeldTab } from '../lib/model'
 import { heldTabsOnly, isTargetGone } from '../lib/outbound'
 import { isOpenableWebUrl, isPresenceFresh, isStaleEndpoint } from '../lib/policy'
@@ -240,15 +244,41 @@ export async function buildChooserView(opts: { cached?: boolean } = {}): Promise
   return view
 }
 
-const relativeLastSeen = agoLine
-
 function presenceLabel(endpoint: Endpoint, now: number, presenceKnown: boolean): string {
   // "Last seen" survives an unknown presence — it is a statement about the past
   // and stays true as the snapshot ages. Only "online" is a claim about NOW.
-  if (!presenceKnown) return `last seen ${relativeLastSeen(endpoint.lastSeenAt, now)}`
-  if (endpoint.presence === 'online') return 'online'
-  if (isStaleEndpoint(endpoint, now)) return 'inactive'
-  return `last seen ${relativeLastSeen(endpoint.lastSeenAt, now)}`
+  const lastSeen = () => t('presence.lastSeen', { ago: agoLine(endpoint.lastSeenAt, now) })
+  if (!presenceKnown) return lastSeen()
+  if (endpoint.presence === 'online') return t('presence.online')
+  if (isStaleEndpoint(endpoint, now)) return t('presence.inactive')
+  return lastSeen()
+}
+
+/**
+ * Distinct device names on OTHER endpoints — the select options for a joining
+ * browser ("this browser is on my <existing device>"). Endpoints registered
+ * before the deviceName field existed fall back to parsing it out of their
+ * label, so pre-existing devices still show up as suggestions.
+ *
+ * Only a device of the same kind as this browser's own is offered: a browser on a
+ * computer is never on someone's iPhone. Without this, the iPhone app (which
+ * names its device) was offered as a place for a new desktop browser while the
+ * Android app (which does not) was not. `ownPlatform` is this browser's.
+ */
+export function deviceChoicesForBrowser(
+  endpoints: readonly Endpoint[],
+  selfId: string,
+  ownPlatform: Platform,
+): string[] {
+  const onPhone = isPhonePlatform(ownPlatform)
+  return [
+    ...new Set(
+      endpoints
+        .filter((e) => e.id !== selfId && isPhonePlatform(e.platform) === onPhone)
+        .map((e) => e.deviceName ?? deviceNameFromLabel(e.label))
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ].sort((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -256,8 +286,12 @@ function presenceLabel(endpoint: Endpoint, now: number, presenceKnown: boolean):
  * including self, with presence and the device tie — plus the distinct existing
  * device names that power the join "which device is this?" select (pass-2 #1).
  * Uses fresh endpoints when reachable, else the cache, so it still renders offline.
+ *
+ * `cached` skips the network and builds from the last-known list. That is how an
+ * open page repaints when the cache changes: a fetch here would write the cache
+ * again and set the page off once more.
  */
-export async function buildDevicesView(): Promise<DevicesView> {
+export async function buildDevicesView(opts: { cached?: boolean } = {}): Promise<DevicesView> {
   const session = await currentSession()
   if (!session) {
     return {
@@ -271,13 +305,15 @@ export async function buildDevicesView(): Promise<DevicesView> {
   }
 
   // Read beside the list (P-18 item 12); a failure leaves the stored state standing.
-  const groupResetRead = refreshGroupReset().then(
-    () => undefined,
-    () => undefined,
-  )
+  const groupResetRead = opts.cached
+    ? Promise.resolve()
+    : refreshGroupReset().then(
+        () => undefined,
+        () => undefined,
+      )
   let endpoints: Endpoint[]
   try {
-    endpoints = await fetchEndpoints()
+    endpoints = opts.cached ? await getCachedEndpoints() : await fetchEndpoints()
   } catch {
     endpoints = await getCachedEndpoints()
   }
@@ -298,18 +334,7 @@ export async function buildDevicesView(): Promise<DevicesView> {
     return row
   })
 
-  // Distinct device names on OTHER endpoints — the select options for a joining
-  // browser ("this browser is on my <existing device>"). Endpoints registered
-  // before the deviceName field existed fall back to parsing it out of their
-  // label, so pre-existing devices still show up as suggestions.
-  const existingDeviceNames = [
-    ...new Set(
-      endpoints
-        .filter((e) => e.id !== selfId)
-        .map((e) => e.deviceName ?? deviceNameFromLabel(e.label))
-        .filter((name): name is string => Boolean(name)),
-    ),
-  ].sort((a, b) => a.localeCompare(b))
+  const existingDeviceNames = deviceChoicesForBrowser(endpoints, selfId, detectPlatform())
 
   await groupResetRead
   const groupReset = await groupResetNotice().catch(() => undefined)

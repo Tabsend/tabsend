@@ -144,10 +144,10 @@ class InboxTest {
 
     @Test
     fun `the count line admits a gap instead of quietly showing fewer`() {
-        assertEquals("3 tabs", Inbox.batchHeading(InboxGroup("b", 3, listOf(item("a"), item("b"), item("c")))))
-        assertEquals("2 of 3 tabs", Inbox.batchHeading(InboxGroup("b", 3, listOf(item("a"), item("b")))))
+        assertEquals("3 tabs", Inbox.batchHeading(EN, InboxGroup("b", 3, listOf(item("a"), item("b"), item("c")))))
+        assertEquals("2 of 3 tabs", Inbox.batchHeading(EN, InboxGroup("b", 3, listOf(item("a"), item("b")))))
         // And it never claims fewer tabs than it is showing.
-        assertEquals("2 tabs", Inbox.batchHeading(InboxGroup("b", 1, listOf(item("a"), item("b")))))
+        assertEquals("2 tabs", Inbox.batchHeading(EN, InboxGroup("b", 1, listOf(item("a"), item("b")))))
     }
 
     @Test
@@ -167,10 +167,10 @@ class InboxTest {
     fun `relative time matches the wording the other clients use`() {
         val iso = "2026-08-05T10:00:00.000Z"
         val then = parseIsoMillis(iso)!!
-        assertEquals("just now", relativeTime(iso, then + 30_000))
-        assertEquals("3m ago", relativeTime(iso, then + 3 * 60_000))
-        assertEquals("2h ago", relativeTime(iso, then + 2 * 3_600_000))
-        assertEquals("5d ago", relativeTime(iso, then + 5 * 86_400_000L))
-        assertEquals("unknown", relativeTime("not a date", then))
+        assertEquals("just now", relativeTime(EN, iso, then + 30_000))
+        assertEquals("3m ago", relativeTime(EN, iso, then + 3 * 60_000))
+        assertEquals("2h ago", relativeTime(EN, iso, then + 2 * 3_600_000))
+        assertEquals("5d ago", relativeTime(EN, iso, then + 5 * 86_400_000L))
+        assertEquals("unknown", relativeTime(EN, "not a date", then))
     }
 }

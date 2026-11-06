@@ -22,6 +22,11 @@ public actor Deliverer {
     }
 
     private let store: TabsendStore
+    /// Where the new-device notice goes the moment the rule has produced it. Set by a caller that
+    /// may be ended before the drain is (the notification extension), so the one-time notice, which
+    /// the rule has already saved as told, is shown before anything slow runs. Without it the
+    /// notice waits in `Summary.newDevices` for the caller to post.
+    private var announceNewDevices: (@Sendable (NewDevices.Announcement) async -> Void)?
     /// Presents a link to the user (notification). Returns false on failure,
     /// in which case the message stays queued and unacked.
     private let present: @Sendable (SendPayload, String) async -> Bool
@@ -48,6 +53,13 @@ public actor Deliverer {
         self.makeApi = makeApi
     }
 
+    /// Hand the new-device notice to `handler` as soon as the new-device rule produces it, ahead of
+    /// the fetch of waiting messages (security review v0.11.0, P1). `Summary.newDevices` is then
+    /// always nil: the notice has gone to the handler.
+    public func announceNewDevices(_ handler: @escaping @Sendable (NewDevices.Announcement) async -> Void) {
+        announceNewDevices = handler
+    }
+
     @discardableResult
     public func drain() async -> Summary {
         var summary = Summary()
@@ -66,7 +78,13 @@ public actor Deliverer {
             // failed fetch, so it is neither cached nor trusted to vouch for a
             // sender, and nothing is delivered from it.
             let observed = NewDevices.observe(try await api.listEndpoints(), store: store)
-            summary.newDevices = observed.announcement
+            if let announcement = observed.announcement {
+                if let handler = announceNewDevices {
+                    await handler(announcement)
+                } else {
+                    summary.newDevices = announcement
+                }
+            }
             guard let accepted = observed.accepted else { return summary }
             endpoints = accepted
             summary.endpoints = accepted

@@ -93,6 +93,8 @@ public struct OutboundItem: Codable, Sendable, Equatable, TargetedItem {
     public var createdAt: String
     public var title: String?
     public var url: String?
+    /// The picture address it was sealed with, so a re-target keeps it.
+    public var image: String?
     /// Label of the target as it read when the send was made, for the held list.
     public var targetLabel: String?
     /// The group-history copy sealed alongside the envelope [0028], carried so a
@@ -114,9 +116,10 @@ public struct OutboundItem: Codable, Sendable, Equatable, TargetedItem {
 
     public init(
         id: String, targetEndpointId: String, envelope: Envelope, createdAt: String,
-        title: String? = nil, url: String? = nil, targetLabel: String? = nil,
+        title: String? = nil, url: String? = nil, image: String? = nil, targetLabel: String? = nil,
         history: GroupSealed? = nil, targetGone: Bool? = nil, goneFromList: Bool? = nil
     ) {
+        self.image = image
         self.targetGone = targetGone
         self.goneFromList = goneFromList
         self.id = id
@@ -194,6 +197,10 @@ public protocol TabsendStore: AnyObject, Sendable {
     /// is the switch for the small number of people who would rather it stayed off.
     /// Deliberately spelled as the opt-OUT so an absent value reads as enabled.
     var instantDeliveryOptOut: Bool { get set }
+    /// Website images, off. False by default and false is ON, spelled as the opt-out
+    /// for the same reason as the line above. Off means this phone contacts no site
+    /// for a picture, either to show one or to pass one along.
+    var websiteImagesOff: Bool { get set }
     /// The registered relay's address only, without the cost of reading the
     /// device token. Consulted on every api call by `RelayHealthTracker`.
     var registeredRelayUrl: String? { get }
@@ -285,6 +292,7 @@ public final class MemoryStore: TabsendStore, @unchecked Sendable {
     private var _announcedNeverArrived: [String] = []
     private var _wakeRegistration: WakeRegistration?
     private var _instantDeliveryOptOut = false
+    private var _websiteImagesOff = false
     private var _newDeviceWatch: NewDeviceWatch?
     private var _groupResetWatch: GroupResetWatch?
 
@@ -345,6 +353,10 @@ public final class MemoryStore: TabsendStore, @unchecked Sendable {
     public var instantDeliveryOptOut: Bool {
         get { lock.withLock { _instantDeliveryOptOut } }
         set { lock.withLock { _instantDeliveryOptOut = newValue } }
+    }
+    public var websiteImagesOff: Bool {
+        get { lock.withLock { _websiteImagesOff } }
+        set { lock.withLock { _websiteImagesOff = newValue } }
     }
     public var registeredRelayUrl: String? {
         lock.withLock { _registration?.relayUrl }

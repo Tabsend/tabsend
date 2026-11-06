@@ -19,6 +19,7 @@ import io.tabsend.app.logic.stalePendingNoticeIds
 import io.tabsend.app.receive.NewDeviceWatcher
 import io.tabsend.app.store.Store
 import io.tabsend.app.ui.MainActivity
+import io.tabsend.app.logic.texts
 
 /**
  * Where a send's outcome lands on Android.
@@ -52,24 +53,23 @@ object SendNotifications {
 
     fun ensureChannels(context: Context) {
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
-        if (mgr.getNotificationChannel(CHANNEL_STATUS) == null) {
-            mgr.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_STATUS,
-                    context.getString(R.string.channel_send_status_name),
-                    NotificationManager.IMPORTANCE_LOW,
-                ).apply { description = context.getString(R.string.channel_send_status_desc) },
-            )
-        }
-        if (mgr.getNotificationChannel(CHANNEL_PROBLEMS) == null) {
-            mgr.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_PROBLEMS,
-                    context.getString(R.string.channel_send_problems_name),
-                    NotificationManager.IMPORTANCE_HIGH,
-                ).apply { description = context.getString(R.string.channel_send_problems_desc) },
-            )
-        }
+        // Created again every time, on purpose: for a channel that already exists this only updates its
+        // name and description (never the importance the person may have changed), which is how the
+        // channel names follow the phone's language after a language change or an update.
+        mgr.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_STATUS,
+                context.getString(R.string.channel_send_status_name),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply { description = context.getString(R.string.channel_send_status_desc) },
+        )
+        mgr.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_PROBLEMS,
+                context.getString(R.string.channel_send_problems_name),
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply { description = context.getString(R.string.channel_send_problems_desc) },
+        )
     }
 
     /** On API 33+ posting needs the runtime permission; without it the in-app list is the only surface. */
@@ -119,8 +119,9 @@ object SendNotifications {
             context,
             SendBanner(
                 tone = SendTone.SUCCESS,
-                headline = Feedback.recoveredLine(count, firstTitle),
-                detail = if (count == 1) null else "Your relay is answering again.",
+                headline = Feedback.recoveredLine(context.texts(), count, firstTitle),
+                // l10n-ignore: whether to add a line at all, not grammar
+                detail = if (count == 1) null else context.getString(R.string.send_recovered_detail),
             ),
             TAG_FLUSH,
             RECOVERED_ID,
@@ -142,15 +143,11 @@ object SendNotifications {
             context,
             SendBanner(
                 tone = SendTone.ERROR,
-                headline = if (count == 1) {
-                    "Couldn't send a tab that was waiting"
-                } else {
-                    "Couldn't send $count tabs that were waiting"
-                },
+                headline = context.resources.getQuantityString(R.plurals.send_dropped_headline, count, count),
                 title = firstTitle,
                 // The label was captured when the send was made, so the sentence
                 // can name the device rather than fall back to "that device".
-                detail = failure?.let { Feedback.failureLine(it, targetLabel) },
+                detail = failure?.let { Feedback.failureLine(context.texts(), it, targetLabel) },
             ),
             TAG_FLUSH,
             DROPPED_ID,
@@ -172,20 +169,18 @@ object SendNotifications {
             context,
             SendBanner(
                 tone = SendTone.ERROR,
-                headline = if (count == 1) {
-                    "A tab never reached its device"
-                } else {
-                    "$count tabs never reached their devices"
-                },
+                headline = context.resources.getQuantityString(R.plurals.send_never_arrived_headline, count, count),
                 title = firstTitle,
                 detail = if (targetLabel != null) {
-                    "$targetLabel never picked it up. Open History to send it again."
+                    context.getString(R.string.send_never_arrived_detail, targetLabel)
                 } else {
-                    "Open History to send it again."
+                    context.getString(R.string.send_never_arrived_detail_unnamed)
                 },
             ),
             TAG_FLUSH,
             NEVER_ARRIVED_ID,
+            // The notice says to open History, so that is where a tap lands.
+            intent = MainActivity.historyIntent(context),
         )
 
     /**
@@ -253,7 +248,7 @@ object SendNotifications {
         targetLabel: String?,
         removedHere: Boolean,
     ): Boolean {
-        val banner = GoneTargetCopy.banner(count, firstTitle, targetLabel, removedHere)
+        val banner = GoneTargetCopy.banner(context.texts(), count, firstTitle, targetLabel, removedHere)
         // With several, the headline counts them and the body names the first.
         val withTitle = if (count > 1) banner.copy(title = firstTitle) else banner
         return post(context, withTitle, TAG_FLUSH, GONE_TARGET_ID)
@@ -307,6 +302,7 @@ object SendNotifications {
         tag: String,
         id: Int,
         silent: Boolean = false,
+        intent: Intent = Intent(context, MainActivity::class.java),
     ): Boolean {
 
         if (!enabled(context)) return false
@@ -315,13 +311,13 @@ object SendNotifications {
         val success = banner.tone == SendTone.SUCCESS
         val channel = if (success) CHANNEL_STATUS else CHANNEL_PROBLEMS
 
-        // Tapping any of these goes to the home screen, which is where the
-        // waiting list and the relay-outage banner are — the only place a user
-        // can do something about a held tab.
+        // Tapping any of these goes to the home screen unless [intent] says otherwise:
+        // that is where the waiting list and the relay-outage banner are, the only
+        // place a user can do something about a held tab.
         val open = PendingIntent.getActivity(
             context,
             id,
-            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 

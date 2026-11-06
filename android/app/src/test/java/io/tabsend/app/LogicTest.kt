@@ -205,17 +205,17 @@ class LogicTest {
 
     @Test
     fun `default label prefers the consumer-facing settings device name`() {
-        assertEquals("Galaxy S24", Labels.defaultDeviceLabel("Galaxy S24", "samsung", "SM-S921B"))
-        assertEquals("Ben's phone", Labels.defaultDeviceLabel("Ben's phone", "Google", "Pixel 8"))
+        assertEquals("Galaxy S24", Labels.defaultDeviceLabel("Galaxy S24", "samsung", "SM-S921B", "Phone"))
+        assertEquals("Ben's phone", Labels.defaultDeviceLabel("Ben's phone", "Google", "Pixel 8", "Phone"))
     }
 
     @Test
     fun `default label falls back to make plus model with no OS prefix`() {
-        assertEquals("Google Pixel 8", Labels.defaultDeviceLabel(null, "Google", "Pixel 8"))
-        assertEquals("Samsung SM-S921B", Labels.defaultDeviceLabel("  ", "samsung", "SM-S921B"))
+        assertEquals("Google Pixel 8", Labels.defaultDeviceLabel(null, "Google", "Pixel 8", "Phone"))
+        assertEquals("Samsung SM-S921B", Labels.defaultDeviceLabel("  ", "samsung", "SM-S921B", "Phone"))
         // Model already names the maker — don't double it.
-        assertEquals("OnePlus 9", Labels.defaultDeviceLabel(null, "OnePlus", "OnePlus 9"))
-        assertEquals("Phone", Labels.defaultDeviceLabel(null, null, null))
+        assertEquals("OnePlus 9", Labels.defaultDeviceLabel(null, "OnePlus", "OnePlus 9", "Phone"))
+        assertEquals("Phone", Labels.defaultDeviceLabel(null, null, null, "Phone"))
     }
 
     // --- Pairing QR scans ----------------------------------------------------
@@ -309,10 +309,10 @@ class LogicTest {
 
     @Test
     fun `feedback lines match the copy rules`() {
-        assertEquals("Sent to Pixel 8", Feedback.sentOnline("Pixel 8"))
-        assertEquals("Sent to Pixel 8 — opens when it wakes", Feedback.sentOffline("Pixel 8"))
-        assertEquals("No connection — will send when you're back online", Feedback.sourceOffline())
-        assertEquals("Couldn't send — check Tabsend is still linked", Feedback.hardError())
+        assertEquals("Sent to Pixel 8", Feedback.sentOnline(EN, "Pixel 8"))
+        assertEquals("Sent to Pixel 8 — opens when it wakes", Feedback.sentOffline(EN, "Pixel 8"))
+        assertEquals("No connection — will send when you're back online", Feedback.sourceOffline(EN))
+        assertEquals("Couldn't send — check Tabsend is still linked", Feedback.hardError(EN))
     }
 
     private fun ms(iso: String): Long = parseIsoMillis(iso)!!

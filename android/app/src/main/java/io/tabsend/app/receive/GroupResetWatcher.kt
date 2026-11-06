@@ -16,6 +16,7 @@ import io.tabsend.app.store.Store
 import io.tabsend.app.ui.MainActivity
 import io.tabsend.app.wire.GroupResetState
 import java.time.ZoneId
+import io.tabsend.app.logic.uiLocale
 
 /**
  * The reset that waits, on Android [PLANS.md P-18 item 12].
@@ -28,7 +29,7 @@ import java.time.ZoneId
  *
  * Asked wherever the new-device watch fetches the device list (every drain, so every
  * wake and poll; the home screen; History; the share sheet), and on the stream's
- * `group_updated`. Like the new-device alert, a security notice: not tied to whether
+ * `group_updated`. The same answer carries the plan words ([io.tabsend.app.logic.GroupService]). Like the new-device alert, a security notice: not tied to whether
  * tabs arrive as notifications, and the home screen's card covers a phone where
  * notifications are off.
  */
@@ -47,14 +48,18 @@ object GroupResetWatcher {
      * leaves the last answer standing (a card stays up rather than vanish offline).
      */
     fun check(context: Context, api: ApiClient, reg: Registration) {
-        val reset = try {
-            api.getGroupReset(reg.deviceToken)
+        val state = try {
+            api.getGroupState(reg.deviceToken)
         } catch (e: Exception) {
             // Unreachable, refused, or an answer that does not parse: nothing learned.
             Log.d(LOG_TAG, "group state not checked: ${e.message}")
             return
         }
+        val reset = state.reset
         val store = Store.get(context)
+        // The plan words ride on the same answer. A good answer without them (a self-hosted
+        // relay) clears what the phone kept; a failed one, above, leaves it standing.
+        store.groupService = state.service
         val before = store.groupReset?.reset
         val notify = record(store, reg.endpointId, reset)
         // One that is no longer pending takes its alert with it.
@@ -106,7 +111,7 @@ object GroupResetWatcher {
 
     /** The alert's words: when it was asked for, in the phone's time zone. */
     fun alertBody(context: Context, reset: GroupResetState, zone: ZoneId = ZoneId.systemDefault()): String {
-        val asked = GroupResets.day(reset.requestedAt, zone)
+        val asked = GroupResets.day(reset.requestedAt, zone, context.uiLocale())
         return if (asked != null) {
             context.getString(R.string.reset_alert_body, asked)
         } else {
@@ -116,7 +121,9 @@ object GroupResetWatcher {
 
     private fun ensureChannel(context: Context) {
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
-        if (mgr.getNotificationChannel(CHANNEL_RESET) != null) return
+        // Created again every time, on purpose: for a channel that already exists this only updates its
+        // name and description (never the importance the person may have changed), which is how the
+        // channel names follow the phone's language after a language change or an update.
         mgr.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_RESET,

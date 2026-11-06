@@ -1,12 +1,10 @@
 package io.tabsend.app.ui
 
 import android.Manifest
-import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -23,12 +21,16 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
@@ -41,24 +43,30 @@ import io.tabsend.app.AppScope
 import io.tabsend.app.BuildConfig
 import io.tabsend.app.R
 import io.tabsend.app.databinding.ActivityMainBinding
+import io.tabsend.app.databinding.SheetPairingHelpBinding
 import io.tabsend.app.logic.Chooser
 import io.tabsend.app.logic.Feedback
 import io.tabsend.app.logic.GroupResets
 import io.tabsend.app.logic.GoneTargetCopy
-import io.tabsend.app.logic.Inbox
-import io.tabsend.app.logic.InboxItem
+import io.tabsend.app.logic.GroupService
+import io.tabsend.app.logic.History
 import io.tabsend.app.logic.JoinErrors
 import io.tabsend.app.logic.Labels
 import io.tabsend.app.logic.NewDeviceNotice
 import io.tabsend.app.logic.NewDevices
 import io.tabsend.app.logic.OutboundQueue
+import io.tabsend.app.logic.AccountLink
+import io.tabsend.app.logic.AccountSite
 import io.tabsend.app.logic.Pairing
 import io.tabsend.app.logic.Protocol
+import io.tabsend.app.logic.RelayErrorText
 import io.tabsend.app.logic.RelayMove
+import io.tabsend.app.logic.ServicePlan
 import io.tabsend.app.logic.isRelayDown
 import io.tabsend.app.logic.minutesSinceLastOk
 import io.tabsend.app.logic.parseIsoMillis
-import io.tabsend.app.logic.relativeTime
+import io.tabsend.app.logic.texts
+import io.tabsend.app.logic.uiLocale
 import io.tabsend.app.net.ApiClient
 import io.tabsend.app.net.ApiException
 import io.tabsend.app.net.RelayHealthTracker
@@ -88,12 +96,24 @@ import java.time.ZoneId
 
 /**
  * Single-activity home: pair this phone with one complete link or, once paired,
- * manage devices (mint a pairing link, rename, list the group, unpair).
+ * three tabs (docs/HISTORY_PREVIEWS_PLAN.md). Home has what needs attention, Latest and
+ * the devices; History the whole timeline; Settings the rest.
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val store by lazy { Store.get(this) }
+    private val history by lazy {
+        HistoryScreen(this, store, binding.historyScroll, binding.historyList, binding.historyEmpty)
+    }
+    private val latest by lazy { LatestCards(this, store, binding.latestList, binding.latestEmpty, history) }
+
+    /** The bottom tab showing, by its menu id. */
+    private var currentTab = R.id.tabHome
+
+    /** What the first-run screens hold between the emailed link and the pairing (P-19). */
+    private val accountModel by lazy { ViewModelProvider(this)[AccountModel::class.java] }
+    private lateinit var account: AccountFlow
 
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* best-effort */ }
@@ -103,13 +123,13 @@ class MainActivity : AppCompatActivity() {
         val contents = result.contents ?: return@registerForActivityResult // cancelled
         val link = Pairing.scannedLink(contents)
         if (link == null) {
-            binding.joinStatus.text = "That QR code isn't a Tabsend setup link."
+            binding.joinStatus.setText(R.string.join_status_not_setup_link)
             return@registerForActivityResult
         }
         // Keep the COMPLETE link. Reducing it to the secret here used to discard
         // the fp= certificate pin before doJoin reparsed the field.
         binding.pairingLinkInput.setText(link)
-        binding.joinStatus.text = "Setup link ready. Tap Pair this phone."
+        binding.joinStatus.setText(R.string.join_status_link_ready)
         // The link lands in the paste form, so open it: the Pair button lives there.
         revealPasteForm()
     }
@@ -120,12 +140,22 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
         // Each screen pads itself, so its own ground fills the area behind the bars.
         SystemBars.pad(binding.joinCard)
-        SystemBars.pad(binding.pairedCard)
+        SystemBars.pad(binding.nameCard)
+        // The bottom tabs pad their own foot, so their ground runs behind the nav bar.
+        SystemBars.pad(binding.pairedCard, bottom = false)
+
+        account = AccountFlow(
+            this, binding, store, accountModel,
+            pair = ::pair,
+            defaultName = ::defaultDeviceName,
+            render = ::render,
+        )
+        account.applyDebugExtras(intent)
 
         requestNotificationsIfNeeded()
         handleDeepLink(intent)
 
-        binding.buildInfo.text = "Tabsend ${BuildConfig.VERSION_NAME}"
+        binding.buildInfo.text = getString(R.string.build_info, BuildConfig.VERSION_NAME)
         binding.joinBuildInfo.text = binding.buildInfo.text
 
         binding.joinButton.setOnClickListener { doJoin() }
@@ -135,21 +165,56 @@ class MainActivity : AppCompatActivity() {
             binding.pairingLinkInput.requestFocus()
         }
         binding.howPairingButton.setOnClickListener { showHowPairingWorks() }
-        binding.historyButton.setOnClickListener {
-            startActivity(Intent(this, HistoryActivity::class.java))
+        binding.historyRetention.text = resources.getQuantityString(R.plurals.history_retention, History.MAX, History.MAX)
+        binding.seeAllButton.setOnClickListener { binding.bottomTabs.selectedItemId = R.id.tabHistory }
+        binding.bottomTabs.setOnItemSelectedListener { item ->
+            showTab(item.itemId)
+            true
         }
+        // Tapping the tab already showing goes back to the top of it.
+        binding.bottomTabs.setOnItemReselectedListener { item ->
+            when (item.itemId) {
+                R.id.tabHistory -> binding.historyScroll
+                R.id.tabSettings -> binding.settingsScroll
+                else -> binding.homeScroll
+            }.smoothScrollTo(0, 0)
+        }
+        // Back from another tab goes Home first, the Material way; from Home it leaves.
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (store.isRegistered && currentTab != R.id.tabHome) {
+                        binding.bottomTabs.selectedItemId = R.id.tabHome
+                    } else {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                        isEnabled = true
+                    }
+                }
+            },
+        )
         binding.addDeviceButton.setOnClickListener { mintLink() }
         binding.renameButton.setOnClickListener { promptRename() }
         binding.relayMoveButton.setOnClickListener { promptMoveRelay() }
         binding.refreshButton.setOnClickListener { render(); heartbeatNow() }
         binding.unpairButton.setOnClickListener { confirmUnpair() }
 
+        // The saved tab wins on a recreate: the launching intent still says what it said.
+        currentTab = savedInstanceState?.getInt(KEY_TAB) ?: wantedTab(intent) ?: R.id.tabHome
         render()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_TAB, currentTab)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        account.applyDebugExtras(intent)
         handleDeepLink(intent)
+        wantedTab(intent)?.let { if (store.isRegistered) binding.bottomTabs.selectedItemId = it }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -159,10 +224,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        account.attach()
         // Re-render rather than only re-listing devices: a send from the share
         // sheet, or a queue that drained while we were backgrounded, both change
         // the waiting list and the outage line.
-        if (store.isRegistered) showPaired()
+        if (store.isRegistered) {
+            showPaired()
+            // Paint the cache first, then ask. The relay is authoritative but it is also
+            // a round trip, and what it brings redraws through [timelineChanged].
+            history.sync()
+        }
         // Settle delivery whenever this screen comes back: a fallback decided in the
         // background may not have been allowed to start the service, and an enrolment that
         // failed earlier gets another try while someone is looking [G8, G10]. A screen in
@@ -171,15 +242,62 @@ class MainActivity : AppCompatActivity() {
         // A reset scheduled or stopped while this screen is open (the stream's
         // `group_updated`, a wake) redraws the card at once [P-18 item 12].
         GroupResetWatcher.onChange = resetChanged
+        // A device that joins, leaves or is renamed while this screen is open shows at once.
+        StreamManager.onDevicesChanged = devicesChanged
+        // A tab that arrives, or a history sync, shows at once on whichever tab is up.
+        store.onTimelineChanged = timelineChanged
     }
 
     override fun onPause() {
         super.onPause()
+        account.detach()
         if (GroupResetWatcher.onChange === resetChanged) GroupResetWatcher.onChange = null
+        if (StreamManager.onDevicesChanged === devicesChanged) StreamManager.onDevicesChanged = null
+        if (store.onTimelineChanged === timelineChanged) store.onTimelineChanged = null
+        mainThread.removeCallbacks(redrawTimeline)
+    }
+
+    override fun onDestroy() {
+        if (::account.isInitialized) account.close()
+        super.onDestroy()
+    }
+
+    override fun onStop() {
+        // Nothing on screen needs a picture now. The next resume starts these over.
+        latest.stop()
+        history.stop()
+        super.onStop()
     }
 
     private val resetChanged: () -> Unit = {
-        runOnUiThread { if (store.isRegistered && !isFinishing) renderGroupReset() }
+        // The same check brings the plan words (P-19), so the trial line follows it too.
+        runOnUiThread {
+            if (store.isRegistered && !isFinishing) {
+                renderGroupReset()
+                account.renderPaired()
+                // "Paused" on the device rows follows the plan too. From the cache: asking the
+                // relay again here would ask for the group state again, and so on for ever.
+                val cached = store.cachedEndpoints
+                val selfId = store.registration?.endpointId
+                if (cached.isNotEmpty() && selfId != null) renderDevices(cached, selfId)
+            }
+        }
+    }
+
+    private val devicesChanged: () -> Unit = {
+        runOnUiThread { if (store.isRegistered && !isFinishing) loadDevices() }
+    }
+
+    private val mainThread = Handler(Looper.getMainLooper())
+
+    private val redrawTimeline = Runnable {
+        if (store.isRegistered && !isFinishing) renderTimeline()
+    }
+
+    /** From any thread. A drain of several tabs changes the cache several times: one redraw. */
+    private val timelineChanged: () -> Unit = {
+        mainThread.removeCallbacks(redrawTimeline)
+        mainThread.postDelayed(redrawTimeline, TIMELINE_REDRAW_MS)
     }
 
     // --- rendering -----------------------------------------------------------
@@ -189,12 +307,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showJoin() {
-        binding.joinCard.visibility = View.VISIBLE
+        // "Name this phone" takes the place of the first screen while the account site's setup
+        // link is in hand (P-19).
+        val naming = account.showsName()
+        binding.joinCard.visibility = if (naming) View.GONE else View.VISIBLE
+        binding.nameCard.visibility = if (naming) View.VISIBLE else View.GONE
         binding.pairedCard.visibility = View.GONE
-        // The pairing screen sits on the generic ground (APP_UI "The signature moment").
-        // Android 15 and later ignore this and show the screen's own ground behind the
-        // bar instead (SystemBars); older versions still paint the bar from it.
-        window.statusBarColor = getColor(R.color.ts_ground)
+        // The pairing screen sits on the phone ground, like every screen after it
+        // (APP_UI "One ground per phone app"). Android 15 and later ignore this and show
+        // the screen's own ground behind the bar instead (SystemBars); older versions
+        // still paint the bar from it.
+        window.statusBarColor = getColor(R.color.ts_phone_ground)
 
         if (binding.deviceNameInput.text.isNullOrBlank()) {
             binding.deviceNameInput.setText(defaultDeviceName())
@@ -202,6 +325,7 @@ class MainActivity : AppCompatActivity() {
         // A link already in the field (a deep link, or a failed attempt) keeps its
         // form open, with the Pair button under it. Leaving a group clears it.
         if (!binding.pairingLinkInput.text.isNullOrBlank()) revealPasteForm()
+        if (naming) account.renderName() else account.renderJoin()
     }
 
     /**
@@ -215,43 +339,101 @@ class MainActivity : AppCompatActivity() {
         binding.pasteLinkButton.visibility = View.GONE
     }
 
+    /** "How pairing works": three short lines in a bottom sheet, the same words as the iPhone's. */
     private fun showHowPairingWorks() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.pairing_how)
-            .setMessage(R.string.pairing_how_body)
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        val help = SheetPairingHelpBinding.inflate(layoutInflater)
+        val dialog = BottomSheetDialog(this)
+        help.pairingHelpClose.setOnClickListener { dialog.dismiss() }
+        dialog.setContentView(help.root)
+        // Open fully: three lines never need a half-open sheet.
+        dialog.behavior.skipCollapsed = true
+        dialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
+        dialog.show()
     }
 
     private fun showPaired() {
         binding.joinCard.visibility = View.GONE
+        binding.nameCard.visibility = View.GONE
         binding.pairedCard.visibility = View.VISIBLE
         window.statusBarColor = getColor(R.color.ts_phone_ground)
 
         val reg = store.registration ?: return
-        binding.pairedTitle.text = "Linked as ${reg.label}"
+        binding.settingsName.text = reg.label
+        binding.settingsRelay.text = reg.relayUrl
         val state = PushSetup.state(this)
-        val delivery = when (state.mode) {
-            DeliveryMode.GOOGLE -> "instant (push, no notification)"
-            DeliveryMode.OWN_CONNECTION -> "instant (connection kept open)"
-            DeliveryMode.OFF -> "instant while the app is open, otherwise checked every few minutes"
-        }
-        binding.pairedInfo.text = "Relay: ${reg.relayUrl}\nDelivery: $delivery"
 
-        // Instant delivery [0015, P-11]: one switch. Which mechanism honours it is the app's
-        // decision, reported underneath rather than asked about.
-        binding.instantSwitch.setOnCheckedChangeListener(null)
-        binding.instantSwitch.isChecked = store.instantDelivery
-        binding.instantSwitch.setOnCheckedChangeListener { _, checked ->
-            store.instantDelivery = checked
+        // Privacy: both delivery switches and the images switch are opt-outs, so a switch
+        // that is on means the opposite of the stored setting where the two are worded apart.
+        bindPrivacySwitch(
+            binding.onlyWhenOpenSwitch, binding.onlyWhenOpenLabel, binding.onlyWhenOpenInfo,
+            checked = !store.instantDelivery,
+        ) { off ->
+            store.instantDelivery = !off
             syncDelivery()
         }
+        binding.onlyWhenOpenInfo.setOnClickListener { showOnlyWhenOpenInfo() }
+        bindPrivacySwitch(
+            binding.avoidGoogleSwitch, binding.avoidGoogleLabel, binding.avoidGoogleInfo,
+            checked = store.avoidGoogle,
+        ) { avoid ->
+            store.avoidGoogle = avoid
+            syncDelivery()
+        }
+        binding.avoidGoogleInfo.setOnClickListener { showAvoidGoogleInfo() }
         renderDeliveryMethod(state)
+        bindPrivacySwitch(
+            binding.noImagesSwitch, binding.noImagesLabel, binding.noImagesInfo,
+            checked = !store.websiteImages,
+        ) { off ->
+            store.websiteImages = !off
+            // Everything drawn so far was drawn under the old answer.
+            latest.stop()
+            history.stop()
+            renderTimeline()
+        }
+        binding.noImagesInfo.setOnClickListener {
+            showPrivacyInfo(R.string.privacy_no_images, getString(R.string.privacy_info_images))
+        }
         renderSendState(reg)
         renderGroupReset()
         renderNewDevices()
-        renderReceived()
+        account.renderPaired()
+        showTab(currentTab)
+        // After a restore or a notice that named a tab. Calls showTab again, harmlessly.
+        if (binding.bottomTabs.selectedItemId != currentTab) binding.bottomTabs.selectedItemId = currentTab
         loadDevices()
+    }
+
+    /** Show one bottom tab. Pictures are asked for only on the tab in front. */
+    private fun showTab(tab: Int) {
+        val leftHistory = currentTab == R.id.tabHistory && tab != R.id.tabHistory
+        currentTab = tab
+        binding.homeScroll.visibility = if (tab == R.id.tabHome) View.VISIBLE else View.GONE
+        binding.historyScroll.visibility = if (tab == R.id.tabHistory) View.VISIBLE else View.GONE
+        binding.settingsScroll.visibility = if (tab == R.id.tabSettings) View.VISIBLE else View.GONE
+        binding.addDeviceButton.visibility = if (tab == R.id.tabHome) View.VISIBLE else View.GONE
+        binding.pairedToolbar.setTitle(
+            when (tab) {
+                R.id.tabHistory -> R.string.history_title
+                R.id.tabSettings -> R.string.settings_title
+                else -> R.string.app_name
+            },
+        )
+        binding.pairedAppBar.liftOnScrollTargetViewId = when (tab) {
+            R.id.tabHistory -> R.id.historyScroll
+            R.id.tabSettings -> R.id.settingsScroll
+            else -> R.id.homeScroll
+        }
+        if (leftHistory) history.stop()
+        renderTimeline()
+    }
+
+    /** Whichever of the two timeline views is showing. Each skips a redraw that changes nothing. */
+    private fun renderTimeline() {
+        when (currentTab) {
+            R.id.tabHome -> latest.render()
+            R.id.tabHistory -> history.render()
+        }
     }
 
     /**
@@ -284,9 +466,10 @@ class MainActivity : AppCompatActivity() {
         val danger = getColor(R.color.ts_danger)
         val card = warningCard(getString(R.string.reset_card_title), R.drawable.bg_danger, danger)
         val zone = ZoneId.systemDefault()
-        val asked = GroupResets.day(reset.requestedAt, zone)
-        val day = GroupResets.day(reset.resetsAt, zone)
-        val time = GroupResets.time(reset.resetsAt, zone)
+        val locale = uiLocale()
+        val asked = GroupResets.day(reset.requestedAt, zone, locale)
+        val day = GroupResets.day(reset.resetsAt, zone, locale)
+        val time = GroupResets.time(reset.resetsAt, zone, locale)
         card.addView(
             warningBody(
                 if (asked != null && day != null && time != null) {
@@ -326,7 +509,7 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: ApiException) {
                 button.isEnabled = true
-                toastLong(getString(R.string.reset_stop_refused, e.message.orEmpty()))
+                toastLong(RelayErrorText.line(texts(), e.code, RelayErrorText.Action.STOP_RESET))
                 return@launch
             } catch (e: IOException) {
                 button.isEnabled = true
@@ -403,7 +586,7 @@ class MainActivity : AppCompatActivity() {
     /** A device that joined and then disappeared (GH7). Stays until dismissed. */
     private fun vanishedCard(notice: NewDeviceNotice): View {
         val card = warningCard(getString(R.string.vanished_title, notice.label))
-        val time = NewDeviceWatcher.whenText(notice.createdAt)
+        val time = NewDeviceWatcher.whenText(texts(), notice.createdAt)
         card.addView(
             warningBody(
                 if (time != null) {
@@ -422,64 +605,6 @@ class MainActivity : AppCompatActivity() {
             ),
         )
         return card
-    }
-
-    /**
-     * The home screen's received panel: the newest few tabs this phone received,
-     * from the same device-local inbox History reads [P-7]. Tapping one opens it
-     * exactly as History does (link policy first, then marked opened); the full
-     * list, and everything the rest of the group sent, stays one tap away.
-     */
-    private fun renderReceived() {
-        val recent = store.inbox.take(RECEIVED_ON_HOME)
-        binding.receivedList.removeAllViews()
-        binding.receivedEmpty.visibility = if (recent.isEmpty()) View.VISIBLE else View.GONE
-        recent.forEachIndexed { i, item ->
-            if (i > 0) binding.receivedList.addView(DeviceRows.hairline(this))
-            binding.receivedList.addView(receivedRow(item))
-        }
-    }
-
-    private fun receivedRow(item: InboxItem): View {
-        val density = resources.displayMetrics.density
-        val column = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            minimumHeight = (56 * density).toInt()
-            setPadding(0, (10 * density).toInt(), 0, (10 * density).toInt())
-        }
-        column.addView(
-            TextView(this).apply {
-                text = Feedback.heldTabLabel(item.title, item.url)
-                setTextAppearance(R.style.TextAppearance_Tabsend_RowTitle)
-                maxLines = 2
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            },
-        )
-        column.addView(
-            TextView(this).apply {
-                text = getString(R.string.received_row_from, item.sourceLabel, relativeTime(item.sentAt))
-                setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
-            },
-        )
-        if (LinkPolicy.isOpenableWebUrl(item.url)) {
-            DeviceRows.makeTappable(column) { openReceived(item) }
-        }
-        return column
-    }
-
-    private fun openReceived(item: InboxItem) {
-        if (!LinkPolicy.isOpenableWebUrl(item.url)) return
-        try {
-            startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(item.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        } catch (_: ActivityNotFoundException) {
-            return // no browser for it; nothing was opened, so nothing to mark
-        }
-        // Bookkeeping strictly after the link is away, as History and the notification do.
-        store.updateInbox { list -> Inbox.markOpened(list, item.id, System.currentTimeMillis()) }
-        renderReceived()
     }
 
     /**
@@ -503,7 +628,7 @@ class MainActivity : AppCompatActivity() {
         if (health != null && isRelayDown(health, now)) {
             binding.relayOutage.visibility = View.VISIBLE
             binding.relayOutage.text =
-                Feedback.relayDownLine(reg.relayUrl, minutesSinceLastOk(health, now))
+                Feedback.relayDownLine(texts(), reg.relayUrl, minutesSinceLastOk(health, now))
         } else {
             binding.relayOutage.visibility = View.GONE
         }
@@ -538,7 +663,7 @@ class MainActivity : AppCompatActivity() {
             if (show && !SendNotifications.enabled(this)) View.VISIBLE else View.GONE
         if (!show) return
 
-        binding.heldTabsHeading.text = Feedback.heldTabsHeading(held.size)
+        binding.heldTabsHeading.text = Feedback.heldTabsHeading(texts(), held.size)
         val density = resources.displayMetrics.density
         // The flush's own three answers, read once for the whole list (L3): is the
         // device gone, where may the tab go instead, and did this phone remove it.
@@ -568,7 +693,7 @@ class MainActivity : AppCompatActivity() {
             }
             column.addView(
                 TextView(this).apply {
-                    text = Feedback.heldTabLabel(item.title, item.url)
+                    text = Feedback.heldTabLabel(texts(), item.title, item.url)
                     setTextAppearance(R.style.TextAppearance_Tabsend_RowTitle)
                 },
             )
@@ -579,6 +704,7 @@ class MainActivity : AppCompatActivity() {
                 column.addView(
                     TextView(this).apply {
                         text = GoneTargetCopy.removedLine(
+                            texts(),
                             item.targetLabel,
                             item.targetEndpointId in removedHere,
                         )
@@ -589,7 +715,7 @@ class MainActivity : AppCompatActivity() {
                 if (choices.isEmpty()) {
                     column.addView(
                         TextView(this).apply {
-                            text = GoneTargetCopy.NO_OTHER_DEVICE
+                            text = GoneTargetCopy.noOtherDevice(texts())
                             setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
                         },
                     )
@@ -604,7 +730,7 @@ class MainActivity : AppCompatActivity() {
                 item.targetLabel?.let { label ->
                     column.addView(
                         TextView(this).apply {
-                            text = "to $label"
+                            text = getString(R.string.held_tab_to_device, label)
                             setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
                         },
                     )
@@ -626,14 +752,14 @@ class MainActivity : AppCompatActivity() {
      */
     private fun sendToButton(messageId: String, others: List<Endpoint>): Button =
         Button(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
-            text = GoneTargetCopy.SEND_TO_MENU
+            text = GoneTargetCopy.sendToMenu(texts())
             setTextColor(getColor(R.color.ts_accent_fill))
             setAllCaps(false)
             minHeight = (48 * resources.displayMetrics.density).toInt()
             setPadding(0, paddingTop, paddingRight, paddingBottom)
             setOnClickListener {
                 MaterialAlertDialogBuilder(this@MainActivity)
-                    .setTitle(GoneTargetCopy.SEND_TO_MENU)
+                    .setTitle(GoneTargetCopy.sendToMenu(texts()))
                     .setItems(others.map { it.label }.toTypedArray()) { _, which ->
                         val target = others[which]
                         isEnabled = false
@@ -679,18 +805,30 @@ class MainActivity : AppCompatActivity() {
     // --- join ----------------------------------------------------------------
 
     private fun doJoin() {
-        val parsed = Pairing.parse(binding.pairingLinkInput.text?.toString() ?: "")
+        pair(
+            binding.pairingLinkInput.text?.toString() ?: "",
+            binding.deviceNameInput.text?.toString()?.trim().orEmpty(),
+            binding.joinButton,
+            binding.joinStatus,
+        )
+    }
+
+    /**
+     * Pair this phone with a setup link. Serves the first screen's paste form and "Name this
+     * phone" (P-19), which differ only in where the link comes from and where the button and
+     * the status line are. A blank [name] means the phone's own name.
+     */
+    private fun pair(linkText: String, name: String, button: MaterialButton, status: TextView) {
+        val parsed = Pairing.parse(linkText)
         if (parsed == null) {
-            binding.joinStatus.text = "Paste or scan a complete setup link."
+            status.setText(R.string.join_status_link_incomplete)
             return
         }
         val relay = parsed.relayUrl
-        val deviceName = binding.deviceNameInput.text?.toString()?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: defaultDeviceName()
+        val deviceName = name.trim().takeIf { it.isNotEmpty() } ?: defaultDeviceName()
 
-        binding.joinButton.isEnabled = false
-        binding.joinStatus.text = "Linking…"
+        button.isEnabled = false
+        status.setText(R.string.join_status_linking)
 
         lifecycleScope.launch {
             // Pairing needs nothing besides the relay [0015] — no push setup at all.
@@ -703,7 +841,7 @@ class MainActivity : AppCompatActivity() {
                 val config = withContext(Dispatchers.IO) { ApiClient(relay, parsed.certFingerprint).getConfig() }
                 val compat = Protocol.check(config)
                 if (Protocol.blocks(compat)) {
-                    failJoin(Protocol.message(compat).orEmpty())
+                    failJoin(Protocol.message(texts(), compat).orEmpty(), button, status)
                     return@launch
                 }
                 Registrar.join(
@@ -720,28 +858,23 @@ class MainActivity : AppCompatActivity() {
                 // Start the default persistent connection immediately. Waiting for
                 // the next app launch would leave a just-paired phone on polling.
                 StreamService.sync(this@MainActivity)
+                // Paired: nothing is waiting for a sign-up link any more.
+                account.pairingDone()
                 // An outdated-but-workable build pairs normally and says so after
                 // the fact — the advisory rides along with success, never instead of it.
-                val linked = Protocol.message(compat) ?: "Linked"
+                val linked = Protocol.message(texts(), compat) ?: getString(R.string.join_linked)
                 Toast.makeText(this@MainActivity, linked, Toast.LENGTH_LONG).show()
                 render()
             } catch (e: ApiException) {
-                failJoin(
-                    when (e.code) {
-                        "invalid_pairing_code" -> "That setup link is unknown, expired, or already used."
-                        // The group is full [0030]. The relay's own message names the
-                        // number, but `message` is written for a log and may change,
-                        // and the fix is the same on every client — so this is one of
-                        // the two codes answered in Tabsend's own words.
-                        "limit_reached" -> Feedback.DEVICE_LIMIT_LINE
-                        else -> "Relay refused the request: ${e.message}"
-                    },
-                )
+                // The relay's own `message` is English and written for a log, so the screen
+                // words the code itself. A used-up setup link and a full group [0030] get the
+                // sentences they always had; any other answer gets the phone's own line.
+                failJoin(RelayErrorText.line(texts(), e.code, RelayErrorText.Action.JOIN), button, status)
             } catch (e: IOException) {
                 // Covers the TLS failures too: SSLException and UnknownServiceException
                 // both extend IOException, and telling them apart is the whole point —
                 // see JoinErrors.
-                failJoin(JoinErrors.message(e, relay, hadPin = parsed.certFingerprint != null))
+                failJoin(JoinErrors.message(texts(), e, relay, hadPin = parsed.certFingerprint != null), button, status)
             }
         }
     }
@@ -752,10 +885,10 @@ class MainActivity : AppCompatActivity() {
      * in their fields — but the old button label gave no hint of that, so the
      * transient case (relay not up yet) read as a dead end.
      */
-    private fun failJoin(reason: String) {
-        binding.joinButton.isEnabled = true
-        binding.joinButton.setText(R.string.join_retry_button)
-        binding.joinStatus.text = reason
+    private fun failJoin(reason: String, button: MaterialButton, status: TextView) {
+        button.isEnabled = true
+        button.setText(R.string.join_retry_button)
+        status.text = reason
     }
 
     // --- paired: device management ------------------------------------------
@@ -796,16 +929,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderDevices(endpoints: List<Endpoint>, selfId: String) {
         binding.devicesList.removeAllViews()
+        // Only this phone so far: say what to do next (frame a5).
+        binding.devicesEmpty.visibility = if (endpoints.none { it.id != selfId }) View.VISIBLE else View.GONE
         // Presence is only claimable while the snapshot it came from is recent;
         // this list is painted from cache first and again after a fetch that may
         // have failed, so an unreachable relay must not leave green dots behind.
         val known = Chooser.presenceKnown(store.cachedEndpointsAt, System.currentTimeMillis())
         // The device sends go to first (the chooser's own primary), marked "Main".
         val mainId = store.sourcePrefs.primaryTargetId
+        // Sending is paused: only on the relay's word (frame a8), never from a date. "Paused"
+        // takes the place of the online and offline words, which say nothing while nothing is sent.
+        val paused = GroupService.plan(store.groupService) == ServicePlan.TrialEnded
         // Plain Material list rows, no dividers: the icon containers separate them.
         endpoints.sortedBy { it.label.lowercase() }.forEach { ep ->
             // A word for every state; green only for the one that is a live fact.
             val (status, color) = when {
+                paused -> getString(R.string.device_status_paused) to R.color.ts_phone_muted
                 ep.id == selfId -> getString(R.string.device_this_phone) to R.color.ts_phone_muted
                 !known -> getString(R.string.device_status_unknown) to R.color.ts_phone_muted
                 ep.presence == "online" -> getString(R.string.device_status_online) to R.color.ts_success
@@ -818,7 +957,12 @@ class MainActivity : AppCompatActivity() {
                 name = ep.label,
                 kind = ep.kind,
                 isMain = ep.id == mainId && ep.id != selfId,
-                detail = DeviceRows.detail(this, ep.kind, status, color),
+                detail = if (paused && ep.id == selfId) {
+                    // "This phone · Paused", like "Chrome · Paused" on the others.
+                    DeviceRows.detail(this, ep.kind, status, color, kindWord = getString(R.string.device_this_phone))
+                } else {
+                    DeviceRows.detail(this, ep.kind, status, color)
+                },
             )
             // Every other device can be removed from here [P-10], with its own
             // Remove button rather than a tap on the row: tapping a name should
@@ -867,7 +1011,7 @@ class MainActivity : AppCompatActivity() {
                     NewDeviceWatcher.removeFromGroup(store, endpointId) { api.deleteEndpoint(reg.deviceToken, it) }
                 }
             } catch (e: ApiException) {
-                toastLong(getString(R.string.remove_device_refused, label, e.message.orEmpty()))
+                toastLong(RelayErrorText.line(texts(), e.code, RelayErrorText.Action.REMOVE_DEVICE))
                 return@launch
             } catch (e: IOException) {
                 toastLong(getString(R.string.remove_device_offline, label))
@@ -905,11 +1049,9 @@ class MainActivity : AppCompatActivity() {
                 // the relay DID answer. Do not send a stale-token or authorization
                 // failure down the "couldn't reach" path.
                 val message = when (e.code) {
-                    "endpoint_removed" ->
-                        "This phone was removed from the group. Pair it again before adding another device."
-                    "unauthorized" ->
-                        "This phone's relay access is no longer valid. Pair it again before adding another device."
-                    else -> "The relay refused to make a setup link: ${e.message.orEmpty()}"
+                    "endpoint_removed" -> getString(R.string.pair_link_phone_removed)
+                    "unauthorized" -> getString(R.string.pair_link_access_invalid)
+                    else -> RelayErrorText.line(texts(), e.code, RelayErrorText.Action.PAIRING_LINK)
                 }
                 Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
             } catch (e: IOException) {
@@ -918,10 +1060,11 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(
                     this@MainActivity,
                     JoinErrors.message(
+                        texts(),
                         e,
                         reg.relayUrl,
                         hadPin = reg.certFingerprint != null,
-                        retryAction = "tap Add a device again",
+                        retryAction = JoinErrors.RetryAction.ADD_DEVICE,
                     ),
                     Toast.LENGTH_LONG,
                 ).show()
@@ -983,7 +1126,7 @@ class MainActivity : AppCompatActivity() {
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.add_device)
             .setView(container)
-            .setPositiveButton(R.string.pair_copy_link) { _, _ -> copyToClipboard("Tabsend setup link", copyLink) }
+            .setPositiveButton(R.string.pair_copy_link) { _, _ -> copyToClipboard("Tabsend setup link", copyLink) } // l10n-ignore: clipboard label, never shown
             .setNegativeButton(R.string.pair_close, null)
             .create()
         dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -1007,9 +1150,9 @@ class MainActivity : AppCompatActivity() {
             setSelection(text.length)
         }
         MaterialAlertDialogBuilder(this)
-            .setTitle("Rename this device")
+            .setTitle(R.string.rename_device)
             .setView(input)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton(R.string.rename_save) { _, _ ->
                 val label = input.text.toString().trim()
                 if (label.isEmpty()) return@setPositiveButton
                 lifecycleScope.launch {
@@ -1017,11 +1160,11 @@ class MainActivity : AppCompatActivity() {
                         Registrar.rename(this@MainActivity, label)
                         render()
                     } catch (e: IOException) {
-                        Toast.makeText(this@MainActivity, "Couldn't reach the relay to rename.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, R.string.rename_unreachable, Toast.LENGTH_SHORT).show()
                     }
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -1149,13 +1292,13 @@ class MainActivity : AppCompatActivity() {
         val config = try {
             withContext(Dispatchers.IO) { api.getConfig() }
         } catch (e: ApiException) {
-            return RelayMove.Verdict.Error(candidate, getString(R.string.relay_move_refused, e.message.orEmpty()))
+            return RelayMove.Verdict.Error(candidate, refusedCheck(e))
         } catch (e: IOException) {
             return RelayMove.Verdict.Unreachable(candidate)
         }
         val check = Protocol.check(config)
         if (Protocol.blocks(check)) {
-            return RelayMove.Verdict.Error(candidate, Protocol.message(check).orEmpty())
+            return RelayMove.Verdict.Error(candidate, Protocol.message(texts(), check).orEmpty())
         }
         RelayMove.byRelayId(candidate, reg.relayId, config.relayId)?.let { return it }
         return try {
@@ -1165,12 +1308,16 @@ class MainActivity : AppCompatActivity() {
             if (e.status == 401) {
                 RelayMove.byTokenProbe(candidate, reg.relayId, config.relayId, tokenRejected = true)
             } else {
-                RelayMove.Verdict.Error(candidate, getString(R.string.relay_move_refused, e.message.orEmpty()))
+                RelayMove.Verdict.Error(candidate, refusedCheck(e))
             }
         } catch (e: IOException) {
             RelayMove.Verdict.Unreachable(candidate)
         }
     }
+
+    /** "The relay refused the check", with the phone's own sentence for the relay's answer code. */
+    private fun refusedCheck(e: ApiException): String =
+        getString(R.string.relay_move_refused, RelayErrorText.line(texts(), e.code, RelayErrorText.Action.CHECK))
 
     /**
      * Commit the address swap: same relay, so the group is untouched. Re-runs
@@ -1196,7 +1343,7 @@ class MainActivity : AppCompatActivity() {
                 // The stored verdict is about the OLD address; keeping it would
                 // let a healthy new relay render as a standing outage.
                 RelayHealthTracker.reset()
-                showPaired() // refreshes pairedInfo (and re-lists devices)
+                showPaired() // refreshes the relay address (and re-lists devices)
                 StreamManager.restart(this@MainActivity) // drop the old-URL socket now
                 dialog.dismiss()
                 Toast.makeText(
@@ -1206,7 +1353,10 @@ class MainActivity : AppCompatActivity() {
                 ).show()
             } catch (e: ApiException) {
                 actionButton.isEnabled = true
-                status.text = getString(R.string.relay_move_commit_failed, e.message.orEmpty())
+                status.text = getString(
+                    R.string.relay_move_commit_failed,
+                    RelayErrorText.line(texts(), e.code, RelayErrorText.Action.CHECK),
+                )
                 status.setTextColor(errorColor)
             } catch (e: IOException) {
                 actionButton.isEnabled = true
@@ -1231,74 +1381,86 @@ class MainActivity : AppCompatActivity() {
             .setTitle(getString(R.string.relay_move_start_fresh_confirm_title, relayUrl))
             .setMessage(R.string.relay_move_start_fresh_confirm_body)
             .setPositiveButton(R.string.relay_move_start_fresh) { _, _ ->
-                leaveGroup()
-                binding.joinStatus.text =
-                    "Paste or scan a setup link created by that relay."
+                leaveGroup(getString(R.string.join_next_after_move))
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
     /**
-     * The one line under the switch saying which way instant delivery went, plus the single
-     * action that changes it [P-11 option C].
-     *
-     * The action is offered only where it means something: a phone with no Google services,
-     * or a relay with no wake-up service, has nothing to choose between, so showing a button
-     * that cannot change the outcome would be worse than showing none.
+     * Which Privacy rows this phone needs [P-11, owner 2026-11-04]. "Don't use Google" appears
+     * where Google could carry the tabs. "Only get tabs when Tabsend is open" appears where
+     * something costs the user, a permanent notification, or where it is already on, so it
+     * can always be turned back off. While Google works it would save almost nothing. The
+     * page stays quiet unless wakes stopped arriving, the one state that needs a person [G10].
      */
     private fun renderDeliveryMethod(state: io.tabsend.app.push.DeliveryState) {
-        if (state.mode == DeliveryMode.OFF) {
-            binding.instantStatus.visibility = View.GONE
-            binding.instantMethodButton.visibility = View.GONE
-            binding.instantSecondaryButton.visibility = View.GONE
-            return
-        }
+        val carriedByGoogle = state.reason == DeliveryReason.GOOGLE_ACTIVE ||
+            state.reason == DeliveryReason.GOOGLE_PENDING ||
+            state.reason == DeliveryReason.GOOGLE_NOT_ARRIVING
+        binding.avoidGoogleRow.visibility =
+            if (carriedByGoogle || state.reason == DeliveryReason.GOOGLE_REFUSED) View.VISIBLE else View.GONE
+        binding.onlyWhenOpenRow.visibility = if (carriedByGoogle) View.GONE else View.VISIBLE
 
-        binding.instantStatus.visibility = View.VISIBLE
-        binding.instantStatus.setText(
-            when (state.reason) {
-                DeliveryReason.GOOGLE_ACTIVE -> R.string.instant_via_google
-                DeliveryReason.GOOGLE_REFUSED -> R.string.instant_via_own_no_google
-                DeliveryReason.GOOGLE_UNAVAILABLE -> R.string.instant_via_own_unavailable
-                DeliveryReason.GOOGLE_NOT_BUILT -> R.string.instant_via_own_not_built
-                DeliveryReason.NO_FORWARDER -> R.string.instant_via_own_no_forwarder
-                DeliveryReason.GOOGLE_PENDING -> R.string.instant_via_own_pending
-                DeliveryReason.GOOGLE_NOT_ARRIVING -> R.string.instant_via_own_wakes_stopped
-                DeliveryReason.DISABLED -> R.string.instant_via_own_connection
-            }
-        )
-
-        // Wakes stopped arriving [G10]: two answers. Try again once whatever stopped them is
-        // fixed, or give Google up, which this phone is still registered with.
-        if (state.reason == DeliveryReason.GOOGLE_NOT_ARRIVING) {
-            binding.instantMethodButton.visibility = View.VISIBLE
-            binding.instantMethodButton.setText(R.string.instant_retry_google)
+        val stopped = state.reason == DeliveryReason.GOOGLE_NOT_ARRIVING
+        binding.instantStatus.visibility = if (stopped) View.VISIBLE else View.GONE
+        binding.instantMethodButton.visibility = if (stopped) View.VISIBLE else View.GONE
+        if (stopped) {
+            binding.instantStatus.setText(R.string.instant_via_own_wakes_stopped)
             binding.instantMethodButton.setOnClickListener { retryGooglePush() }
-            binding.instantSecondaryButton.visibility = View.VISIBLE
-            binding.instantSecondaryButton.setText(R.string.instant_avoid_google)
-            binding.instantSecondaryButton.setOnClickListener {
-                store.avoidGoogle = true
-                syncDelivery()
-            }
-            return
         }
-        binding.instantSecondaryButton.visibility = View.GONE
+    }
 
-        val offerOptOut = state.reason == DeliveryReason.GOOGLE_ACTIVE ||
-            state.reason == DeliveryReason.GOOGLE_PENDING
-        val offerOptIn = state.reason == DeliveryReason.GOOGLE_REFUSED
-        binding.instantMethodButton.visibility =
-            if (offerOptOut || offerOptIn) View.VISIBLE else View.GONE
-        if (offerOptOut || offerOptIn) {
-            binding.instantMethodButton.setText(
-                if (offerOptOut) R.string.instant_avoid_google else R.string.instant_allow_google
-            )
-            binding.instantMethodButton.setOnClickListener {
-                store.avoidGoogle = offerOptOut
-                syncDelivery()
-            }
+    /** A Privacy row: the label toggles too, and the switch and icon are named for readers. */
+    private fun bindPrivacySwitch(
+        switch: com.google.android.material.materialswitch.MaterialSwitch,
+        label: android.widget.TextView,
+        info: View,
+        checked: Boolean,
+        onChange: (Boolean) -> Unit,
+    ) {
+        switch.setOnCheckedChangeListener(null)
+        switch.isChecked = checked
+        switch.setOnCheckedChangeListener { _, now -> onChange(now) }
+        switch.contentDescription = label.text
+        info.contentDescription = getString(R.string.privacy_info_about, label.text)
+        label.setOnClickListener { switch.toggle() }
+    }
+
+    private fun showPrivacyInfo(title: Int, body: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setMessage(body)
+            .setPositiveButton(R.string.privacy_info_done, null)
+            .show()
+    }
+
+    private fun showAvoidGoogleInfo() {
+        val paragraphs = if (store.avoidGoogle) {
+            listOf(R.string.privacy_info_google_learn, R.string.instant_via_own_no_google)
+        } else {
+            listOf(R.string.privacy_info_google_how, R.string.privacy_info_google_learn, R.string.privacy_info_google_choice)
         }
+        showPrivacyInfo(R.string.privacy_no_google, paragraphs.joinToString("\n\n") { getString(it) })
+    }
+
+    private fun showOnlyWhenOpenInfo() {
+        val state = PushSetup.state(this)
+        val why = when (state.reason) {
+            DeliveryReason.GOOGLE_REFUSED -> R.string.instant_via_own_no_google
+            DeliveryReason.GOOGLE_UNAVAILABLE -> R.string.instant_via_own_unavailable
+            DeliveryReason.GOOGLE_NOT_BUILT -> R.string.instant_via_own_not_built
+            DeliveryReason.NO_FORWARDER -> R.string.instant_via_own_no_forwarder
+            DeliveryReason.GOOGLE_PENDING -> R.string.instant_via_own_pending
+            DeliveryReason.GOOGLE_NOT_ARRIVING -> R.string.instant_via_own_wakes_stopped
+            DeliveryReason.GOOGLE_ACTIVE, DeliveryReason.DISABLED -> null
+        }
+        val body = if (why == null) {
+            getString(R.string.privacy_info_open_on)
+        } else {
+            getString(why) + "\n\n" + getString(R.string.privacy_info_open_choice)
+        }
+        showPrivacyInfo(R.string.privacy_only_when_open, body)
     }
 
     /**
@@ -1353,13 +1515,12 @@ class MainActivity : AppCompatActivity() {
         // own flow now ("Move to another relay…" above). Rejoining still requires
         // a newly minted link; a remembered address is not a credential.
         MaterialAlertDialogBuilder(this)
-            .setTitle("Unpair this phone?")
-            .setMessage("This phone stops receiving links and leaves the group.")
-            .setPositiveButton("Unpair") { _, _ ->
-                leaveGroup()
-                binding.joinStatus.text = "Paste or scan a new setup link to pair again."
+            .setTitle(R.string.unpair_title)
+            .setMessage(R.string.unpair_body)
+            .setPositiveButton(R.string.unpair_confirm) { _, _ ->
+                leaveGroup(getString(R.string.join_next_after_unpair))
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -1371,23 +1532,40 @@ class MainActivity : AppCompatActivity() {
      * for as long as it ran. The wake token is read and queued for retirement in the same
      * locked step as the wipe, and the retirement then runs off the main thread under the
      * push lock, retried later if this phone is offline now.
+     *
+     * The relay is asked to drop this phone first [PLANS P-28], with the registration read
+     * here because the wipe takes it. Without that the old entry stayed in the group beside
+     * the next pairing, and links sent to it waited for a device that no longer existed.
+     * Start fresh does it too: it leaves the same group, and iOS's goes through its unpair.
+     * [Registrar.leaveRelay] waits a moment at most, and the wipe happens whatever it hears.
+     *
+     * [AppScope], so a phone that asked to leave does leave if this screen goes away during
+     * that moment. [nextStep] goes on the pairing screen once it is showing.
      */
-    private fun leaveGroup() {
-        Scheduling.cancelAll(this)
-        store.leavePairing()
-        ShareShortcuts.clear(this) // no group, so no device may keep a share-sheet slot
-        // The queue went with the store, so every promise made about it
-        // is now unkeepable and must not be left standing in the shade.
-        SendNotifications.clearAll(this)
-        RelayHealthTracker.reset()
-        StreamService.sync(this)    // stops the instant-delivery service
-        StreamManager.refresh(this) // drops the fast-path socket
+    private fun leaveGroup(nextStep: String) {
+        val leaving = store.registration
         val app = applicationContext
-        // Fire and forget: nothing on screen depends on the outcome, and what fails now is
-        // retried at the next start.
-        AppScope.launch { PushSetup.sync(app) }
-        resetJoinForm()
-        render()
+        binding.unpairButton.isEnabled = false // one way out at a time, while the relay answers
+        AppScope.launch {
+            if (leaving != null) Registrar.leaveRelay(leaving, AppScope)
+            Scheduling.cancelAll(app)
+            store.leavePairing()
+            ShareShortcuts.clear(app) // no group, so no device may keep a share-sheet slot
+            // The queue went with the store, so every promise made about it
+            // is now unkeepable and must not be left standing in the shade.
+            SendNotifications.clearAll(app)
+            RelayHealthTracker.reset()
+            StreamService.sync(app)    // stops the instant-delivery service
+            StreamManager.refresh(app) // drops the fast-path socket
+            // Fire and forget: nothing on screen depends on the outcome, and what fails now is
+            // retried at the next start.
+            AppScope.launch { PushSetup.sync(app) }
+            binding.unpairButton.isEnabled = true
+            currentTab = R.id.tabHome
+            resetJoinForm()
+            render()
+            binding.joinStatus.text = nextStep
+        }
     }
 
     /**
@@ -1407,10 +1585,18 @@ class MainActivity : AppCompatActivity() {
 
     // --- helpers -------------------------------------------------------------
 
-    private companion object {
-        /** How many received tabs the home card shows; History has the rest. */
-        const val RECEIVED_ON_HOME = 3
+    companion object {
+        private const val KEY_TAB = "tab"
+        private const val EXTRA_OPEN_HISTORY = "io.tabsend.app.OPEN_HISTORY"
+        private const val TIMELINE_REDRAW_MS = 150L
+
+        /** Open the app on its History tab, for a notice that says to look there. */
+        fun historyIntent(context: Context): Intent =
+            Intent(context, MainActivity::class.java).putExtra(EXTRA_OPEN_HISTORY, true)
     }
+
+    private fun wantedTab(intent: Intent?): Int? =
+        R.id.tabHistory.takeIf { intent?.getBooleanExtra(EXTRA_OPEN_HISTORY, false) == true }
 
     /**
      * Consumer-facing default: the device name from Settings ("Galaxy S24", or
@@ -1422,14 +1608,14 @@ class MainActivity : AppCompatActivity() {
         } catch (e: SecurityException) {
             null // some OEM builds gate this; the fallback is fine
         }
-        return Labels.defaultDeviceLabel(settingsName, Build.MANUFACTURER, Build.MODEL)
+        return Labels.defaultDeviceLabel(settingsName, Build.MANUFACTURER, Build.MODEL, getString(R.string.device_name_fallback))
     }
 
     private fun launchQrScanner() {
         qrScanner.launch(
             ScanOptions().apply {
                 setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                setPrompt("Point the camera at the pairing QR code")
+                setPrompt(getString(R.string.scan_prompt))
                 setBeepEnabled(false)
                 setCaptureActivity(QrScanActivity::class.java)
             },
@@ -1437,10 +1623,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleDeepLink(intent: Intent?) {
+        // A link the account site emailed is the account flow's (P-19); a pairing link is ours.
+        if (account.handle(intent)) return
         val data = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.data ?: return
+        // An address on the account site that is not an account link is nothing to pair with: its
+        // fragment could name any relay (security review v0.11.0, AL2).
+        if (AccountLink.isOnSite(data.toString(), AccountSite.base)) return
         val link = Pairing.scannedLink(data.toString()) ?: return
+        // Within a day of "Set up an account", the link is that account's own: ask for a name.
+        if (account.takeSetupLink(link)) return
         binding.pairingLinkInput.setText(link)
-        binding.joinStatus.text = "Setup link ready. Tap Pair this phone."
+        binding.joinStatus.setText(R.string.join_status_link_ready)
         revealPasteForm()
     }
 
@@ -1463,7 +1656,7 @@ class MainActivity : AppCompatActivity() {
         val text = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(this) ?: return
         val link = Pairing.scannedLink(text.toString()) ?: return
         binding.pairingLinkInput.setText(link)
-        binding.joinStatus.text = "Found the setup link you copied. Tap Pair this phone."
+        binding.joinStatus.setText(R.string.join_status_link_found)
         revealPasteForm()
     }
 
@@ -1476,6 +1669,6 @@ class MainActivity : AppCompatActivity() {
     private fun copyToClipboard(label: String, text: String) {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText(label, text))
-        Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, R.string.copied, Toast.LENGTH_SHORT).show()
     }
 }

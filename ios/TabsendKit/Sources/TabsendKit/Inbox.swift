@@ -12,6 +12,8 @@ public struct InboxItem: Codable, Sendable, Equatable, Identifiable {
     public var id: String
     public var url: String
     public var title: String?
+    /// The sender's picture address (`SendPayload.image`), when it sent one.
+    public var image: String?
     /// The sender's label as it read WHEN THIS ARRIVED (survives a later rename).
     public var sourceLabel: String
     /// ISO — when the sender hit send.
@@ -29,12 +31,13 @@ public struct InboxItem: Codable, Sendable, Equatable, Identifiable {
     public var openedAt: Date?
 
     public init(
-        id: String, url: String, title: String? = nil, sourceLabel: String,
+        id: String, url: String, title: String? = nil, image: String? = nil, sourceLabel: String,
         sentAt: String, receivedAt: Date, batch: SendPayload.Batch? = nil, openedAt: Date? = nil
     ) {
         self.id = id
         self.url = url
         self.title = title
+        self.image = image
         self.sourceLabel = sourceLabel
         self.sentAt = sentAt
         self.receivedAt = receivedAt
@@ -107,6 +110,7 @@ public enum Inbox {
             id: messageId,
             url: payload.url,
             title: payload.title,
+            image: payload.image,
             sourceLabel: sourceLabel,
             sentAt: payload.sentAt,
             receivedAt: receivedAt,
@@ -186,7 +190,18 @@ public enum Inbox {
     public static func batchHeading<Item: BatchGrouped>(_ group: BatchGroup<Item>) -> String {
         let here = group.items.count
         let sent = Swift.max(group.sentCount ?? here, here)
-        return here == sent ? "\(sent) tabs" : "\(here) of \(sent) tabs"
+        if here == sent {
+            return String(
+                localized: "\(sent) tabs",
+                bundle: .module,
+                comment: "Heading of a block of tabs that were sent together, when all of them are listed. %lld is how many tabs."
+            )
+        }
+        return String(
+            localized: "\(here) of \(sent) tabs",
+            bundle: .module,
+            comment: "Heading of a block of tabs that were sent together, when only some are listed. The first %lld is how many are listed, the second is how many were sent, such as \"2 of 3 tabs\"."
+        )
     }
 
     /// What a row calls the tab. A tab sent without a title is normal (some pages
@@ -209,14 +224,24 @@ public enum Inbox {
     /// sends this one does, and two vocabularies for one age would read as two
     /// different facts.
     public static func relativeTime(_ iso: String, now: Date = Date()) -> String {
-        guard let then = WireDate.date(from: iso) else { return "unknown" }
+        age(iso, now: now) ?? String(
+            localized: "unknown",
+            bundle: .module,
+            comment: "Age of something whose time cannot be read. Short: it sits in a row of small print."
+        )
+    }
+
+    /// The same words as `relativeTime`, or nil when the stamp cannot be read, so a
+    /// caller can choose its own words instead of comparing text.
+    public static func age(_ iso: String, now: Date = Date()) -> String? {
+        guard let then = WireDate.date(from: iso) else { return nil }
         let delta = now.timeIntervalSince(then)
-        if delta < 60 { return "just now" }
-        if delta < 3600 { return "\(Int(delta / 60))m ago" }
-        if delta < 86_400 { return "\(Int(delta / 3600))h ago" }
+        if delta < 60 { return L10n.justNow }
+        if delta < 3600 { return L10n.minutesAgo(Int(delta / 60)) }
+        if delta < 86_400 { return L10n.hoursAgo(Int(delta / 3600)) }
         let days = Int(delta / 86_400)
-        if days < 30 { return "\(days)d ago" }
-        if days < 365 { return "\(days / 30)mo ago" }
-        return "\(days / 365)y ago"
+        if days < 30 { return L10n.daysAgo(days) }
+        if days < 365 { return L10n.monthsAgo(days / 30) }
+        return L10n.yearsAgo(days / 365)
     }
 }

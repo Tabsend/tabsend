@@ -1,9 +1,8 @@
 import SwiftUI
 import TabsendKit
 
-/// Paired state, the home screen: received tabs, your devices, pair a device, and
-/// the same tiny settings surface as Android (instant delivery, rename, move to
-/// another relay, refresh, unpair).
+/// Paired state, the Home tab: anything asking for attention, the latest tabs, your
+/// devices and pair a device. Settings and the whole timeline have their own tabs.
 ///
 /// A grouped inset `List` (docs/APP_UI.md, "Phones: native-leaning"): panels on
 /// the tinted ground, standard section headers and separators, SF Symbols on
@@ -12,11 +11,11 @@ import TabsendKit
 struct PairedView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var typeSize
 
-    @State private var showRename = false
-    @State private var renameText = ""
-    @State private var showUnpairConfirm = false
-    @State private var showRelayMove = false
+    /// "See all" switches to the History tab.
+    @Binding var tab: MainTabsView.Tab
+
     @State private var minted: AppModel.MintedPairing?
     /// The device the remove confirmation is asking about, from its row.
     @State private var removing: RemoveTarget?
@@ -26,26 +25,9 @@ struct PairedView: View {
         let label: String
     }
 
-    /// How many received tabs the home screen shows before "History" takes over.
-    private static let receivedOnHome = 4
-
-    /// What this phone can actually promise right now. The second line is v0.6's, and
-    /// it stays the honest answer whenever the wake path is unavailable or switched
-    /// off: no held connection, no self-wake, Background App Refresh as a bonus (P-5).
-    private var deliveryLine: String {
-        if model.wakePathAvailable && model.instantDeliveryOn {
-            return "Delivery: instant, whether or not Tabsend is open."
-        }
-        return "Delivery: instant while the app is open; otherwise when you open it (or iOS wakes it in the background)."
-    }
-
-    /// The newest tabs this phone received, from the same merged timeline the
-    /// History screen shows [0028].
-    private func recentReceived(selfEndpointId: String) -> [HistoryItem] {
-        let received = model.historyGroups
-            .flatMap { $0.items }
-            .filter { History.direction($0, selfEndpointId: selfEndpointId) == .received }
-        return Array(received.prefix(Self.receivedOnHome))
+    /// Tabs newest first, the same merged timeline the History tab shows [0028].
+    private var latest: [HistoryItem] {
+        History.latest(model.historyGroups.flatMap { $0.items })
     }
 
     var body: some View {
@@ -57,6 +39,15 @@ struct PairedView: View {
                 if let reset = model.pendingReset {
                     Section {
                         groupResetCard(reset)
+                            .panelRow()
+                    }
+                }
+                // The trial ended and sending is paused (screen 8). Only on the relay's word,
+                // never from a date: the app says what happened and that an email has the next
+                // step, with no price and no button to pay (Apple, outside the US).
+                if model.servicePlan == .trialEnded {
+                    Section {
+                        trialEndedCard
                             .panelRow()
                     }
                 }
@@ -144,7 +135,7 @@ struct PairedView: View {
                             // rather than offering to cancel a send outright.
                             .onDelete { model.cancelHeld(at: $0) }
                         } header: {
-                            PanelSectionHeader(Feedback.heldTabsHeading(model.heldTabs.count))
+                            PanelSectionHeader(verbatim: Feedback.heldTabsHeading(model.heldTabs.count))
                         } footer: {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("These are still on this phone. Each one sends itself as soon as your relay answers again. Swipe a tab away to stop waiting for it.")
@@ -162,44 +153,58 @@ struct PairedView: View {
                 }
 
                 Section {
-                    receivedRows(selfEndpointId: reg.endpointId)
-
-                    // The way back to any tab this group has moved [0028], whether its
-                    // notification is gone or it never arrived at all. Near the top
-                    // because it is the one thing here a person needs in a hurry, and
-                    // it carries a count so it only asks for attention when it has
-                    // something.
-                    NavigationLink {
-                        HistoryView()
-                    } label: {
-                        HStack(spacing: 12) {
-                            TileLabel(title: "History", systemName: "clock.arrow.circlepath", tile: Palette.accentFill)
-                            if model.unopenedReceived > 0 {
-                                Spacer()
-                                Text("\(model.unopenedReceived)")
-                                    .font(.body)
-                                    .foregroundColor(Palette.muted)
-                                    .accessibilityLabel("\(model.unopenedReceived) unopened")
-                            }
-                        }
-                    }
-                    .panelRow()
+                    latestRow(selfEndpointId: reg.endpointId)
                 } header: {
-                    PanelSectionHeader("Received")
+                    HStack {
+                        PanelSectionHeader("Latest")
+                        Spacer()
+                        Button("See all") { tab = .history }
+                            .font(.subheadline)
+                            .textCase(nil)
+                            .tint(Palette.accent)
+                    }
                 }
 
                 Section {
-                    if model.endpoints.isEmpty {
+                    ForEach(model.endpoints) { endpoint in
+                        deviceRow(endpoint, selfId: reg.endpointId)
+                    }
+                    if !hasOtherDevices(selfId: reg.endpointId) {
                         Text("No other devices yet.")
                             .font(.body)
                             .foregroundColor(Palette.muted)
                             .panelRow()
                     }
-                    ForEach(model.endpoints) { endpoint in
-                        deviceRow(endpoint, selfId: reg.endpointId)
-                    }
                 } header: {
                     PanelSectionHeader("Your devices")
+                } footer: {
+                    // A newcomer's first list: this phone and nothing else. Say what to do next.
+                    if !hasOtherDevices(selfId: reg.endpointId) {
+                        Text("Add your computer or another phone to send your first link.")
+                            .foregroundColor(Palette.muted)
+                    }
+                }
+
+                // The free trial and its end (screen 5), on the relay's word.
+                if case let .trial(endsAt) = model.servicePlan {
+                    Section {
+                        HStack {
+                            Text(GroupService.trialLabel)
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(GroupService.trialValue(endsAt: endsAt))
+                                .font(.body)
+                                .foregroundColor(Palette.muted)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .panelRow()
+                    } header: {
+                        PanelSectionHeader(verbatim: GroupService.sectionTitle)
+                    } footer: {
+                        Text(GroupService.trialFooter)
+                            .foregroundColor(Palette.muted)
+                    }
                 }
 
                 Section {
@@ -226,11 +231,10 @@ struct PairedView: View {
                             .foregroundColor(.primary)
                     }
                 }
-
-                settingsSections(reg)
             }
         }
         .groupedListBackground()
+        .tightSections()
         .tint(Palette.accent)
         .refreshable {
             await model.refreshEndpoints()
@@ -242,25 +246,14 @@ struct PairedView: View {
         // Local only (no network): picks up tabs that arrived while another screen
         // was showing, so the received rows are current whenever they are on screen.
         .onAppear { model.refreshHistory() }
-        .alert("Rename this device", isPresented: $showRename) {
-            TextField("Name", text: $renameText)
-            Button("Save") {
-                Task { await model.rename(to: renameText) }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-        .confirmationDialog(
-            "Unpair this phone? Links already on other devices stay there.",
-            isPresented: $showUnpairConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Unpair", role: .destructive) {
-                Task { await model.unpair() }
-            }
-        }
         // The same confirmation the extension and the console ask, word for word.
         .confirmationDialog(
-            removing.map { "Remove \u{201C}\($0.label)\u{201D} from the group?" } ?? "",
+            removing.map { target in
+                String(
+                    localized: "Remove “\(target.label)” from the group?",
+                    comment: "Title of the confirmation dialog before removing a device. %@ is the device name, in curly quotes."
+                )
+            } ?? "",
             isPresented: Binding(
                 get: { removing != nil },
                 set: { if !$0 { removing = nil } }
@@ -273,11 +266,7 @@ struct PairedView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { target in
-            Text("\u{201C}\(target.label)\u{201D} will stop receiving tabs and disappear from every device\u{2019}s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin.")
-        }
-        .sheet(isPresented: $showRelayMove) {
-            RelayMoveView(currentUrl: model.registration?.relayUrl ?? "")
-                .environmentObject(model)
+            Text("“\(target.label)” will stop receiving tabs and disappear from every device’s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin.")
         }
         .sheet(item: $minted) { pairing in
             PairSheetView(pairing: pairing)
@@ -286,6 +275,11 @@ struct PairedView: View {
     }
 
     // MARK: your devices
+
+    /// Whether the list holds a device besides this phone.
+    private func hasOtherDevices(selfId: String) -> Bool {
+        model.endpoints.contains { $0.id != selfId }
+    }
 
     /// One row of "Your devices". Split out of `body` to keep that expression small
     /// enough to type-check fast.
@@ -297,7 +291,18 @@ struct PairedView: View {
                 symbol: endpoint.themeSymbol,
                 kind: endpoint.kindWord,
                 presence: endpoint.isOnline ? .online : .offline,
-                note: endpoint.id == selfId ? "this phone" : nil
+                note: endpoint.id == selfId
+                    ? String(
+                        localized: "this phone",
+                        comment: "Replaces the status of the device list row that is this phone: \"iPhone · this phone\". Lowercase, short."
+                    )
+                    : nil,
+                // Sending is paused: only on the relay's word (screen 8), never from a date.
+                pausedLine: GroupService.pausedLine(
+                    model.servicePlan,
+                    kind: endpoint.kindWord,
+                    isThisPhone: endpoint.id == selfId
+                )
             )
             // A visible Remove, so removing is never a hidden gesture or a tap on the name.
             // Borderless, so only the button is a tap target and not the whole List row.
@@ -360,6 +365,27 @@ struct PairedView: View {
         .padding(.vertical, 4)
     }
 
+    // MARK: the trial ended
+
+    /// Amber, like the other waiting notices: nothing is lost, sending is paused. No price and
+    /// no way to pay here; the email has the next step (design sheet, screen 8).
+    private var trialEndedCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            SymbolTile(systemName: "clock", color: Palette.waitingFill)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(GroupService.trialEndedTitle)
+                    .font(.body.weight(.semibold))
+                    .foregroundColor(.primary)
+                Text(GroupService.trialEndedBody)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
     // MARK: the reset that waits
 
     /// A pending reset of the whole group (PLANS.md P-18 item 12). Built like the
@@ -398,140 +424,89 @@ struct PairedView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: settings
+    // MARK: latest
 
-    /// Settings: this phone, how it gets tabs, and the account actions. Split out
-    /// of `body` only to keep that one expression small enough to type-check fast.
+    /// One row holding the cards: two side by side, one across the whole width, or a
+    /// line saying where they will appear. Largest text sizes stack them.
     @ViewBuilder
-    private func settingsSections(_ reg: Registration) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Linked as \(reg.label)")
-                    .font(.body)
-                    .foregroundColor(.primary)
-                (Text("Relay: ") + Text(reg.relayUrl).font(.footnote.monospaced()))
-                    .font(.footnote)
-                    .foregroundColor(Palette.muted)
-                Text(deliveryLine)
-                    .font(.footnote)
-                    .foregroundColor(Palette.muted)
-            }
-            .padding(.vertical, 4)
-            .panelRow()
-        } header: {
-            PanelSectionHeader("Settings")
-        }
-
-        // The wake path [0032], shown only where the toggle would do something:
-        // this build knows a forwarder AND the paired relay has one configured.
-        // On by default the moment both hold (P-5), so this is the opt-out and
-        // not a setup step.
-        if model.wakePathAvailable {
-            Section {
-                Toggle(isOn: Binding(
-                    get: { model.instantDeliveryOn },
-                    set: { on in Task { await model.setInstantDelivery(on) } }
-                )) {
-                    TileLabel(title: "Instant delivery", systemName: "bolt.fill", tile: Palette.petrol)
-                }
-                .tint(Palette.petrol)
-                .panelRow()
-            } footer: {
-                // The metadata cost, in the same words the forwarder's own
-                // documentation uses, because a promise this narrow is worth
-                // nothing if what it does keep is left vague.
-                Text("Tabs arrive even when Tabsend is closed. Your relay asks the Tabsend wake-up service to ring this phone, then this phone fetches the tab from your relay. The wake-up service and Apple learn that this phone received something, and when, and Apple also sees the phone's internet address. Never what, or who sent it. Turn this off to get tabs only when you open Tabsend.")
-                    .foregroundColor(Palette.muted)
-            }
-        }
-
-        Section {
-            Button {
-                renameText = reg.label
-                showRename = true
-            } label: {
-                TileLabel(title: "Rename this device", systemName: "pencil", tile: Palette.tileGrey)
-            }
-            .panelRow()
-            Button {
-                showRelayMove = true
-            } label: {
-                TileLabel(title: RelayMove.button, systemName: "arrow.left.arrow.right", tile: Palette.tileGrey)
-            }
-            .panelRow()
-            Button {
-                Task {
-                    await model.refreshEndpoints()
-                    await model.heartbeat()
-                    // Refresh is the obvious "check again" affordance, so it
-                    // must re-read the verdict too. The outage line is gated
-                    // behind a 30s grace, and without this a relay that went
-                    // quiet since the last foreground stayed invisible until
-                    // the user switched apps.
-                    model.refreshSendState()
-                }
-            } label: {
-                TileLabel(title: "Refresh", systemName: "arrow.clockwise", tile: Palette.petrol)
-            }
-            .panelRow()
-            Button(role: .destructive) {
-                showUnpairConfirm = true
-            } label: {
-                TileLabel(title: "Unpair", systemName: "xmark", tile: Palette.tileDanger, titleColor: Palette.danger)
-            }
-            .panelRow()
-        } footer: {
-            Text(AppModel.buildInfo)
-                .foregroundColor(Palette.muted)
-                .padding(.top, 8)
-        }
-    }
-
-    // MARK: received rows
-
-    /// The newest received tabs as rows of the "Received" section, or one line
-    /// saying where they will show up.
-    @ViewBuilder
-    private func receivedRows(selfEndpointId: String) -> some View {
-        let items = recentReceived(selfEndpointId: selfEndpointId)
+    private func latestRow(selfEndpointId: String) -> some View {
+        let items = latest
         if items.isEmpty {
-            Text("Tabs sent to this phone show up here, and stay in History after you open them.")
+            Text("Tabs you send and tabs that arrive show up here.")
                 .font(.subheadline)
                 .foregroundColor(Palette.muted)
                 .padding(.vertical, 4)
                 .panelRow()
-        }
-        ForEach(items) { item in
-            receivedRow(item)
-                .panelRow()
+        } else {
+            Group {
+                if typeSize.isAccessibilitySize {
+                    VStack(spacing: 10) {
+                        ForEach(items) { latestCard($0, selfEndpointId: selfEndpointId) }
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(items) { latestCard($0, selfEndpointId: selfEndpointId) }
+                    }
+                    // Cards of different lengths still end on one line.
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
-    private func receivedRow(_ item: HistoryItem) -> some View {
-        let openable = item.payload.flatMap { LinkURLPolicy.openableURL(from: $0.url) }
-        return Button {
-            open(item)
-        } label: {
-            HStack(spacing: 12) {
-                SymbolTile(systemName: History.symbol(.received), color: Palette.petrol)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(History.displayTitle(item))
-                        .font(.body)
-                        .foregroundColor(.primary)
-                        .lineLimit(2)
-                    Text(History.subtitle(item, direction: .received))
-                        .font(.subheadline)
-                        .foregroundColor(Palette.muted)
-                        .lineLimit(1)
+    private func latestCard(_ item: HistoryItem, selfEndpointId: String) -> some View {
+        let direction = History.direction(item, selfEndpointId: selfEndpointId)
+        let isNew = History.isNew(item, direction: direction)
+        return LinkPreviewReader(item: item) { preview in
+            Button {
+                open(item)
+            } label: {
+                VStack(alignment: .leading, spacing: 0) {
+                    SitePicture(slot: preview.slot, letter: History.siteLetter(item), letterFont: .largeTitle)
+                        .frame(height: 104)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 5) {
+                            if isNew {
+                                Circle()
+                                    .fill(Palette.accent)
+                                    .frame(width: 8, height: 8)
+                                    .accessibilityHidden(true)
+                            }
+                            Text(History.latestLine(item, direction: direction))
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(isNew ? Palette.accent : Palette.muted)
+                                .lineLimit(2)
+                        }
+                        Text(Self.title(item, preview: preview))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.primary)
+                            .lineLimit(3)
+                        Text(History.latestDetail(item, direction: direction))
+                            .font(.caption)
+                            .foregroundColor(Palette.muted)
+                            .lineLimit(2)
+                    }
+                    .padding(EdgeInsets(top: 10, leading: 12, bottom: 12, trailing: 12))
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Palette.panel)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
+            // Plain, and one per card: inside a List row, buttons with the default
+            // style all fire together on a tap anywhere in the row.
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
         }
-        // Plain, and one per row: inside a List row, buttons with the default
-        // style all fire together on a tap anywhere in the row.
-        .buttonStyle(.plain)
-        .disabled(openable == nil)
+    }
+
+    /// The tab's own title, else the page's, else the site.
+    private static func title(_ item: HistoryItem, preview: LinkPreviewState) -> String {
+        let own = item.payload?.title?.trimmingCharacters(in: .whitespaces) ?? ""
+        return own.isEmpty ? (preview.pageTitle ?? History.displayTitle(item)) : History.displayTitle(item)
     }
 
     private func open(_ item: HistoryItem) {
@@ -547,4 +522,17 @@ struct PairedView: View {
 
 extension AppModel.MintedPairing: Identifiable {
     var id: String { link }
+}
+
+private extension View {
+    /// Closer sections on iOS 17 and later, so Home's button clears the tab bar on a
+    /// normal phone with a few devices. Earlier versions keep the system's spacing.
+    @ViewBuilder
+    func tightSections() -> some View {
+        if #available(iOS 17, *) {
+            listSectionSpacing(.compact)
+        } else {
+            self
+        }
+    }
 }

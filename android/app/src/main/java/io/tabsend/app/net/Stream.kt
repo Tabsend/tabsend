@@ -53,6 +53,10 @@ object StreamManager {
         .readTimeout(0, TimeUnit.MILLISECONDS) // a stream: no read timeout
         .build()
 
+    /** Told when the group's devices change, from any thread, so an open home screen can redraw. */
+    @Volatile
+    var onDevicesChanged: (() -> Unit)? = null
+
     private var appVisible = false
     private var serviceActive = false
     private var runner: Job? = null
@@ -216,6 +220,9 @@ object StreamManager {
                     // The group's own state changed [P-18 item 12]: the event carries
                     // nothing, so ask the relay what it is now.
                     "group_updated" -> scope.launch { GroupResetWatcher.checkNow(context) }
+                    // Also carries nothing we trust: an open screen lists the devices again.
+                    "endpoint_added", "endpoint_removed", "endpoint_updated", "presence" ->
+                        onDevicesChanged?.invoke()
                 }
             }
 

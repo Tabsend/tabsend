@@ -14,13 +14,14 @@ import androidx.core.view.WindowInsetsCompat
  * `statusBarColor` is ignored. This pads [view] by the bars' size, on top of the padding
  * it already has, so the screen looks as it did before: the view's background still
  * fills the area behind the bars, which is what painted the status bar until now.
+ * [bottom] false leaves the foot to a view that pads itself, such as a bottom nav bar.
  */
 object SystemBars {
-    fun pad(view: View) {
+    fun pad(view: View, bottom: Boolean = true) {
         val start = view.paddingLeft
         val top = view.paddingTop
         val end = view.paddingRight
-        val bottom = view.paddingBottom
+        val bottomPadding = view.paddingBottom
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
@@ -28,7 +29,8 @@ object SystemBars {
             // The keyboard counts too: edge to edge, Android no longer shrinks the window
             // for it, so without this it sits on top of the lower fields.
             val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            v.setPadding(start + bars.left, top + bars.top, end + bars.right, bottom + maxOf(bars.bottom, keyboard))
+            val under = if (bottom) maxOf(bars.bottom, keyboard) else 0
+            v.setPadding(start + bars.left, top + bars.top, end + bars.right, bottomPadding + under)
             if (keyboard > 0) v.post { v.findFocus()?.let { f -> f.requestRectangleOnScreen(Rect(0, 0, f.width, f.height)) } }
             insets
         }

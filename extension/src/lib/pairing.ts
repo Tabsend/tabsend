@@ -9,6 +9,7 @@
  */
 
 import { ApiClientError } from './api'
+import { relayFailureText } from './failure-text'
 import type { PairingFailure } from './strings'
 
 export interface ParsedPairing {
@@ -140,5 +141,5 @@ export function isLoopbackRelayUrl(relayUrl: string): boolean {
 export function classifyMintFailure(err: unknown, relayUrl: string): PairingFailure {
   if (!(err instanceof ApiClientError)) return { kind: 'unreachable', relayUrl }
   if (err.status === 401) return { kind: 'unauthorized' }
-  return { kind: 'relay', detail: err.message }
+  return { kind: 'relay', detail: relayFailureText(err, 'pairingLink') }
 }

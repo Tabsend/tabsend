@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.UUID
+import io.tabsend.app.logic.TextSource
 
 /**
  * Outcome of a single send.
@@ -173,6 +174,7 @@ object Sender {
                 url = payload.url,
                 targetLabel = target.label,
                 history = history,
+                image = payload.image,
             )
 
             // Queue FIRST, then POST, then dequeue on a definite answer. The share
@@ -530,7 +532,7 @@ object Sender {
         val url = old.url?.takeIf { LinkPolicy.isOpenableWebUrl(it) } ?: return false
         // The time the user first sent it, so the tab and its history row are
         // dated honestly and the queue's age bound still counts from then.
-        val payload = SendPayload(url = url, title = old.title, sentAt = old.createdAt)
+        val payload = SendPayload(url = url, title = old.title, sentAt = old.createdAt, image = old.image)
         val envelope = try {
             Sealer.seal(
                 payloadJson = WireJson.encodeToString(SendPayload.serializer(), payload),
@@ -568,6 +570,7 @@ object Sender {
             url = url,
             targetLabel = chosen.label,
             history = history,
+            image = old.image,
         )
         var done = false
         store.updateOutbound { queue ->
@@ -610,7 +613,7 @@ object Sender {
     }
 
     /** The label a held item should show, falling back to its site. */
-    fun heldLabel(item: OutboundItem): String = Feedback.heldTabLabel(item.title, item.url)
+    fun heldLabel(text: TextSource, item: OutboundItem): String = Feedback.heldTabLabel(text, item.title, item.url)
 
     private fun recordSend(store: Store, targetId: String) {
         store.sourcePrefs = Mru.recordSend(store.sourcePrefs, targetId)

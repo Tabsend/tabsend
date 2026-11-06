@@ -25,7 +25,9 @@ describe('POST /v1/wake', () => {
 
     expect(response.status).toBe(202)
     expect(response.body).toEqual({ status: 'accepted' })
-    expect(rig.apns.calls).toEqual([{ apnsToken, environment: 'production' }])
+    expect(rig.apns.calls).toEqual([
+      { apnsToken, environment: 'production', ringStyle: 'background' },
+    ])
     const stored = rig.store.find(hashWakeToken(wakeToken))
     expect(stored?.wakeCount).toBe(1)
     expect(stored?.lastWakeAt).toBe(rig.clock.now())
@@ -45,7 +47,9 @@ describe('POST /v1/wake', () => {
     expect((await post(rig, '/v1/wake', {}, wakeToken)).status).toBe(202)
 
     await vi.waitFor(() =>
-      expect(rig.apns.calls).toEqual([{ apnsToken, environment: 'production' }]),
+      expect(rig.apns.calls).toEqual([
+        { apnsToken, environment: 'production', ringStyle: 'background' },
+      ]),
     )
     expect(rig.log.all()).toContain('ringing anyway')
   })

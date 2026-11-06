@@ -1,0 +1,26 @@
+{
+  "menus.openChooser": {
+    "message": "Open Tabsend chooser…",
+    "description": "Right-click menu of the toolbar icon (only when the icon sends in one click): opens the window for choosing a device. “Tabsend” is the product name. Keep it short; menu items are clipped."
+  },
+  "menus.addDevice": {
+    "message": "Tabsend: add a device…",
+    "description": "Right-click menu entry on a page, link or tab when no other device is paired yet: opens the setup page. Starts with the product name “Tabsend”. Keep it short; menu items are clipped."
+  },
+  "menus.sendTabTo": {
+    "message": "Send tab to {device}",
+    "description": "Right-click menu entry on a page or tab when exactly one other device is paired. {device} is that device's name. Keep it short; menu items are clipped."
+  },
+  "menus.sendLinkTo": {
+    "message": "Send link to {device}",
+    "description": "Right-click menu entry on a link when exactly one other device is paired. {device} is that device's name. Keep it short; menu items are clipped."
+  },
+  "menus.sendTabToParent": {
+    "message": "Send tab to",
+    "description": "Right-click menu entry on a page or tab that opens a list of devices to choose from (two or more paired). The device names appear in the list below it, so there is no device name in this text."
+  },
+  "menus.sendLinkToParent": {
+    "message": "Send link to",
+    "description": "Right-click menu entry on a link that opens a list of devices to choose from (two or more paired). The device names appear in the list below it, so there is no device name in this text."
+  }
+}

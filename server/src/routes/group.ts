@@ -4,11 +4,12 @@ import type { AppContext } from '../context'
 import { callerOf, makeRequireAuth } from '../context'
 import { isPostgresUrl } from '../db'
 import { fail } from '../errors'
-import { GROUP_GONE_MESSAGE, readGroupReset, stopGroupReset } from '../tenancy'
+import { GROUP_GONE_MESSAGE, readGroupReset, readGroupService, stopGroupReset } from '../tenancy'
 
 /**
  * `/v1/group` — the calling device's group, as far as a device needs to know it
- * [P-18 item 12]. Today that is one thing: whether a reset is waiting.
+ * [P-18 item 12, P-19]. Two things: whether a reset is waiting, and the plan words the
+ * account site wrote for this group's phones (`service`, null on a self-hosted relay).
  *
  * A RESET THAT WAITS is how a hosted account whose owner lost every paired device gets
  * a working group back: the control plane schedules it (routes/provisioning.ts), and
@@ -26,10 +27,17 @@ import { GROUP_GONE_MESSAGE, readGroupReset, stopGroupReset } from '../tenancy'
 export function registerGroupRoutes(app: FastifyInstance, ctx: AppContext): void {
   const requireAuth = makeRequireAuth(ctx)
 
-  // GET /v1/group — the pending reset, or null.
+  // GET /v1/group — the pending reset, or null; and the plan words the account site wrote
+  // for this group's phones, or null (every self-hosted group) [PLANS P-19].
   app.get('/v1/group', { preHandler: requireAuth }, async (request) => {
     const caller = callerOf(request)
-    const response: GroupStateResponse = { reset: await readGroupReset(ctx.db, caller.group_id) }
+    const service = await readGroupService(ctx.db, caller.group_id)
+    // `service` is left out, not null, when nothing wrote one: a self-hosted relay's
+    // answer stays exactly what it was.
+    const response: GroupStateResponse = {
+      reset: await readGroupReset(ctx.db, caller.group_id),
+      ...(service ? { service } : {}),
+    }
     return response
   })
 

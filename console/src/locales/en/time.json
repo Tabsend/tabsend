@@ -1,0 +1,34 @@
+{
+  "time.justNow": {
+    "message": "just now",
+    "description": "Short relative time: less than a minute ago. Lowercase."
+  },
+  "time.minutes": {
+    "message": "{count, plural, other {#m ago}}",
+    "description": "Short relative time: minutes ago. {count} is 1 to 59. Keep it very short; “m” stands for minutes."
+  },
+  "time.hours": {
+    "message": "{count, plural, other {#h ago}}",
+    "description": "Short relative time: hours ago. {count} is 1 to 23. Keep it very short; “h” stands for hours."
+  },
+  "time.days": {
+    "message": "{count, plural, other {#d ago}}",
+    "description": "Short relative time: days ago. {count} is 1 to 29. Keep it very short; “d” stands for days."
+  },
+  "time.months": {
+    "message": "{count, plural, other {#mo ago}}",
+    "description": "Short relative time: months ago. {count} is 1 to 11. Keep it very short; “mo” stands for months."
+  },
+  "time.years": {
+    "message": "{count, plural, other {#y ago}}",
+    "description": "Short relative time: years ago. {count} is 1 or more. Keep it very short; “y” stands for years."
+  },
+  "time.unknown": {
+    "message": "unknown",
+    "description": "Short relative time when the time could not be read. Lowercase, one word."
+  },
+  "time.recently": {
+    "message": "recently",
+    "description": "Stands in for a relative time inside a sentence when the time could not be read (“It joined recently”). Lowercase, one word."
+  }
+}

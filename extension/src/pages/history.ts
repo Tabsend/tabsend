@@ -9,16 +9,20 @@ import {
   hostOf,
   mergeHistory,
   relativeTime,
+  splitLatest,
 } from '../lib/history'
-import {
-  hasPreviewPermission,
-  loadPreview,
-  loadPreviewImage,
-  previewUrl,
-} from '../lib/link-preview'
+import { t } from '../lib/i18n'
+import { localizePage } from '../lib/i18n-dom'
+import { pictureAddress, siteLetter } from '../lib/link-preview'
 import type { HistoryRow } from '../lib/model'
 import { isEmbeddedFavicon, isOpenableWebUrl } from '../lib/policy'
-import { getHistory, getInbox, getRegistration, setUnreadReceived } from '../lib/storage'
+import {
+  getHistory,
+  getInbox,
+  getRegistration,
+  getSettings,
+  setUnreadReceived,
+} from '../lib/storage'
 import { rpc } from './rpc-client'
 
 /**
@@ -37,30 +41,19 @@ import { rpc } from './rpc-client'
  * best-effort on top of a page that has already rendered.
  */
 
+localizePage()
+
 const groupsEl = document.getElementById('groups') as HTMLDivElement
 const emptyEl = document.getElementById('empty') as HTMLDivElement
-const opened = new Set<string>()
-const previewCallbacks = new WeakMap<Element, () => void>()
-const previewObserver = new IntersectionObserver(
-  (entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting || document.visibilityState !== 'visible') continue
-      previewObserver.unobserve(entry.target)
-      previewCallbacks.get(entry.target)?.()
-    }
-  },
-  { rootMargin: '100px' },
-)
+/** Whether pictures are shown, read once per render (Settings, "Website images"). */
+let imagesOn = true
 const retentionEl = document.getElementById('retention') as HTMLParagraphElement
 
 // Retention is stated here rather than buried in settings, and it names BOTH
 // clocks, because they are genuinely different promises: the relay decides how
 // far back the shared list goes, this browser decides how much of it survives
 // the relay being unreachable.
-retentionEl.textContent =
-  `Every tab your devices send each other, newest first. Your relay decides how far ` +
-  `back the list goes. The newest ${HISTORY_MAX} are kept on this browser, so the page still works offline. ` +
-  `Website previews load from linked sites, which can see requests from this device.`
+retentionEl.textContent = t('history.retention', { max: HISTORY_MAX })
 
 /**
  * Mail imagery per direction [ADR-0028 §9]: never a bare arrow.
@@ -70,17 +63,17 @@ retentionEl.textContent =
  * rejected on owner review: it does not say what it means, and a lone arrow in a
  * row's left gutter reads as a control for reordering the list.
  */
-const GLYPH_LABELS: Record<HistoryRow['direction'], string> = {
-  sent: 'Sent from this browser',
-  received: 'Received on this browser',
-  other: 'Between two of your other devices',
+const GLYPH_LABELS: Record<HistoryRow['direction'], () => string> = {
+  sent: () => t('history.direction.sent'),
+  received: () => t('history.direction.received'),
+  other: () => t('history.direction.other'),
 }
 
 /** How each outcome reads. The relay's own routing facts, in plain words. */
-const STATE_LABELS: Record<HistoryRow['state'], string> = {
-  arrived: 'Arrived',
-  waiting: 'Waiting',
-  'never-arrived': 'Never arrived',
+const STATE_LABELS: Record<HistoryRow['state'], () => string> = {
+  arrived: () => t('history.state.arrived'),
+  waiting: () => t('history.state.waiting'),
+  'never-arrived': () => t('history.state.neverArrived'),
 }
 
 /** Open a tab from history. Nothing is focused: a click means "get it back". */
@@ -97,7 +90,7 @@ function openableUrl(row: HistoryRow): string | undefined {
 }
 
 function directionGlyph(row: HistoryRow): HTMLSpanElement {
-  const label = GLYPH_LABELS[row.direction]
+  const label = GLYPH_LABELS[row.direction]()
   const span = document.createElement('span')
   span.className = 'dir'
   span.title = label
@@ -110,23 +103,39 @@ function directionGlyph(row: HistoryRow): HTMLSpanElement {
   return span
 }
 
-function faviconFor(row: HistoryRow): HTMLElement {
-  if (!isEmbeddedFavicon(row.favicon)) return faviconSlot()
-  const img = document.createElement('img')
-  img.className = 'favicon'
-  img.src = row.favicon
-  img.alt = ''
-  // Plenty of favicons 404, are blocked, or are an extension-internal URL this
-  // page can't load. A broken-image glyph would read as part of a failure, so
-  // fall back to the empty slot and keep the titles aligned (same treatment as
-  // the send-feedback banner).
-  img.addEventListener('error', () => img.replaceWith(faviconSlot()))
-  return img
-}
-
-function faviconSlot(): HTMLSpanElement {
+/**
+ * The picture slot: the plain letter tile until a picture has loaded over it, and the
+ * tile for good when there is none or it fails, so a broken image never shows. An
+ * embedded favicon may stand in for the letter: it asks nothing of any site.
+ */
+function pictureSlot(row: HistoryRow, className: string): HTMLSpanElement {
   const slot = document.createElement('span')
-  slot.className = 'favicon-slot'
+  slot.className = `picture ${className}`
+  slot.setAttribute('aria-hidden', 'true')
+  if (isEmbeddedFavicon(row.favicon)) {
+    const icon = document.createElement('img')
+    icon.className = 'picture-icon'
+    icon.alt = ''
+    icon.src = row.favicon
+    icon.addEventListener('error', () => {
+      icon.remove()
+      slot.textContent = siteLetter(row.url)
+    })
+    slot.appendChild(icon)
+  } else {
+    slot.textContent = siteLetter(row.url)
+  }
+  const source = imagesOn ? pictureAddress(row.image) : undefined
+  if (source) {
+    const image = document.createElement('img')
+    image.className = 'picture-image'
+    image.alt = ''
+    image.referrerPolicy = 'no-referrer'
+    image.loading = 'lazy'
+    image.addEventListener('error', () => image.remove())
+    image.src = source
+    slot.appendChild(image)
+  }
   return slot
 }
 
@@ -137,15 +146,21 @@ function faviconSlot(): HTMLSpanElement {
  */
 function subLine(row: HistoryRow, now: number): string {
   const url = row.url
-  const where =
-    row.direction === 'sent'
-      ? `to ${row.targetLabel}`
-      : row.direction === 'received'
-        ? `from ${row.sourceLabel}`
-        : `${row.sourceLabel} → ${row.targetLabel}`
-  const parts = url ? [hostOf(url), where] : [where]
-  parts.push(relativeTime(row.sentAt, now))
-  return parts.join(' · ')
+  return t('history.row.sub', {
+    hasHost: url ? 'yes' : 'no',
+    host: url ? hostOf(url) : '',
+    where: whereLine(row),
+    ago: relativeTime(row.sentAt, now),
+  })
+}
+
+/** "to Pixel 9", "from iPad" or "Pixel 9 → iPad": which device it went to or came from. */
+function whereLine(row: HistoryRow): string {
+  return t('history.where', {
+    direction: row.direction,
+    source: row.sourceLabel,
+    target: row.targetLabel,
+  })
 }
 
 function stateChip(row: HistoryRow): HTMLSpanElement | undefined {
@@ -156,7 +171,7 @@ function stateChip(row: HistoryRow): HTMLSpanElement | undefined {
   if (row.direction === 'received') return undefined
   const chip = document.createElement('span')
   chip.className = `state ${row.state}`
-  chip.textContent = STATE_LABELS[row.state]
+  chip.textContent = STATE_LABELS[row.state]()
   return chip
 }
 
@@ -173,15 +188,16 @@ function sendAgainButton(row: HistoryRow, url: string): HTMLButtonElement {
   const btn = document.createElement('button')
   btn.type = 'button'
   btn.className = 'again'
-  btn.textContent = 'Send again'
+  btn.textContent = t('history.sendAgain.button')
   btn.addEventListener('click', () => {
     btn.disabled = true
-    btn.textContent = 'Sending'
+    btn.textContent = t('history.sendAgain.sending')
     const payload: SendPayload = {
       url,
       sentAt: row.sentAt as SendPayload['sentAt'],
       ...(row.title !== undefined ? { title: row.title } : {}),
       ...(row.favicon !== undefined ? { favicon: row.favicon } : {}),
+      ...(row.image !== undefined ? { image: row.image } : {}),
     }
     // The normal send path reports its own outcome (banner + badge), so this
     // button only has to say what it did with the click.
@@ -190,11 +206,11 @@ function sendAgainButton(row: HistoryRow, url: string): HTMLButtonElement {
         // Chrome can resolve sendMessage with no payload when the worker was
         // stopped before replying, so `res` itself may be missing.
         const sent = res?.ok === true
-        btn.textContent = sent ? 'Sent again' : 'Try again'
+        btn.textContent = sent ? t('history.sendAgain.sent') : t('history.sendAgain.retry')
         btn.disabled = sent
       })
       .catch(() => {
-        btn.textContent = 'Try again'
+        btn.textContent = t('history.sendAgain.retry')
         btn.disabled = false
       })
   })
@@ -205,9 +221,6 @@ function renderRow(row: HistoryRow, now: number): HTMLLIElement {
   const li = document.createElement('li')
   const wrap = document.createElement('div')
   wrap.className = 'row'
-  const fresh =
-    row.direction === 'received' && !opened.has(row.id) && now - Date.parse(row.sentAt) < 86400000
-  wrap.classList.toggle('fresh', fresh)
   wrap.appendChild(directionGlyph(row))
 
   const url = openableUrl(row)
@@ -217,16 +230,11 @@ function renderRow(row: HistoryRow, now: number): HTMLLIElement {
   if (body instanceof HTMLButtonElement) {
     body.type = 'button'
     const target = url as string
-    body.addEventListener('click', () => {
-      opened.add(row.id)
-      wrap.classList.remove('fresh')
-      openTab(target)
-    })
+    body.addEventListener('click', () => openTab(target))
     // The whole URL on hover: the row truncates, and "which link is this
     // exactly" is the question this page exists to answer.
     body.title = target
   }
-  body.appendChild(faviconFor(row))
 
   const text = document.createElement('span')
   text.className = 'tab-text'
@@ -241,15 +249,14 @@ function renderRow(row: HistoryRow, now: number): HTMLLIElement {
     // link is one this page will not navigate to. Say which, quietly.
     title.classList.add('unreadable')
     title.textContent =
-      row.url === undefined
-        ? 'Waiting for the key that opens this one'
-        : 'This link cannot be opened here'
+      row.url === undefined ? t('history.row.waitingForKey') : t('history.row.cannotOpen')
   }
   const sub = document.createElement('span')
   sub.className = 'tab-sub'
   sub.textContent = subLine(row, now)
   text.append(title, sub)
   body.appendChild(text)
+  if (url) body.appendChild(pictureSlot(row, 'thumb'))
   wrap.appendChild(body)
 
   const chip = stateChip(row)
@@ -259,96 +266,56 @@ function renderRow(row: HistoryRow, now: number): HTMLLIElement {
   }
 
   li.appendChild(wrap)
-  const publicUrl = url && previewUrl(url)
-  if (publicUrl) {
-    const apply = async () => {
-      const preview = await loadPreview(publicUrl.href)
-      if (!li.isConnected) return
-      if (preview.title) title.textContent = preview.title
-      if (preview.description) {
-        const description = document.createElement('span')
-        description.className = 'preview-description'
-        description.textContent = preview.description
-        text.appendChild(description)
-      }
-      const showImage = (source: string) => {
-        const image = document.createElement('img')
-        image.className = 'preview-image'
-        image.alt = ''
-        image.src = source
-        image.addEventListener('error', () => image.remove())
-        body.appendChild(image)
-      }
-      if (preview.image) showImage(preview.image)
-      else if (preview.imageSource) {
-        const imageURL = previewUrl(preview.imageSource)
-        if (imageURL && imageURL.origin !== publicUrl.origin) {
-          const allowImage = document.createElement('button')
-          allowImage.className = 'preview-allow'
-          allowImage.textContent = 'Load preview image'
-          allowImage.title = `Allow ${imageURL.hostname} to provide the image. It will see a request from this device.`
-          allowImage.addEventListener('click', () => {
-            void ext.permissions
-              .request({ origins: [`${imageURL.origin}/*`] })
-              .then(async (granted) => {
-                if (!granted) return
-                const source = await loadPreviewImage(imageURL.href)
-                if (source && li.isConnected) {
-                  preview.image = source
-                  showImage(source)
-                  allowImage.remove()
-                } else allowImage.textContent = 'Image unavailable'
-              })
-              .catch(() => {
-                allowImage.textContent = 'Try loading image again'
-              })
-          })
-          li.appendChild(allowImage)
-        }
-      }
-    }
-    previewCallbacks.set(li, () => {
-      void hasPreviewPermission(publicUrl)
-        .then((allowed) => {
-          if (!li.isConnected) return
-          if (allowed) return apply()
-          const allow = document.createElement('button')
-          allow.className = 'preview-allow'
-          allow.textContent = 'Load website preview'
-          allow.title =
-            'Allow this website to provide a preview. It will see a request from this device.'
-          allow.addEventListener('click', () => {
-            void ext.permissions
-              .request({ origins: [`${publicUrl.origin}/*`] })
-              .then((granted) => {
-                if (granted) {
-                  void render()
-                }
-              })
-              .catch(() => {
-                allow.textContent = 'Try loading preview again'
-              })
-          })
-          li.appendChild(allow)
-        })
-        .catch(() => undefined)
-    })
-    previewObserver.observe(li)
-  }
   return li
+}
+
+/** A Latest card's first line: which way it went, in words. */
+function cardRoute(row: HistoryRow): string {
+  if (row.direction === 'sent') return t('history.card.sent', { target: row.targetLabel })
+  if (row.direction === 'received') return t('history.card.received', { source: row.sourceLabel })
+  return t('history.card.other', { source: row.sourceLabel, target: row.targetLabel })
+}
+
+/** One of the Latest cards: the picture on top, then what it is and where it went. */
+function renderCard(row: HistoryRow, now: number): HTMLButtonElement {
+  const url = openableUrl(row) as string
+  const card = document.createElement('button')
+  card.type = 'button'
+  card.className = 'card-tab'
+  card.title = url
+  card.addEventListener('click', () => openTab(url))
+
+  const route = document.createElement('span')
+  route.className = 'card-route'
+  route.textContent = cardRoute(row)
+  const title = document.createElement('span')
+  title.className = 'card-title'
+  title.textContent = row.title?.trim() || hostOf(url)
+  const meta = document.createElement('span')
+  meta.className = 'tab-sub'
+  const parts = [hostOf(url), relativeTime(row.sentAt, now)]
+  if (row.direction !== 'received') parts.push(STATE_LABELS[row.state]())
+  meta.textContent = parts.join(' · ')
+
+  const text = document.createElement('span')
+  text.className = 'card-text'
+  text.append(route, title, meta)
+  card.append(pictureSlot(row, 'cover'), text)
+  return card
+}
+
+function sectionHeading(label: string): HTMLHeadingElement {
+  const heading = document.createElement('h2')
+  heading.className = 'section-heading'
+  heading.textContent = label
+  return heading
 }
 
 /** The heading's own line: who the whole batch went to or came from, and when. */
 function groupMeta(group: HistoryGroup, now: number): string {
   const first = group.rows[0]
   if (!first) return ''
-  const where =
-    first.direction === 'sent'
-      ? `to ${first.targetLabel}`
-      : first.direction === 'received'
-        ? `from ${first.sourceLabel}`
-        : `${first.sourceLabel} → ${first.targetLabel}`
-  return `${where} · ${relativeTime(first.sentAt, now)}`
+  return t('history.group.meta', { where: whereLine(first), ago: relativeTime(first.sentAt, now) })
 }
 
 function renderGroup(group: HistoryGroup, now: number): HTMLDivElement {
@@ -379,7 +346,7 @@ function renderGroup(group: HistoryGroup, now: number): HTMLDivElement {
     if (first && first.direction !== 'received') {
       const chip = document.createElement('span')
       chip.className = `state ${state}`
-      chip.textContent = STATE_LABELS[state]
+      chip.textContent = STATE_LABELS[state]()
       head.appendChild(chip)
     }
 
@@ -388,7 +355,7 @@ function renderGroup(group: HistoryGroup, now: number): HTMLDivElement {
       const openAll = document.createElement('button')
       openAll.type = 'button'
       openAll.className = 'open-all'
-      openAll.textContent = 'Open all'
+      openAll.textContent = t('history.openAll')
       openAll.addEventListener('click', () => {
         for (const url of openable) openTab(url)
       })
@@ -405,26 +372,35 @@ function renderGroup(group: HistoryGroup, now: number): HTMLDivElement {
 }
 
 async function render(): Promise<void> {
-  const [cached, received, registration] = await Promise.all([
+  const [cached, received, registration, settings] = await Promise.all([
     getHistory(),
     getInbox(),
     getRegistration(),
+    getSettings(),
   ])
+  imagesOn = settings.websiteImages
   // The relay's list is authoritative, and the local received record fills its
   // gaps: rows whose group key this browser does not hold, and rows the relay
   // never had (an older relay, one serving no history, or one that is down).
   const rows = mergeHistory(
     cached,
     received,
-    registration?.label ?? 'This browser',
+    registration?.label ?? t('history.thisBrowser'),
     registration?.endpointId ?? '',
   )
   const now = Date.now()
 
-  previewObserver.disconnect()
   groupsEl.replaceChildren()
   emptyEl.classList.toggle('hidden', rows.length > 0)
-  for (const group of groupHistory(rows)) groupsEl.appendChild(renderGroup(group, now))
+  const { latest, earlier } = splitLatest(groupHistory(rows), (row) => Boolean(openableUrl(row)))
+  if (latest.length > 0) {
+    const cards = document.createElement('div')
+    cards.className = latest.length === 1 ? 'latest single' : 'latest'
+    for (const row of latest) cards.appendChild(renderCard(row, now))
+    groupsEl.append(sectionHeading(t('history.latest')), cards)
+    if (earlier.length > 0) groupsEl.appendChild(sectionHeading(t('history.earlier')))
+  }
+  for (const group of earlier) groupsEl.appendChild(renderGroup(group, now))
   markSeenIfVisible()
 }
 
@@ -454,7 +430,7 @@ function refresh(): void {
 // returned to after being left in a background tab. Both matter: this is a page
 // people leave open, and a list that silently goes stale is worse than no list.
 ext.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.history || changes.inbox)) void render()
+  if (area === 'local' && (changes.history || changes.inbox || changes.settings)) void render()
 })
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {

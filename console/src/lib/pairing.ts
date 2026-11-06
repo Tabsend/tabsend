@@ -1,4 +1,5 @@
 import { checkProtocol, type ServerConfigResponse } from '@tabsend/shared'
+import { t } from './i18n'
 
 /**
  * Parse the complete pairing link pasted into the join field. The one-time
@@ -145,7 +146,14 @@ export function isLoopbackRelayUrl(relayUrl: string): boolean {
 export function protocolMismatchMessage(config: ServerConfigResponse): string | null {
   const check = checkProtocol(config)
   if (check.ok) return null
-  return check.stale === 'client'
-    ? `This version of Tabsend is too old for that relay (console speaks v${check.clientProtocol}, relay needs v${check.relayRequires}). Update the console, then try again.`
-    : `That relay is running an older version of Tabsend than this console (relay speaks v${check.relayProtocol}, console needs v${check.clientRequires}). Update the relay, then try again.`
+  if (check.stale === 'client') {
+    return t('pairing.protocol.clientTooOld', {
+      clientProtocol: check.clientProtocol,
+      relayRequires: check.relayRequires,
+    })
+  }
+  return t('pairing.protocol.relayTooOld', {
+    relayProtocol: check.relayProtocol,
+    clientRequires: check.clientRequires,
+  })
 }

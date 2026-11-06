@@ -1,5 +1,6 @@
 import type { Endpoint, Message, SendPayload } from '@tabsend/shared'
 import { keyId, open } from './crypto'
+import { t } from './i18n'
 import type { ConsoleSession, HistoryEntry } from './model'
 import type { HistoryStore } from './persist'
 
@@ -77,11 +78,11 @@ export function projectEntry(
 ): HistoryEntry {
   const byId = new Map(endpoints.map((e) => [e.id as string, e]))
   const targetEndpointId = payload.historyOf?.targetEndpointId ?? session.endpointId
-  const sourceLabel = byId.get(message.sourceEndpointId)?.label ?? 'Unknown device'
+  const sourceLabel = byId.get(message.sourceEndpointId)?.label ?? t('history.unknownDevice')
   const targetLabel =
     targetEndpointId === session.endpointId
       ? session.label
-      : (byId.get(targetEndpointId)?.label ?? 'Unknown device')
+      : (byId.get(targetEndpointId)?.label ?? t('history.unknownDevice'))
 
   const entry: HistoryEntry = {
     id: message.id,

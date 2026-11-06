@@ -1,13 +1,9 @@
-import {
-  defaultDeviceName,
-  type Endpoint,
-  endpointLabel,
-  resolveBrowserName,
-} from '@tabsend/shared'
+import { type Endpoint, endpointLabel, resolveBrowserName } from '@tabsend/shared'
 import { type Controller, detectPlatform, type GroupHistoryStatus } from '../lib/controller'
+import { t } from '../lib/i18n'
 import type { DeviceRow, HistoryEntry } from '../lib/model'
 import { effect, signal } from '../lib/store'
-import { absoluteTime, relativeTime } from '../lib/time'
+import { absoluteTime, isReadableTime, relativeTime } from '../lib/time'
 import {
   batchHeading,
   connectionTitle,
@@ -19,11 +15,11 @@ import {
   introCopy,
   projectLinks,
   resolveEntryLabel,
-  SEALED_ROW_NOTE,
-  SEALED_ROW_TITLE,
+  sealedRowNote,
+  sealedRowTitle,
   toDeviceRows,
 } from '../lib/view'
-import { el, replaceChildren, svg } from './dom'
+import { el, replaceChildren, richNodes, svg } from './dom'
 import { qrSvg } from './qr'
 
 /**
@@ -56,16 +52,16 @@ export function mountApp(root: HTMLElement, controller: Controller): void {
   effect(() => {
     const session = controller.session.get()
     const conn = controller.connection.get()
-    const brand = el('div', { class: 'brand' }, svg(LOGO), el('span', {}, 'Tabsend Console'))
+    const brand = el('div', { class: 'brand' }, svg(LOGO), el('span', {}, t('app.brand')))
     const right = el('div', { class: 'header-right' })
     if (session) {
       right.append(
         connBadge(conn, session.relayUrl !== '' ? session.relayUrl : window.location.origin),
-        el('span', { class: 'self-label', title: 'This console' }, session.label),
+        el('span', { class: 'self-label', title: t('app.header.thisConsole') }, session.label),
       )
     } else {
       right.append(
-        el('a', { class: 'home-link', href: 'https://tabsend.org' }, 'Back to tabsend.org'),
+        el('a', { class: 'home-link', href: 'https://tabsend.org' }, t('app.header.back')),
       )
     }
     replaceChildren(header, brand, right)
@@ -75,7 +71,7 @@ export function mountApp(root: HTMLElement, controller: Controller): void {
   effect(() => {
     const phase = controller.phase.get()
     if (phase === 'loading') {
-      replaceChildren(panel, el('p', { class: 'muted center' }, 'Loading…'))
+      replaceChildren(panel, el('p', { class: 'muted center' }, t('app.loading')))
       return
     }
     if (phase === 'onboarding') {
@@ -116,7 +112,12 @@ export function mountApp(root: HTMLElement, controller: Controller): void {
 // --- connection badge --------------------------------------------------------
 
 function connBadge(conn: string, relayUrl: string): HTMLElement {
-  const label = conn === 'live' ? 'Live' : conn === 'polling' ? 'Polling' : 'Offline'
+  const label =
+    conn === 'live'
+      ? t('connection.live.label')
+      : conn === 'polling'
+        ? t('connection.polling.label')
+        : t('connection.offline.label')
   return el(
     'span',
     { class: `conn conn-${conn}`, title: connectionTitle(conn, relayUrl) },
@@ -131,7 +132,7 @@ function renderOnboarding(controller: Controller): HTMLElement {
   const input = el('input', {
     class: 'field',
     type: 'text',
-    placeholder: 'https://your-relay/pair#c=…',
+    placeholder: t('onboarding.setupLink.placeholder'),
     autocomplete: 'off',
     spellcheck: false,
   }) as HTMLInputElement
@@ -141,18 +142,26 @@ function renderOnboarding(controller: Controller): HTMLElement {
   // browser" matters less here than "which machine". The relay de-duplicates
   // whatever we end up sending.
   const seed = (browser: string): string =>
-    endpointLabel(browser, defaultDeviceName(detectPlatform()))
+    endpointLabel(browser, t('onboarding.name.deviceSeed', { platform: detectPlatform() }))
+  const startName = seed(t('onboarding.name.default'))
   const name = el('input', {
     class: 'field',
     type: 'text',
-    placeholder: 'Name this console (e.g. "Ben\'s web console")',
-    value: seed('Web console'),
+    placeholder: t('onboarding.name.placeholder'),
+    value: startName,
   }) as HTMLInputElement
   void resolveBrowserName().then((suggestion) => {
     // Only an identified browser is worth naming, and never over live typing.
-    if (!suggestion.confident || name.value !== seed('Web console')) return
-    name.value = seed(`${suggestion.value} console`)
+    if (!suggestion.confident || name.value !== startName) return
+    name.value = seed(t('onboarding.name.withBrowser', { browser: suggestion.value }))
   })
+
+  // One sentence with a link in it: the translator moves the words and the link together.
+  const newHere = richNodes(
+    'onboarding.newHere',
+    {},
+    { link: (text) => el('a', { href: 'https://tabsend.org' }, text) },
+  )
 
   const submit = (): void => {
     void controller.join(input.value, name.value)
@@ -169,24 +178,18 @@ function renderOnboarding(controller: Controller): HTMLElement {
       { class: 'intro' },
       el('h1', {}, introCopy.title),
       el('p', {}, introCopy.what),
-      el(
-        'p',
-        { class: 'muted' },
-        `${introCopy.newHere} `,
-        el('a', { href: 'https://tabsend.org' }, introCopy.newHereLink),
-        '.',
-      ),
+      el('p', { class: 'muted' }, ...newHere),
     ),
     el(
       'section',
       { class: 'card' },
       el('h2', {}, introCopy.pairTitle),
       el('p', { class: 'muted' }, introCopy.pairBody),
-      el('label', { class: 'field-label' }, 'Setup link'),
+      el('label', { class: 'field-label' }, t('onboarding.setupLink.label')),
       input,
-      el('label', { class: 'field-label' }, 'Console name'),
+      el('label', { class: 'field-label' }, t('onboarding.name.label')),
       name,
-      el('button', { class: 'btn primary', onClick: submit }, 'Pair console'),
+      el('button', { class: 'btn primary', onClick: submit }, t('onboarding.submit')),
       el('p', { class: 'note' }, introCopy.privacy),
     ),
   )
@@ -194,7 +197,7 @@ function renderOnboarding(controller: Controller): HTMLElement {
 
 /** Links to the project's own pages, under every screen. */
 function renderFooter(): HTMLElement {
-  const nav = el('nav', { class: 'app-footer', 'aria-label': 'Tabsend website' })
+  const nav = el('nav', { class: 'app-footer', 'aria-label': t('app.footer.label') })
   projectLinks(window.location.hostname).forEach((link, i) => {
     if (i > 0) nav.append(el('span', { class: 'sep', 'aria-hidden': 'true' }, '·'))
     nav.append(el('a', { href: link.href }, link.label))
@@ -214,8 +217,7 @@ function renderNewDevices(controller: Controller): HTMLElement {
   const host = el('div', { class: 'new-devices' })
   // A time the relay sent that cannot be read says "recently", like the phones do.
   const when = (iso: string): string => {
-    const text = relativeTime(iso)
-    return text === 'unknown' ? 'recently' : text
+    return isReadableTime(iso) ? relativeTime(iso) : t('time.recently')
   }
   effect(() => {
     const vanished = controller.vanished.get()
@@ -259,11 +261,15 @@ function renderNewDevices(controller: Controller): HTMLElement {
         el(
           'div',
           { class: 'new-device', role: 'status' },
-          el('div', { class: 'new-device-title' }, `${n.label} joined, then disappeared`),
+          el(
+            'div',
+            { class: 'new-device-title' },
+            t('devices.vanished.title', { device: n.label }),
+          ),
           el(
             'p',
             { class: 'new-device-body' },
-            `It joined ${when(n.createdAt)} and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.`,
+            t('devices.vanished.body', { ago: when(n.createdAt) }),
           ),
           el(
             'div',
@@ -271,7 +277,7 @@ function renderNewDevices(controller: Controller): HTMLElement {
             el(
               'button',
               { class: 'btn small', onClick: () => controller.dismissVanished(n.id) },
-              'Dismiss',
+              t('common.dismiss'),
             ),
           ),
         ),
@@ -297,9 +303,9 @@ function renderTabs(activeTab: { get(): Tab; set(t: Tab): void }): HTMLElement {
   return el(
     'nav',
     { class: 'tabs' },
-    tab('devices', 'Devices'),
-    tab('history', 'History'),
-    tab('account', 'Account'),
+    tab('devices', t('app.tab.devices')),
+    tab('history', t('app.tab.history')),
+    tab('account', t('app.tab.account')),
   )
 }
 
@@ -334,7 +340,7 @@ function renderDevices(controller: Controller, dialog: { set(d: Dialog): void })
 
   const list = el('ul', { class: 'device-list' })
   if (rows.length === 0) {
-    list.append(el('li', { class: 'muted' }, 'No devices yet.'))
+    list.append(el('li', { class: 'muted' }, t('devices.empty')))
   }
   for (const row of rows) list.append(renderDeviceRow(row, dialog))
 
@@ -344,18 +350,14 @@ function renderDevices(controller: Controller, dialog: { set(d: Dialog): void })
     el(
       'div',
       { class: 'panel-head' },
-      el('h2', {}, 'Devices'),
+      el('h2', {}, t('devices.title')),
       el(
         'button',
         { class: 'btn primary', onClick: () => void controller.addDevice() },
-        'Add a device',
+        t('devices.add'),
       ),
     ),
-    el(
-      'p',
-      { class: 'muted' },
-      'Everything in your group. Rename or remove any device; the console is excluded from send choosers.',
-    ),
+    el('p', { class: 'muted' }, t('devices.intro')),
     list,
   )
 }
@@ -363,9 +365,10 @@ function renderDevices(controller: Controller, dialog: { set(d: Dialog): void })
 function renderDeviceRow(row: DeviceRow, dialog: { set(d: Dialog): void }): HTMLElement {
   const meta = el('div', { class: 'device-meta' })
   const tags: HTMLElement[] = []
-  if (row.isSelf) tags.push(el('span', { class: 'tag tag-self' }, 'this console'))
-  if (row.isConsole && !row.isSelf) tags.push(el('span', { class: 'tag' }, 'console'))
-  if (row.stale) tags.push(el('span', { class: 'tag tag-stale' }, 'inactive'))
+  if (row.isSelf) tags.push(el('span', { class: 'tag tag-self' }, t('devices.tag.self')))
+  if (row.isConsole && !row.isSelf)
+    tags.push(el('span', { class: 'tag' }, t('devices.tag.console')))
+  if (row.stale) tags.push(el('span', { class: 'tag tag-stale' }, t('devices.tag.inactive')))
 
   meta.append(
     el('span', { class: `dot ${row.presenceKnown ? row.presence : 'unknown'}` }),
@@ -387,7 +390,7 @@ function renderDeviceRow(row: DeviceRow, dialog: { set(d: Dialog): void }): HTML
     el(
       'button',
       { class: 'btn small', onClick: () => dialog.set({ kind: 'rename', endpoint: row.endpoint }) },
-      'Rename',
+      t('common.rename'),
     ),
     el(
       'button',
@@ -395,7 +398,7 @@ function renderDeviceRow(row: DeviceRow, dialog: { set(d: Dialog): void }): HTML
         class: 'btn small danger',
         onClick: () => dialog.set({ kind: 'remove', endpoint: row.endpoint, isSelf: row.isSelf }),
       },
-      'Remove',
+      t('common.remove'),
     ),
   )
 
@@ -410,15 +413,20 @@ function renderDeviceRow(row: DeviceRow, dialog: { set(d: Dialog): void }): HTML
 function kindLabel(endpoint: Endpoint): string {
   const kind =
     endpoint.kind === 'extension'
-      ? 'Browser'
+      ? t('devices.kind.browser')
       : endpoint.kind === 'mobile'
-        ? 'Phone'
+        ? t('devices.kind.phone')
         : endpoint.kind === 'console'
-          ? 'Console'
-          : 'Helper'
-  const browser = endpoint.browser ? ` · ${cap(endpoint.browser)}` : ''
-  const platform = endpoint.platform !== 'unknown' ? ` · ${platformLabel(endpoint.platform)}` : ''
-  return `${kind}${browser}${platform}`
+          ? t('devices.kind.console')
+          : t('devices.kind.helper')
+  const known = endpoint.platform !== 'unknown'
+  return t('devices.detail', {
+    kind,
+    hasBrowser: endpoint.browser ? 'yes' : 'no',
+    browser: endpoint.browser ? cap(endpoint.browser) : '',
+    hasPlatform: known ? 'yes' : 'no',
+    platform: known ? platformLabel(endpoint.platform) : '',
+  })
 }
 
 // --- history panel -----------------------------------------------------------
@@ -459,17 +467,16 @@ function renderHistory(controller: Controller): HTMLElement {
     el(
       'div',
       { class: 'panel-head' },
-      el('h2', {}, 'History'),
+      el('h2', {}, t('history.title')),
       entries.length > 0
         ? el(
             'button',
             {
               class: 'btn small',
-              title:
-                'Empties this browser cache. Group history comes back from the relay on the next refresh. Older per-console copies only exist here, so those are gone for good.',
+              title: t('history.clear.hint'),
               onClick: () => void controller.clearHistory(),
             },
-            'Clear local copy',
+            t('history.clear'),
           )
         : null,
     ),
@@ -477,45 +484,25 @@ function renderHistory(controller: Controller): HTMLElement {
     // Retention is stated on the surface, not buried in a config file: this list
     // is not permanent and a reader planning to come back for a link deserves to
     // know that before they need it.
-    status === 'ready'
-      ? el(
-          'p',
-          { class: 'note muted' },
-          'The relay keeps group history for a limited window and then drops it. This browser caches what you see here, so the panel still reads while the relay is unreachable.',
-        )
-      : null,
+    status === 'ready' ? el('p', { class: 'note muted' }, t('history.retention')) : null,
     // An old relay is a state, not a failure: the panel keeps working on the
     // copies it always ran on, and says which of the two it is showing.
-    status === 'unavailable'
-      ? el(
-          'p',
-          { class: 'note warn' },
-          'This relay does not serve group history yet, so this list holds only the copies senders sealed to this console, and it cannot say whether a tab arrived. Update the relay to see every transfer in the group.',
-        )
-      : null,
+    status === 'unavailable' ? el('p', { class: 'note warn' }, t('history.oldRelay')) : null,
     awaitingKey && status === 'ready'
-      ? el(
-          'p',
-          { class: 'note warn' },
-          'No group history key has reached this console yet, so transfers are listed without their content. A key arrives from another paired device the next time one is awake. This console never creates one itself.',
-        )
+      ? el('p', { class: 'note warn' }, t('history.awaitingKey'))
       : null,
     list,
   )
 }
 
 function historyIntro(status: GroupHistoryStatus): string {
-  if (status === 'unavailable') {
-    return 'Tabs sent within your group, sealed by the sender and decrypted here.'
-  }
-  return 'Every transfer in your group, newest first, with what became of it. This includes tabs sent before this console was paired, and tabs that never arrived.'
+  if (status === 'unavailable') return t('history.intro.copies')
+  return t('history.intro.group')
 }
 
 function emptyHistoryText(status: GroupHistoryStatus): string {
-  if (status === 'unavailable') {
-    return 'Nothing here yet. This relay does not serve group history, so only tabs a sender sealed a copy of to this console can appear.'
-  }
-  return 'Nothing here yet. When a device in your group sends a tab, it appears here with what became of it.'
+  if (status === 'unavailable') return t('history.empty.copies')
+  return t('history.empty.group')
 }
 
 /**
@@ -539,7 +526,7 @@ function renderHistoryGroup(group: HistoryGroup, endpoints: Endpoint[]): HTMLEle
     el(
       'span',
       { class: 'muted', title: absoluteTime(first.sentAt) },
-      `sent ${relativeTime(first.sentAt)}`,
+      t('history.sent', { ago: relativeTime(first.sentAt) }),
     ),
   )
 
@@ -555,14 +542,14 @@ function routeNode(entry: HistoryEntry, endpoints: Endpoint[]): HTMLElement {
     { class: 'entry-route muted' },
     el(
       'span',
-      { class: 'mail-end', title: 'Sent by' },
+      { class: 'mail-end', title: t('history.route.sentBy') },
       svg(PLANE),
       resolveEntryLabel(entry, 'source', endpoints),
     ),
     el('span', { class: 'arrow' }, ' → '),
     el(
       'span',
-      { class: 'mail-end', title: 'Sent to' },
+      { class: 'mail-end', title: t('history.route.sentTo') },
       svg(TRAY),
       resolveEntryLabel(entry, 'target', endpoints),
     ),
@@ -582,7 +569,7 @@ function renderHistoryEntry(
     ? entry.title && entry.title.trim() !== ''
       ? entry.title
       : hostOf(url)
-    : SEALED_ROW_TITLE
+    : sealedRowTitle()
 
   const titleNode = href
     ? el(
@@ -592,7 +579,7 @@ function renderHistoryEntry(
       )
     : el(
         'span',
-        { class: `entry-title ${url ? '' : 'sealed'}`, title: url ? undefined : SEALED_ROW_NOTE },
+        { class: `entry-title ${url ? '' : 'sealed'}`, title: url ? undefined : sealedRowNote() },
         titleText,
       )
 
@@ -602,12 +589,16 @@ function renderHistoryEntry(
     { class: 'entry-foot muted' },
     url ? el('span', { class: 'entry-host' }, hostOf(url)) : null,
     url ? el('span', { class: 'sep' }, '·') : null,
-    el('span', { title: absoluteTime(entry.sentAt) }, `sent ${relativeTime(entry.sentAt)}`),
+    el(
+      'span',
+      { title: absoluteTime(entry.sentAt) },
+      t('history.sent', { ago: relativeTime(entry.sentAt) }),
+    ),
     badge
       ? el('span', { class: `state state-${badge.state}`, title: badge.note }, badge.label)
       : null,
     url
-      ? el('button', { class: 'btn tiny', onClick: (e) => void copy(url, e) }, 'Copy link')
+      ? el('button', { class: 'btn tiny', onClick: (e) => void copy(url, e) }, t('common.copyLink'))
       : null,
   )
 
@@ -643,7 +634,7 @@ async function copy(text: string, ev?: Event): Promise<void> {
     const btn = ev?.target as HTMLElement | undefined
     if (btn) {
       const prev = btn.textContent
-      btn.textContent = 'Copied'
+      btn.textContent = t('common.copied')
       setTimeout(() => {
         btn.textContent = prev
       }, 1200)
@@ -658,55 +649,43 @@ async function copy(text: string, ev?: Event): Promise<void> {
 function renderAccount(controller: Controller, dialog: { set(d: Dialog): void }): HTMLElement {
   const session = controller.session.get()
   const relayText =
-    session && session.relayUrl !== '' ? session.relayUrl : 'same origin as this page'
+    session && session.relayUrl !== '' ? session.relayUrl : t('account.relay.sameOrigin')
   const push = controller.pushEnabled.get()
   const keys = controller.keyring.get().length
+
+  const unpairBody = richNodes('account.unpair.body', {}, { em: (text) => el('em', {}, text) })
 
   return el(
     'section',
     { class: 'panel' },
-    el('h2', {}, 'Account'),
+    el('h2', {}, t('account.title')),
 
     el(
       'div',
       { class: 'kv' },
-      kv('Relay', relayText),
-      kv('Group', session?.groupId ?? '—'),
-      kv('This console', session?.endpointId ?? '—'),
-      kv(
-        'Push wake',
-        push ? 'enabled on this relay' : 'not configured (the console pulls; it needs no push)',
-      ),
+      kv(t('account.relay.label'), relayText),
+      kv(t('account.group.label'), session?.groupId ?? '—'),
+      kv(t('account.self.label'), session?.endpointId ?? '—'),
+      kv(t('account.push.label'), push ? t('account.push.on') : t('account.push.off')),
       // A count, not the keys: it answers "why can this console not read that
       // row", which is the only question the number is good for. More than one is
       // normal, because a rotated key is kept so older history stays readable.
-      kv('History keys', keys === 0 ? 'none received yet' : `${keys} held`),
+      kv(
+        t('account.keys.label'),
+        keys === 0 ? t('account.keys.none') : t('account.keys.held', { count: keys }),
+      ),
     ),
 
-    el('h3', {}, 'Getting back in'),
-    el(
-      'p',
-      { class: 'muted' },
-      'There is no recovery phrase and no backup credential (ADR-0021). Adding a device — including this console — always works the same way: an already-paired device creates a setup link.',
-    ),
-    el(
-      'div',
-      { class: 'note' },
-      'If you ever lose every paired device at once, there is nothing left to restore: the group’s remaining endpoints are dead, and its history is end-to-end encrypted to keys that no longer exist. Preserve the old relay state, start the relay with a new empty database, and pair your devices again.',
-    ),
+    el('h3', {}, t('account.recovery.title')),
+    el('p', { class: 'muted' }, t('account.recovery.body')),
+    el('div', { class: 'note' }, t('account.recovery.warning')),
 
-    el('h3', {}, 'This console'),
-    el(
-      'p',
-      { class: 'muted' },
-      'Unpair removes this console’s keys and history from THIS browser only. To remove it from the group everywhere, use ',
-      el('em', {}, 'Remove'),
-      ' on its row in Devices.',
-    ),
+    el('h3', {}, t('account.unpair.title')),
+    el('p', { class: 'muted' }, ...unpairBody),
     el(
       'button',
       { class: 'btn danger', onClick: () => dialog.set({ kind: 'unpair' }) },
-      'Unpair this console',
+      t('account.unpair.button'),
     ),
   )
 }
@@ -757,10 +736,10 @@ function renderRenameDialog(
     if ((e as KeyboardEvent).key === 'Enter') save()
   })
   return overlay(
-    el('h3', {}, 'Rename device'),
-    el('label', { class: 'field-label' }, 'Label'),
+    el('h3', {}, t('dialog.rename.title')),
+    el('label', { class: 'field-label' }, t('dialog.rename.label')),
     input,
-    dialogButtons(close, el('button', { class: 'btn primary', onClick: save }, 'Save')),
+    dialogButtons(close, el('button', { class: 'btn primary', onClick: save }, t('common.save'))),
   )
 }
 
@@ -771,10 +750,10 @@ function renderRemoveDialog(
   close: () => void,
 ): HTMLElement {
   const consequence = isSelf
-    ? 'This is this console. Removing it ends this session and clears its local history; you would re-pair to use the console again.'
-    : `“${endpoint.label}” will stop receiving tabs and disappear from every device’s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin.`
+    ? t('dialog.remove.self')
+    : t('dialog.remove.other', { device: endpoint.label })
   return overlay(
-    el('h3', {}, 'Remove device'),
+    el('h3', {}, t('dialog.remove.title')),
     el('p', { class: 'muted' }, consequence),
     dialogButtons(
       close,
@@ -787,7 +766,7 @@ function renderRemoveDialog(
             close()
           },
         },
-        'Remove',
+        t('common.remove'),
       ),
     ),
   )
@@ -795,12 +774,8 @@ function renderRemoveDialog(
 
 function renderUnpairDialog(controller: Controller, close: () => void): HTMLElement {
   return overlay(
-    el('h3', {}, 'Unpair this console'),
-    el(
-      'p',
-      { class: 'muted' },
-      'Removes this console’s keys and recorded history from this browser only. The group keeps the endpoint until you Remove it from Devices.',
-    ),
+    el('h3', {}, t('dialog.unpair.title')),
+    el('p', { class: 'muted' }, t('dialog.unpair.body')),
     dialogButtons(
       close,
       el(
@@ -808,11 +783,11 @@ function renderUnpairDialog(controller: Controller, close: () => void): HTMLElem
         {
           class: 'btn danger',
           onClick: () => {
-            controller.unpair()
+            void controller.unpair()
             close()
           },
         },
-        'Unpair',
+        t('dialog.unpair.confirm'),
       ),
     ),
   )
@@ -822,7 +797,7 @@ function dialogButtons(close: () => void, confirm: HTMLElement): HTMLElement {
   return el(
     'div',
     { class: 'dialog-actions' },
-    el('button', { class: 'btn', onClick: close }, 'Cancel'),
+    el('button', { class: 'btn', onClick: close }, t('common.cancel')),
     confirm,
   )
 }
@@ -835,41 +810,35 @@ function renderPairingModal(controller: Controller): HTMLElement {
   const close = (): void => controller.dismissPairing()
 
   const qr = el('div', { class: 'qr' })
-  qr.append(svg(qrSvg(pairing.qrLink, { cellSize: 5 })))
+  qr.append(svg(qrSvg(pairing.qrLink, { cellSize: 5, label: t('pairing.qr.label') })))
 
   return overlay(
-    el('h3', {}, 'Add a device'),
-    el(
-      'p',
-      { class: 'muted' },
-      "Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it. It works once and expires soon.",
-    ),
+    el('h3', {}, t('pairing.title')),
+    el('p', { class: 'muted' }, t('pairing.body')),
     qr,
     el(
       'div',
       { class: 'pair-actions' },
-      el('button', { class: 'btn small', onClick: (e) => void copy(pairing.link, e) }, 'Copy link'),
+      el(
+        'button',
+        { class: 'btn small', onClick: (e) => void copy(pairing.link, e) },
+        t('common.copyLink'),
+      ),
     ),
     // A loopback link isn't an error — the mint succeeded — so this sits beside
     // the QR rather than replacing it: pairing a second client on this same
     // machine still works. Everything else scanning it would dead-end silently.
     ...(pairing.localOnly
-      ? [
-          el(
-            'p',
-            { class: 'note warn' },
-            `This link points at ${pairing.relayUrl}, which only works for another browser on this same computer — a phone or another device cannot use it. To pair those, the relay needs to be reachable on your network, and this console connected to it at that address.`,
-          ),
-        ]
+      ? [el('p', { class: 'note warn' }, t('pairing.localOnly', { relayUrl: pairing.relayUrl }))]
       : pairing.routeNote
         ? [el('p', { class: 'note warn' }, pairing.routeNote)]
         : []),
     el(
       'p',
       { class: 'note muted' },
-      `Expires ${absoluteTime(pairing.expiresAt)}. Make a new one if it does.`,
+      t('pairing.expires', { when: absoluteTime(pairing.expiresAt) }),
     ),
-    dialogButtons(close, el('button', { class: 'btn primary', onClick: close }, 'Done')),
+    dialogButtons(close, el('button', { class: 'btn primary', onClick: close }, t('common.done'))),
   )
 }
 

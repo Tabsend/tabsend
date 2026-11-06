@@ -22,7 +22,9 @@ object Notifications {
 
     fun ensureChannel(context: Context) {
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
-        if (mgr.getNotificationChannel(CHANNEL_LINKS) != null) return
+        // Created again every time, on purpose: for a channel that already exists this only updates its
+        // name and description (never the importance the person may have changed), which is how the
+        // channel names follow the phone's language after a language change or an update.
         val channel = NotificationChannel(
             CHANNEL_LINKS,
             context.getString(R.string.channel_links_name),
@@ -149,7 +151,7 @@ object Notifications {
             .addAction(0, context.getString(R.string.batch_open_all), openAllPending)
             .apply {
                 if (items.size < count) {
-                    setContentText(res.getString(R.string.batch_summary_partial, items.size, count))
+                    setContentText(res.getQuantityString(R.plurals.batch_summary_partial, count, items.size, count))
                 }
             }
             .build()

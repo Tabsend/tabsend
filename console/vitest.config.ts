@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
 import { defineConfig } from 'vitest/config'
+import { catalogMessages } from './tools/i18n-vite'
 
 /**
  * Hermetic logic tests — no browser, no server. Persistence and networking are
@@ -11,6 +12,8 @@ const require = createRequire(import.meta.url)
 const libsodiumCjs = require.resolve('libsodium-wrappers')
 
 export default defineConfig({
+  // Catalog files are { key: { message, description } }; the app takes only the messages.
+  plugins: [catalogMessages()],
   resolve: {
     alias: { 'libsodium-wrappers': libsodiumCjs },
   },

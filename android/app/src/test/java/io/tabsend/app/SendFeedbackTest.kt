@@ -31,6 +31,13 @@ import org.junit.Test
  */
 class SendFeedbackTest {
 
+    /** The sentence the hosted-network relay-down line ends with, word for word as the other clients say it. */
+    private val HINT = "This address only works on your home network. Away from home or on mobile data? " +
+        "Connect to your home Wi-Fi or turn on your VPN."
+
+    /** The stand-in for a device name that was never recorded. */
+    private val THAT_DEVICE = "that device"
+
     private val label = "Arc · Mac mini"
     private val title = "Setting up a LAN relay"
 
@@ -38,7 +45,7 @@ class SendFeedbackTest {
 
     @Test
     fun `says Sent only when the relay actually took it`() {
-        val banner = Feedback.banner(SendOutcomeView(ok = true, queued = false, targetLabel = label, title = title))
+        val banner = Feedback.banner(EN, SendOutcomeView(ok = true, queued = false, targetLabel = label, title = title))
         assertEquals(SendTone.SUCCESS, banner.tone)
         assertEquals("Sent to Arc · Mac mini", banner.headline)
         assertEquals(title, banner.title)
@@ -47,7 +54,7 @@ class SendFeedbackTest {
 
     @Test
     fun `an asleep target is still a success - the relay has it`() {
-        val banner = Feedback.banner(SendOutcomeView(ok = true, queued = true, targetLabel = label))
+        val banner = Feedback.banner(EN, SendOutcomeView(ok = true, queued = true, targetLabel = label))
         assertEquals(SendTone.SUCCESS, banner.tone)
         assertEquals("Sent to Arc · Mac mini", banner.headline)
         assertNull(banner.detail)
@@ -56,7 +63,7 @@ class SendFeedbackTest {
     /** THE regression: a dead relay used to return ok=true and render as "Sent". */
     @Test
     fun `a tab merely held on this phone is pending, never Sent`() {
-        val banner = Feedback.banner(
+        val banner = Feedback.banner(EN, 
             SendOutcomeView(
                 ok = true, queued = false, targetLabel = label, title = title,
                 failure = SendFailure.RelayUnreachable("http://192.168.1.50:8787"),
@@ -70,7 +77,7 @@ class SendFeedbackTest {
 
     @Test
     fun `a refusal needs the user, so it reads as an error`() {
-        val banner = Feedback.banner(
+        val banner = Feedback.banner(EN, 
             SendOutcomeView(
                 ok = false, queued = false, targetLabel = label,
                 failure = SendFailure.RelayRejected("unknown_target"),
@@ -84,21 +91,21 @@ class SendFeedbackTest {
 
     @Test
     fun `carries the tab title so the user knows WHICH tab it means`() {
-        assertEquals(title, Feedback.banner(SendOutcomeView(true, false, label, title)).title)
-        assertNull(Feedback.banner(SendOutcomeView(true, false, label)).title)
+        assertEquals(title, Feedback.banner(EN, SendOutcomeView(true, false, label, title)).title)
+        assertNull(Feedback.banner(EN, SendOutcomeView(true, false, label)).title)
     }
 
     // --- the diagnosis ------------------------------------------------------
 
     @Test
     fun `names the relay address a self-hoster has to go and fix`() {
-        val line = Feedback.failureLine(SendFailure.RelayUnreachable("http://192.168.1.50:8787"))
+        val line = Feedback.failureLine(EN, SendFailure.RelayUnreachable("http://192.168.1.50:8787"))
         assertTrue(line.contains("http://192.168.1.50:8787"))
     }
 
     @Test
     fun `never blames the connection for a relay outage`() {
-        val line = Feedback.failureLine(SendFailure.RelayUnreachable("http://mini-pc:8787"))
+        val line = Feedback.failureLine(EN, SendFailure.RelayUnreachable("http://mini-pc:8787"))
         assertFalse(line, Regex("(?i)you'?re offline|no connection").containsMatchIn(line))
     }
 
@@ -130,7 +137,7 @@ class SendFeedbackTest {
                 SendFailure.RelayRejected("limit_reached", "a_cap_from_the_future"),
             )
         for (failure in cases) {
-            assertTrue("$failure produced no line", Feedback.failureLine(failure, label).isNotEmpty())
+            assertTrue("$failure produced no line", Feedback.failureLine(EN, failure, label).isNotEmpty())
         }
     }
 
@@ -146,7 +153,7 @@ class SendFeedbackTest {
             ALL_GROUP_LIMITS.map { SendFailure.RelayRejected("limit_reached", it) } +
             listOf(SendFailure.RelayError("nonsense_code"), SendFailure.RelayRejected("nonsense_reason"))
         for (failure in cases) {
-            val line = Feedback.failureLine(failure, label)
+            val line = Feedback.failureLine(EN, failure, label)
             for (code in wireCodes + setOf("nonsense_code", "nonsense_reason")) {
                 assertFalse("$failure leaked $code: $line", line.contains(code))
             }
@@ -172,8 +179,8 @@ class SendFeedbackTest {
                 SendFailure.NothingToSend,
             )
         for (failure in cases) {
-            val line = Feedback.failureLine(failure) // no label → the fallback
-            assertFalse("$failure opened with the fallback: $line", line.startsWith(Feedback.THAT_DEVICE))
+            val line = Feedback.failureLine(EN, failure) // no label → the fallback
+            assertFalse("$failure opened with the fallback: $line", line.startsWith(THAT_DEVICE))
             assertTrue("$failure did not start with a capital: $line", line.first().isUpperCase())
         }
     }
@@ -182,7 +189,7 @@ class SendFeedbackTest {
     fun `names the device rather than the code it was rejected with`() {
         assertEquals(
             "Your relay doesn't know Arc any more. Pair it again, then send this tab a second time.",
-            Feedback.failureLine(SendFailure.RelayRejected("unknown_target"), "Arc"),
+            Feedback.failureLine(EN, SendFailure.RelayRejected("unknown_target"), "Arc"),
         )
     }
 
@@ -200,10 +207,10 @@ class SendFeedbackTest {
                 SendFailure.GaveUp(GaveUpReason.TOO_OLD),
                 SendFailure.GaveUp(GaveUpReason.QUEUE_FULL),
             )
-        for (failure in cases) assertFalse(Feedback.failureLine(failure, "Arc").contains("—"))
-        assertFalse(Feedback.relayDownLine("http://x", 12).contains("—"))
-        assertFalse(Feedback.heldTabsHeading(3).contains("—"))
-        assertFalse(Feedback.recoveredLine(2).contains("—"))
+        for (failure in cases) assertFalse(Feedback.failureLine(EN, failure, "Arc").contains("—"))
+        assertFalse(Feedback.relayDownLine(EN, "http://x", 12).contains("—"))
+        assertFalse(Feedback.heldTabsHeading(EN, 3).contains("—"))
+        assertFalse(Feedback.recoveredLine(EN, 2).contains("—"))
     }
 
     @Test
@@ -240,11 +247,11 @@ class SendFeedbackTest {
      */
     @Test
     fun `giving up says how long it waited, or what the cap is`() {
-        val tooOld = Feedback.failureLine(SendFailure.GaveUp(GaveUpReason.TOO_OLD), label)
+        val tooOld = Feedback.failureLine(EN, SendFailure.GaveUp(GaveUpReason.TOO_OLD), label)
         assertTrue(tooOld.contains("${OutboundQueue.MAX_AGE_DAYS} days"))
         assertTrue(tooOld.contains("Send it again"))
 
-        val full = Feedback.failureLine(SendFailure.GaveUp(GaveUpReason.QUEUE_FULL), label)
+        val full = Feedback.failureLine(EN, SendFailure.GaveUp(GaveUpReason.QUEUE_FULL), label)
         assertTrue(full.contains("${OutboundQueue.MAX_ITEMS}"))
         assertTrue(full.contains("oldest"))
     }
@@ -252,7 +259,7 @@ class SendFeedbackTest {
     /** A given-up tab is finished, so it must never read as one still on its way. */
     @Test
     fun `giving up reads as an error, not as a tab still on its way`() {
-        val banner = Feedback.banner(
+        val banner = Feedback.banner(EN, 
             SendOutcomeView(
                 ok = false, queued = false, targetLabel = label, title = title,
                 failure = SendFailure.GaveUp(GaveUpReason.TOO_OLD),
@@ -275,30 +282,30 @@ class SendFeedbackTest {
         assertEquals(
             "Your relay is pacing sends for your group right now. This tab is queued and " +
                 "will send itself shortly.",
-            Feedback.failureLine(SendFailure.RelayRejected("limit_reached", "sends_per_window"), label),
+            Feedback.failureLine(EN, SendFailure.RelayRejected("limit_reached", "sends_per_window"), label),
         )
         for (limit in listOf("queued_messages", "queued_bytes")) {
             assertEquals(
                 "Your relay is holding as much as your group's limit allows. This tab is queued " +
                     "and will send once the receiving device catches up.",
-                Feedback.failureLine(SendFailure.RelayRejected("limit_reached", limit), label),
+                Feedback.failureLine(EN, SendFailure.RelayRejected("limit_reached", limit), label),
             )
         }
         // A relay that names no cap, or names a fifth one this build has never
         // heard of, still gets a true sentence and not the internal-error line.
         val general = "Your relay has reached a limit for your group. This tab is queued and " +
             "will send itself once there is room."
-        assertEquals(general, Feedback.failureLine(SendFailure.RelayRejected("limit_reached"), label))
+        assertEquals(general, Feedback.failureLine(EN, SendFailure.RelayRejected("limit_reached"), label))
         assertEquals(
             general,
-            Feedback.failureLine(SendFailure.RelayRejected("limit_reached", "a_fifth_cap"), label),
+            Feedback.failureLine(EN, SendFailure.RelayRejected("limit_reached", "a_fifth_cap"), label),
         )
     }
 
     /** A cap-held tab is still on its way, so it must not read as a failure. */
     @Test
     fun `a cap refusal reads as pending and promises the retry`() {
-        val banner = Feedback.banner(
+        val banner = Feedback.banner(EN, 
             SendOutcomeView(
                 ok = true, queued = false, targetLabel = label, title = title,
                 failure = SendFailure.RelayRejected("limit_reached", "sends_per_window"),
@@ -321,13 +328,13 @@ class SendFeedbackTest {
      */
     @Test
     fun `the device cap names the action rather than blaming the relay`() {
-        val line = Feedback.failureLine(SendFailure.RelayError("limit_reached"), label)
+        val line = Feedback.failureLine(EN, SendFailure.RelayError("limit_reached"), label)
         assertEquals(
             "Your relay has reached its device limit for your group. Remove a device you are " +
                 "not using, then pair this one again.",
             line,
         )
-        assertEquals(Feedback.DEVICE_LIMIT_LINE, line)
+        assertEquals(Feedback.deviceLimitLine(EN), line)
         assertFalse(line.contains("went wrong"))
         // A join is not a send: nothing was queued, so nothing may read as pending.
         assertFalse(Feedback.isRecoverable(SendFailure.RelayError("limit_reached")))
@@ -336,7 +343,7 @@ class SendFeedbackTest {
     /** A held tab is pending, and its line must promise the retry it will make. */
     @Test
     fun `a busy relay reads as pending and promises the retry`() {
-        val banner = Feedback.banner(
+        val banner = Feedback.banner(EN, 
             SendOutcomeView(
                 ok = true, queued = false, targetLabel = label, title = title,
                 failure = SendFailure.RelayBusy,
@@ -351,49 +358,49 @@ class SendFeedbackTest {
 
     @Test
     fun `held tab prefers the page title, falls back to the site`() {
-        assertEquals("An article", Feedback.heldTabLabel("An article", "https://example.com/a"))
+        assertEquals("An article", Feedback.heldTabLabel(EN, "An article", "https://example.com/a"))
         // A bare path tells nobody anything; the site at least places the tab.
         assertEquals(
             "developer.mozilla.org",
-            Feedback.heldTabLabel(null, "https://developer.mozilla.org/en-US/docs/Web"),
+            Feedback.heldTabLabel(EN, null, "https://developer.mozilla.org/en-US/docs/Web"),
         )
-        assertEquals("example.com", Feedback.heldTabLabel("   ", "https://example.com/x"))
-        assertEquals("example.com", Feedback.heldTabLabel(null, "https://example.com:8443/x?a=1"))
-        assertEquals("not a url", Feedback.heldTabLabel(null, "not a url"))
-        assertEquals("Untitled tab", Feedback.heldTabLabel(null, null))
+        assertEquals("example.com", Feedback.heldTabLabel(EN, "   ", "https://example.com/x"))
+        assertEquals("example.com", Feedback.heldTabLabel(EN, null, "https://example.com:8443/x?a=1"))
+        assertEquals("not a url", Feedback.heldTabLabel(EN, null, "not a url"))
+        assertEquals("Untitled tab", Feedback.heldTabLabel(EN, null, null))
     }
 
     @Test
     fun `held heading counts, and reads naturally at one`() {
-        assertEquals("Waiting on this phone", Feedback.heldTabsHeading(1))
-        assertEquals("3 tabs waiting on this phone", Feedback.heldTabsHeading(3))
+        assertEquals("Waiting on this phone", Feedback.heldTabsHeading(EN, 1))
+        assertEquals("3 tabs waiting on this phone", Feedback.heldTabsHeading(EN, 3))
     }
 
     @Test
     fun `names the tab when exactly one drained`() {
-        assertEquals("Sent “An article”", Feedback.recoveredLine(1, "An article"))
-        assertEquals("Sent the tab that was waiting", Feedback.recoveredLine(1))
-        assertEquals("Sent 4 tabs that were waiting", Feedback.recoveredLine(4))
+        assertEquals("Sent “An article”", Feedback.recoveredLine(EN, 1, "An article"))
+        assertEquals("Sent the tab that was waiting", Feedback.recoveredLine(EN, 1))
+        assertEquals("Sent 4 tabs that were waiting", Feedback.recoveredLine(EN, 4))
     }
 
     @Test
     fun `relay down line names the address and how long it has been quiet`() {
-        val line = Feedback.relayDownLine("http://192.168.1.50:8787", 12)
+        val line = Feedback.relayDownLine(EN, "http://192.168.1.50:8787", 12)
         assertTrue(line.contains("http://192.168.1.50:8787"))
         assertTrue(line.contains("12m ago"))
-        assertTrue(Feedback.relayDownLine("http://x", 125).contains("2h ago"))
-        assertTrue(Feedback.relayDownLine("http://x", 0).contains("just now"))
+        assertTrue(Feedback.relayDownLine(EN, "http://x", 125).contains("2h ago"))
+        assertTrue(Feedback.relayDownLine(EN, "http://x", 0).contains("just now"))
     }
 
     // P-15 item 4: away from home, a home-network relay is silent for a reason the
     // bare outage line did not give, and it read as a refresh bug.
     @Test
     fun `relay down line says why a home-network relay is out of reach`() {
-        val line = Feedback.relayDownLine("http://192.168.1.20:8786", 19)
+        val line = Feedback.relayDownLine(EN, "http://192.168.1.20:8786", 19)
         assertTrue(line.contains("19m ago"))
-        assertTrue(line.endsWith(HomeNetwork.HINT))
+        assertTrue(line.endsWith(HINT))
         assertFalse(line.contains("—"))
-        assertTrue(Feedback.relayDownLine("http://minipc.local:8786", 5).endsWith(HomeNetwork.HINT))
+        assertTrue(Feedback.relayDownLine(EN, "http://minipc.local:8786", 5).endsWith(HINT))
     }
 
     @Test
@@ -405,7 +412,7 @@ class SendFeedbackTest {
             "http://localhost:8787",
             "http://127.0.0.1:8787",
         )) {
-            assertFalse(url, Feedback.relayDownLine(url, 19).contains(HomeNetwork.HINT))
+            assertFalse(url, Feedback.relayDownLine(EN, url, 19).contains(HINT))
         }
     }
 

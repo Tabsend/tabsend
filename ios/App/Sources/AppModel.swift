@@ -18,6 +18,21 @@ final class AppModel: ObservableObject {
     @Published var banner: String?
     /// A pairing deep link opened while unpaired; JoinView consumes it.
     @Published var pendingDeepLink: Pairing.Parsed?
+    /// True on the US App Store, the only storefront where the sign-up door on the first screen
+    /// and the Account group in Settings may show (docs/PLANS.md P-25). False while the
+    /// storefront is not known yet, so the screen without the door is what shows first.
+    @Published private(set) var accountSetupAvailable = false
+    /// What Tabsend's service last told this phone about its plan (`GroupService`, from the relay
+    /// through `GET /v1/group`), or nil: a self-hosted relay says nothing, so the phone shows no
+    /// trial line, no trial notice and no Account group. Never worked out from a date or a tap.
+    @Published private(set) var servicePlan: GroupService.Plan? = AppModel.currentServicePlan()
+    /// The first setup link the account site handed back after the sign-up this phone began.
+    /// While it is set, the first screen shows "Name this phone".
+    @Published var accountArrival: AccountArrival?
+    /// A sign-in page to open in a sheet (a `/app-signin` link from the email).
+    @Published var accountSignInURL: URL?
+    /// True while the app is using a sign-up link (the account site is being asked).
+    @Published private(set) var redeemingAccountLink = false
 
     private var stream: StreamClient?
     private var deliverer: Deliverer?
@@ -52,6 +67,8 @@ final class AppModel: ObservableObject {
     @Published var wakePathAvailable = false
     /// The P-5 opt-out, read the way a toggle wants it: on means instant delivery.
     @Published var instantDeliveryOn = true
+    /// The Website images switch. Off means no site is contacted for a picture.
+    @Published var websiteImagesOn = true
     /// False once the relay has told us it does not know ADR-0028's routes. An app
     /// updates itself and a self-hosted relay is updated by hand, so this is a
     /// normal state to sit in, not a failure — the screen explains it instead of
@@ -73,8 +90,110 @@ final class AppModel: ObservableObject {
         refreshSendState()
         refreshHistory()
         refreshWakeState()
+        websiteImagesOn = !store.websiteImagesOff
         refreshNewDevices()
         refreshGroupResetCard()
+    }
+
+    // MARK: the account door (PLANS.md P-19, P-25)
+
+    /// Follows the App Store the app came from, for as long as the app runs. Started once,
+    /// from the root view.
+    func watchStorefront() async {
+        accountSetupAvailable = AccountSetup.allowsAccountSetup(
+            storefrontCountryCode: await StorefrontWatcher.currentCountryCode()
+        )
+        for await code in StorefrontWatcher.changes() {
+            accountSetupAvailable = AccountSetup.allowsAccountSetup(storefrontCountryCode: code)
+        }
+    }
+
+    /// DEBUG builds only: `-TabsendOpenLink <setup link>` on the launch line hands the app a link
+    /// as if it had been opened from outside. The Simulator cannot open an https link in the app,
+    /// so this is how the screens that follow a link get looked at. A release build ignores it.
+    func openLinkFromLaunchSettings() {
+        #if DEBUG
+        guard registration == nil,
+              let link = UserDefaults.standard.string(forKey: "TabsendOpenLink") // l10n-ignore: launch setting name
+        else { return }
+        if let url = URL(string: link), AccountLink.parse(url, site: AccountSite.base) != nil {
+            openIncoming(url)
+        } else if let parsed = Pairing.parse(link) {
+            pendingDeepLink = parsed
+        }
+        #endif
+    }
+
+    /// The person opened the sign-up sheet: a setup link that arrives soon is its own.
+    func accountSignupStarted() {
+        AccountSetup.markStarted()
+    }
+
+    // MARK: links that open the app (docs/PLANS.md P-19)
+
+    /// A link iOS handed the app: one from the account site's email (a universal link), else a
+    /// pairing link. `tabsend://` is never taken for either: any web page can open it.
+    func openIncoming(_ url: URL) {
+        if let link = AccountLink.parse(url, site: AccountSite.base) {
+            Task { await openAccountLink(link) }
+            return
+        }
+        guard registration == nil else { return }
+        // An address on the account site that is not an account link is nothing to pair with: its
+        // fragment could name any relay (security review v0.11.0, AL2).
+        if AccountLink.isOnSite(url, site: AccountSite.base) { return }
+        // Parsed from the full link, so the device tags it vouches for come along (P-23).
+        if let parsed = Pairing.parse(url.absoluteString) {
+            pendingDeepLink = parsed
+        }
+    }
+
+    /// `/app-start`: this phone finishes the sign-up itself (the account site's answer holds the
+    /// group's first setup link) and goes on to "Name this phone". `/app-signin`: the sign-in
+    /// page opens in the sheet and signs in there.
+    func openAccountLink(_ link: AccountLink) async {
+        switch link {
+        case .signIn:
+            accountSignInURL = link.signInPage(site: AccountSite.base)
+        case .newAccount(let token):
+            // A phone that is paired has its group; a second one is not made here. And only a
+            // phone that asked for a sign-up takes the link: one that arrives cold, from someone
+            // else's email, would put this phone in a stranger's group (review AL1).
+            guard registration == nil, !redeemingAccountLink, AccountSetup.isPending() else { return }
+            banner = nil
+            redeemingAccountLink = true
+            defer { redeemingAccountLink = false }
+            do {
+                let handBack = try await AccountSiteClient.redeem(token: token, site: AccountSite.base)
+                guard let setupLink = handBack.setupLink else {
+                    banner = String(
+                        localized: "This account already has a device. On a paired device, choose Add a device, then scan its code here.",
+                        comment: "Banner on the first-run screen after the sign-in link from the email was used for an account that already has a device. The setup link only exists while the account's group is empty, so this phone is added from a paired device instead."
+                    )
+                    return
+                }
+                accountArrival = AccountArrival(
+                    link: setupLink,
+                    accountCreated: handBack.created,
+                    trialEndsAt: handBack.trialEndsAt
+                )
+            } catch AccountSiteError.linkExpired {
+                banner = String(
+                    localized: "That sign-in link has expired or was already used. Set up an account again to get a new one.",
+                    comment: "Banner on the first-run screen when the sign-in link from the email is too old (it lasts 15 minutes) or was already used."
+                )
+            } catch AccountSiteError.unreachable {
+                banner = String(
+                    localized: "Couldn't reach Tabsend's service. Check your connection, then open the link in your email again.",
+                    comment: "Banner on the first-run screen when the app could not reach Tabsend's own hosted service to finish setting up an account."
+                )
+            } catch {
+                banner = String(
+                    localized: "Something went wrong. Open the link in your email again.",
+                    comment: "Banner on the first-run screen when the answer from Tabsend's own hosted service could not be read."
+                )
+            }
+        }
     }
 
     // MARK: the reset that waits (PLANS.md P-18 item 12)
@@ -93,6 +212,25 @@ final class AppModel: ObservableObject {
             await Notifications.postGroupReset(reset)
         }
         refreshGroupResetCard()
+        // The same answer carries the plan words (GroupReset.refresh kept them).
+        servicePlan = Self.currentServicePlan()
+    }
+
+    /// The plan words as last said by the relay. DEBUG builds only: `-TabsendServicePlan trial`
+    /// (or `trial_ended`, `account`) on the launch line stands in for them, because the
+    /// Simulator's unsigned build cannot read its own pairing back from the store the plan
+    /// words are fetched under (no shared App Group), so the screens that follow could not
+    /// otherwise be looked at. A release build ignores it.
+    private static func currentServicePlan() -> GroupService.Plan? {
+        #if DEBUG
+        switch UserDefaults.standard.string(forKey: "TabsendServicePlan") { // l10n-ignore: launch setting name
+        case "trial": return .trial(endsAt: Date().addingTimeInterval(13 * 86_400))
+        case "trial_ended": return .trialEnded
+        case "account": return .account
+        default: break
+        }
+        #endif
+        return GroupService.current()
     }
 
     /// "Stop the reset". On success the card goes and the short confirmation shows;
@@ -105,7 +243,7 @@ final class AppModel: ObservableObject {
             try await GroupReset.stop(api: api, store: store)
             banner = GroupReset.stoppedLine
         } catch let error as ApiError {
-            banner = error.message
+            banner = RelayErrorText.line(error, during: .stopReset)
         } catch {
             banner = relayUnreachableBanner()
         }
@@ -150,7 +288,7 @@ final class AppModel: ObservableObject {
             // relay that keeps the device listed cannot keep it on the history key (X13).
             try await NewDevices.removeFromGroup(id: id, api: api, store: store)
         } catch let error as ApiError {
-            banner = error.message
+            banner = RelayErrorText.line(error, during: .removeDevice)
             return false
         } catch {
             banner = relayUnreachableBanner()
@@ -183,6 +321,11 @@ final class AppModel: ObservableObject {
         guard let api else { return }
         await WakePath.heartbeat(store: store, api: api)
         refreshWakeState()
+    }
+
+    func setWebsiteImages(_ on: Bool) {
+        store.websiteImagesOff = !on
+        websiteImagesOn = on
     }
 
     /// The P-5 opt-out, both directions.
@@ -254,7 +397,10 @@ final class AppModel: ObservableObject {
         // it too, so no other path can re-send one (`History.sendAgainPayload`).
         guard let again = History.sendAgainPayload(item), let api else { return Feedback.sendFailed }
         guard let target = endpoints.first(where: { $0.id == item.targetEndpointId }) else {
-            return "That device isn't in your group any more."
+            return String(
+                localized: "That device isn't in your group any more.",
+                comment: "Message on the History screen after Send again, when the device the tab was meant for has left the group."
+            )
         }
         let result = await Sender.send(payload: again, to: target, store: store, api: api)
         refreshSendState()
@@ -288,7 +434,24 @@ final class AppModel: ObservableObject {
         // A tab waiting for a new device has no true "Waiting to send" notice.
         let held = SendNotifications.waitingIds(heldTabs)
         Task { await SendNotifications.reconcilePending(held: held) }
-        Task { notificationsDenied = !(await Notifications.enabled()) }
+        Task {
+            let allowed = await Notifications.enabled()
+            notificationsDenied = !allowed
+            await chooseRingStyle(notificationsAllowed: allowed)
+        }
+    }
+
+    /// Keep the forwarder's ring style in step with the notification permission
+    /// (docs/PLANS.md P-29): `alert` while notifications are allowed, `background` when
+    /// they are not. Read on every foreground, so a permission changed in Settings is
+    /// picked up the next time the app opens. Nothing happens unless the style changed.
+    func chooseRingStyle(notificationsAllowed: Bool) async {
+        guard WakePath.isEnabled(store: store) else { return }
+        let style = WakePath.preferredRingStyle(notificationsAllowed: notificationsAllowed)
+        guard let record = store.wakeRegistration, record.effectiveRingStyle != style else { return }
+        if await WakePath.ringStyleChosen(style, store: store) {
+            await rotateWakeTransport()
+        }
     }
 
     /// Abandon held tabs, from the swipe on the waiting list (§4f).
@@ -398,7 +561,10 @@ final class AppModel: ObservableObject {
         defer { joining = false }
 
         guard let parsed = Pairing.parse(input.pairingLink) else {
-            banner = "Enter a complete setup link."
+            banner = String(
+                localized: "Enter a complete setup link.",
+                comment: "Banner on the first-run screen when Join is pressed and the pasted setup link cannot be read. A setup link is the pairing link another device shows."
+            )
             return
         }
         let label = input.deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -408,14 +574,20 @@ final class AppModel: ObservableObject {
                 relayUrl: parsed.relayUrl,
                 pairingCode: parsed.code,
                 label: label.isEmpty ? Self.defaultDeviceName : label,
-                deviceName: Self.defaultDeviceName,
+                deviceName: Self.relayDeviceName,
                 certFingerprint: parsed.certFingerprint,
                 // Read from the full link before it is reduced to the code (P-23).
                 vouched: parsed.vouched,
                 store: store
             )
             registration = outcome.registration
-            banner = ProtocolCheck.message(outcome.protocolResult) ?? "Linked"
+            // Paired: nothing is waiting for a sign-up link any more.
+            AccountSetup.finishStarted()
+            accountArrival = nil
+            banner = ProtocolCheck.message(outcome.protocolResult) ?? String(
+                localized: "Linked",
+                comment: "Banner after pairing succeeded. One word."
+            )
             await Notifications.requestPermission()
             // Pairing is what turns the wake path on (P-5: no separate setting step).
             // `Registrar.join` has already registered the transport this phone can
@@ -428,20 +600,12 @@ final class AppModel: ObservableObject {
         } catch let Registrar.JoinError.protocolBlocked(message) {
             banner = message
         } catch let Registrar.JoinError.api(error) {
-            switch error.code {
-            case "invalid_pairing_code":
-                banner = "That setup link is unknown, expired, or already used."
-            // The group is full [0030]. The relay's own message names the number,
-            // but `message` is written for a log and may change, and the fix is the
-            // same on every client — so this is one of the two codes answered in
-            // Tabsend's own words.
-            case "limit_reached":
-                banner = Feedback.deviceLimitLine
-            default:
-                banner = error.message  // includes group_exists [0022], whose message names the fix
-            }
+            banner = RelayErrorText.line(error, during: .join)
         } catch {
-            banner = "Couldn't reach the relay. Check the URL and that your phone is on the same network."
+            banner = String(
+                localized: "Couldn't reach the relay. Check the URL and that your phone is on the same network.",
+                comment: "Banner on the first-run screen when pairing could not reach the relay (the server that passes tabs between devices). URL is the address in the setup link."
+            )
         }
     }
 
@@ -467,6 +631,10 @@ final class AppModel: ObservableObject {
         // unkeepable and must not be left standing in Notification Center.
         await SendNotifications.clearAll()
         RelayHealthTracker.shared.reset()
+        AccountSetup.clear()
+        GroupService.clear()
+        servicePlan = nil
+        accountArrival = nil
         registration = nil
         endpoints = []
         vanishedDevices = []
@@ -529,7 +697,7 @@ final class AppModel: ObservableObject {
             registration = updated
             await refreshEndpoints()
         } catch let error as ApiError {
-            banner = error.message
+            banner = RelayErrorText.line(error, during: .renameDevice)
         } catch {
             banner = relayUnreachableBanner()
         }
@@ -556,7 +724,7 @@ final class AppModel: ObservableObject {
                 expiresAt: response.expiresAt
             )
         } catch let error as ApiError {
-            banner = error.message
+            banner = RelayErrorText.line(error, during: .pairingLink)
             return nil
         } catch {
             banner = relayUnreachableBanner()
@@ -575,7 +743,7 @@ final class AppModel: ObservableObject {
         do {
             config = try await ApiClient(relayUrl: candidate, certFingerprint: reg.certFingerprint).getConfig()
         } catch let error as ApiError {
-            return .error(relayUrl: candidate, detail: RelayMove.refused(error.message))
+            return .error(relayUrl: candidate, detail: RelayMove.refused(RelayErrorText.line(error, during: .check)))
         } catch {
             return .unreachable(relayUrl: candidate)
         }
@@ -597,7 +765,7 @@ final class AppModel: ObservableObject {
                 relayUrl: candidate, storedId: reg.relayId, fetchedId: config.relayId, tokenRejected: true
             )
         } catch let error as ApiError {
-            return .error(relayUrl: candidate, detail: RelayMove.refused(error.message))
+            return .error(relayUrl: candidate, detail: RelayMove.refused(RelayErrorText.line(error, during: .check)))
         } catch {
             return .unreachable(relayUrl: candidate)
         }
@@ -625,7 +793,7 @@ final class AppModel: ObservableObject {
             appBecameActive()
             return nil
         } catch let error as ApiError {
-            return RelayMove.commitFailed(error.message)
+            return RelayMove.commitFailed(RelayErrorText.line(error, during: .check))
         } catch {
             return RelayMove.commitFailed(RelayMove.unreachable(relayUrl))
         }
@@ -669,6 +837,8 @@ final class AppModel: ObservableObject {
             await SendNotifications.announceFlush(report, held: SendNotifications.waitingIds(store.outboundQueue))
         }
         let summary = await deliverer.drain()
+        // A tab that just arrived shows now, not after the history pass's network calls.
+        refreshHistory()
         // The drain fetched the device list, so it ran the new-device rule too.
         await Notifications.postNewDevices(summary.newDevices)
         refreshNewDevices()
@@ -734,13 +904,47 @@ final class AppModel: ObservableObject {
 
     // MARK: naming
 
-    static var defaultDeviceName: String {
+    /// The name iOS gives this phone, or nil when it has none.
+    private static var systemDeviceName: String? {
         let name = UIDevice.current.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? "iPhone" : name
+        return name.isEmpty ? nil : name
+    }
+
+    /// The name this phone has in the group unless the person types another: what fills the
+    /// name box. The person sees it and keeps it, so the fallback is a catalog message like any
+    /// sentence (docs/L10N.md rule 12); the name iOS gives the phone is already in the
+    /// person's own language.
+    static var defaultDeviceName: String {
+        systemDeviceName ?? phoneFallbackName
+    }
+
+    /// "iPhone" for a phone that has no name. Also the example in the empty name box.
+    static var phoneFallbackName: String {
+        String(
+            localized: "iPhone",
+            comment: "Name of this phone in the group when iOS gives it no name of its own. It fills the name box on the first-run screen, is shown as the example in the empty box, and the person keeps it as the device's name. Product name: normally stays \"iPhone\"; translate only if the language has another usual way to name a phone."
+        )
+    }
+
+    /// The `deviceName` the relay is told. Other devices read it to tell a phone from a tablet,
+    /// so it never depends on the app's language.
+    private static var relayDeviceName: String {
+        systemDeviceName ?? "iPhone" // l10n-ignore: protocol value, not shown
     }
 
     static var buildInfo: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        return "Tabsend \(version)"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" // l10n-ignore: Info.plist key
+        return "Tabsend \(version)" // l10n-ignore: product name and version number
     }
+}
+
+/// The first setup link handed back after the sign-up this phone began (docs/PLANS.md P-19).
+struct AccountArrival: Equatable {
+    /// The complete setup link, ready to pair with. Never shown.
+    var link: String
+    /// This sign-up made the account, so "your trial has started" is true. False for a person
+    /// who already had an account (a new phone).
+    var accountCreated: Bool
+    /// When the trial ends, from the account site, for the notice.
+    var trialEndsAt: Date?
 }

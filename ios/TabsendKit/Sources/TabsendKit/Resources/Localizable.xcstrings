@@ -1,0 +1,2645 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ Nothing was changed." : {
+      "comment" : "Message on the move-to-another-relay sheet when switching failed. %@ is the reason, a full sentence. Nothing was changed: the app still uses the old relay.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ Es wurde nichts geändert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Nothing was changed."
+          }
+        }
+      }
+    },
+    "%@ is in your group" : {
+      "comment" : "Notification title on a fresh pairing: one device was already in the group and the pairing link did not vouch for it. %@ is the device name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist in deiner Gruppe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is in your group"
+          }
+        }
+      }
+    },
+    "%@ is no longer in your group." : {
+      "comment" : "Line under a waiting tab whose receiving device is no longer in the group, as the relay reports it. %@ is the device name, or \"The device it was for\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist nicht mehr in deiner Gruppe."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is no longer in your group."
+          }
+        }
+      }
+    },
+    "%@ is no longer in your group. Open Tabsend to send it to another device." : {
+      "comment" : "Notification body for one waiting tab whose device is no longer in the group, as the relay reports it. %@ is the device name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist nicht mehr in deiner Gruppe. Öffne Tabsend, um den Tab an ein anderes Gerät zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is no longer in your group. Open Tabsend to send it to another device."
+          }
+        }
+      }
+    },
+    "%@ is no longer in your group. Open Tabsend to send them to another device." : {
+      "comment" : "Notification body for several waiting tabs whose device is no longer in the group, as the relay reports it. %@ is the device name. \"them\" means the tabs.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist nicht mehr in deiner Gruppe. Öffne Tabsend, um sie an ein anderes Gerät zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is no longer in your group. Open Tabsend to send them to another device."
+          }
+        }
+      }
+    },
+    "%@ joined your Tabsend devices. If any wasn't you, remove it in Tabsend." : {
+      "comment" : "Notification body: several new devices joined. %@ is the list of device names, such as \"Pixel 9, Home Firefox and Work laptop\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ sind zu deinen Tabsend-Geräten hinzugekommen. Wenn du eines davon nicht hinzugefügt hast, entferne es in Tabsend."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ joined your Tabsend devices. If any wasn't you, remove it in Tabsend."
+          }
+        }
+      }
+    },
+    "%@ joined, then disappeared" : {
+      "comment" : "Heading of a card on the home screen. A device joined the group and later vanished from the device list without being removed here. %@ is the device name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist beigetreten und wieder verschwunden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ joined, then disappeared"
+          }
+        }
+      }
+    },
+    "%@ never picked it up, and the relay has stopped holding it. Open Tabsend to send it again." : {
+      "comment" : "Notification body for one tab that never arrived. %@ is the receiving device's name, or \"that device\" when unknown. \"It\" is the tab. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ hat ihn nie abgeholt, und das Relay hält ihn nicht mehr zurück. Öffne Tabsend, um ihn erneut zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ never picked it up, and the relay has stopped holding it. Open Tabsend to send it again."
+          }
+        }
+      }
+    },
+    "%@ was added" : {
+      "comment" : "Notification title: one new device joined the group. %@ is the device name, such as \"Pixel 9\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ wurde hinzugefügt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was added"
+          }
+        }
+      }
+    },
+    "%@ was removed from your group." : {
+      "comment" : "Line under a waiting tab whose receiving device was removed from the group on this phone. %@ is the device name, or \"The device it was for\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ wurde aus deiner Gruppe entfernt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was removed from your group."
+          }
+        }
+      }
+    },
+    "%@ was removed from your group. Open Tabsend to send it to another device." : {
+      "comment" : "Notification body for one waiting tab whose device this phone removed. %@ is the device name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ wurde aus deiner Gruppe entfernt. Öffne Tabsend, um den Tab an ein anderes Gerät zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was removed from your group. Open Tabsend to send it to another device."
+          }
+        }
+      }
+    },
+    "%@ was removed from your group. Open Tabsend to send them to another device." : {
+      "comment" : "Notification body for several waiting tabs whose device this phone removed. %@ is the device name. \"them\" means the tabs.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ wurde aus deiner Gruppe entfernt. Öffne Tabsend, um sie an ein anderes Gerät zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was removed from your group. Open Tabsend to send them to another device."
+          }
+        }
+      }
+    },
+    "%@ · %@ · %@" : {
+      "comment" : "Second line of a history row. The first %@ is the website, the second is who moved the tab (such as \"from Work laptop\"), the third is how long ago (such as \"3m ago\"). The dots separate the three.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "%@ · Paused" : {
+      "comment" : "Second line of another device's row in \"Your devices\" after the free trial ended and sending is paused. %@ is the kind of device, such as \"Chrome\" or \"Android phone\". A dot separates the two parts. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Pausiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · Paused"
+          }
+        }
+      }
+    },
+    "%@ → %@" : {
+      "comment" : "Part of a history row for a tab moved between two other devices. The first %@ is the sending device, the second is the receiving device. The arrow points from sender to receiver.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ → %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ → %2$@"
+          }
+        }
+      }
+    },
+    "%@. The device you paired with didn't list them. If any isn't yours, remove it in Tabsend." : {
+      "comment" : "Notification body on a fresh pairing: several devices are in the group that the device you paired with did not mention. %@ is the list of device names, such as \"Pixel 9, Home Firefox and Work laptop\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. Das Gerät, mit dem du gekoppelt hast, hat sie nicht aufgelistet. Wenn eines nicht deins ist, entferne es in Tabsend."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. The device you paired with didn't list them. If any isn't yours, remove it in Tabsend."
+          }
+        }
+      }
+    },
+    "%lld devices are in your group" : {
+      "comment" : "Notification title on a fresh pairing: several devices were already in the group and the pairing link did not vouch for them. %lld is how many. The singular form is for completeness: one device uses the named title.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Gerät ist in deiner Gruppe"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Geräte sind in deiner Gruppe"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld device is in your group"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld devices are in your group"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld devices were added" : {
+      "comment" : "Notification title: several new devices joined the group. %lld is how many. The singular form is for completeness: one device uses the named title.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Gerät wurde hinzugefügt"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Geräte wurden hinzugefügt"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld device was added"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld devices were added"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld of %lld tabs" : {
+      "comment" : "Heading of a block of tabs that were sent together, when only some are listed. The first %lld is how many are listed, the second is how many were sent, such as \"2 of 3 tabs\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld von %#@tabs@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %#@tabs@"
+          },
+          "substitutions" : {
+            "tabs" : {
+              "argNum" : 2,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg tab"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg tabs"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld tabs" : {
+      "comment" : "Heading of a block of tabs that were sent together, when all of them are listed. %lld is how many tabs.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Tab"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Tabs"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tab"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tabs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld tabs are waiting for a new device" : {
+      "comment" : "Notification title: tabs have no device to go to. %lld is how many. The singular form is used when one tab has no title to show.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Ein Tab wartet auf ein neues Gerät"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Tabs warten auf ein neues Gerät"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "A tab is waiting for a new device"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tabs are waiting for a new device"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld tabs never arrived" : {
+      "comment" : "Notification title: tabs this phone sent were never picked up by the receiving device. %lld is how many. The singular form reads \"A tab never arrived\".",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Ein Tab ist nie angekommen"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Tabs sind nie angekommen"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "A tab never arrived"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tabs never arrived"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld tabs waiting on this phone" : {
+      "comment" : "Heading of the list of tabs still on this phone because the relay has not taken them. %lld is how many. The singular form drops the number.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wartet auf diesem Smartphone"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Tabs warten auf diesem Smartphone"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Waiting on this phone"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tabs waiting on this phone"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "A tab this phone can't read" : {
+      "comment" : "Title of a history row for a tab that arrived sealed with a group key this phone does not have, so its title and address are unreadable.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Tab, den dieses Smartphone nicht lesen kann"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tab this phone can't read"
+          }
+        }
+      }
+    },
+    "Can't reach your relay at %@. It last answered %@, and sends are being held until it's back." : {
+      "comment" : "Standing notice on the home screen: the relay (the server that passes tabs between devices) is not answering. The first %@ is the relay address, the second is how long ago it last answered, such as \"5m ago\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay unter %1$@ antwortet nicht. Letzte Antwort: %2$@. Gesendete Tabs warten, bis es wieder antwortet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't reach your relay at %1$@. It last answered %2$@, and sends are being held until it's back."
+          }
+        }
+      }
+    },
+    "Can't reach your relay at %@. The tab is held here and sends itself once the relay answers again." : {
+      "comment" : "Explanation under a waiting send: the relay (the server that passes tabs between devices) did not answer. %@ is the relay address.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay unter %1$@ antwortet nicht. Der Tab bleibt hier und wird automatisch gesendet, sobald das Relay wieder antwortet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't reach your relay at %@. The tab is held here and sends itself once the relay answers again."
+          }
+        }
+      }
+    },
+    "Check" : {
+      "comment" : "Button on the move-to-another-relay sheet that checks the address typed in the field. Keep it to one word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prüfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check"
+          }
+        }
+      }
+    },
+    "Checking…" : {
+      "comment" : "Status line on the move-to-another-relay sheet while the address is being checked.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird geprüft…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        }
+      }
+    },
+    "Couldn't reach %@. Check the address and that it's running." : {
+      "comment" : "Result on the move-to-another-relay sheet when the relay did not answer. %@ is the address that was checked.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist nicht erreichbar. Prüfe die Adresse und ob das Relay läuft."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't reach %@. Check the address and that it's running."
+          }
+        }
+      }
+    },
+    "Couldn't send %lld tabs that were waiting" : {
+      "comment" : "Notification title: tabs that were waiting could not be sent and were dropped. %lld is how many. The singular form reads \"Couldn't send a tab that was waiting\".",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Ein wartender Tab konnte nicht gesendet werden"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld wartende Tabs konnten nicht gesendet werden"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Couldn't send a tab that was waiting"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Couldn't send %lld tabs that were waiting"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Couldn't send to %@" : {
+      "comment" : "Headline of a toast or notification: the tab could not be sent. %@ is the name of the receiving device. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senden an %1$@ fehlgeschlagen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't send to %@"
+          }
+        }
+      }
+    },
+    "Couldn't send. Check Tabsend is still linked" : {
+      "comment" : "Generic share-sheet failure when the send could not be completed. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senden fehlgeschlagen. Prüfe, ob Tabsend noch gekoppelt ist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't send. Check Tabsend is still linked"
+          }
+        }
+      }
+    },
+    "Delivered" : {
+      "comment" : "State of a tab this phone sent: the receiving device confirmed it. Short: it sits beside an icon.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Angekommen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delivered"
+          }
+        }
+      }
+    },
+    "Dismiss" : {
+      "comment" : "Button on the card about a device that joined and then disappeared from the list. Hides the card on this phone. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausblenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dismiss"
+          }
+        }
+      }
+    },
+    "Enter the relay address." : {
+      "comment" : "Message on the move-to-another-relay sheet when Check is pressed with an empty field.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib die Relay-Adresse ein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter the relay address."
+          }
+        }
+      }
+    },
+    "Free trial" : {
+      "comment" : "Row label on the home screen while the free trial runs. The row's value, on the right, is the end date.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kostenlose Testphase"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free trial"
+          }
+        }
+      }
+    },
+    "From %@" : {
+      "comment" : "First line of a large card on Home and History: a tab that arrived and was opened. %@ is the sending device's name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From %@"
+          }
+        }
+      }
+    },
+    "From your account page on %@." : {
+      "comment" : "First sentence of the reset card. %@ is the date the reset was asked for, such as \"October 27\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beantragt auf deiner Kontoseite am %1$@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From your account page on %@."
+          }
+        }
+      }
+    },
+    "From your account page." : {
+      "comment" : "First sentence of the reset card when the date of the request is not known.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von deiner Kontoseite."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From your account page."
+          }
+        }
+      }
+    },
+    "If it wasn't you, stop it now, then change your email password." : {
+      "comment" : "Last sentence of the reset card. It tells the person what to do if someone else asked for the reset. The email password is the password of the email account used for the Tabsend account.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn du das nicht warst, stoppe es jetzt und ändere danach dein E-Mail-Passwort."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If it wasn't you, stop it now, then change your email password."
+          }
+        }
+      }
+    },
+    "Incompatible protocol version." : {
+      "comment" : "Fallback error when pairing is blocked by a version mismatch and no more specific message applies. Not normally shown.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inkompatible Protokollversion."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incompatible protocol version."
+          }
+        }
+      }
+    },
+    "It joined %@ and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this." : {
+      "comment" : "Body of the card about a device that joined and then disappeared. \"It\" is the device named in the heading. %@ is how long ago it joined, such as \"3m ago\", \"just now\" or \"recently\". The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es ist %1$@ beigetreten und steht nicht mehr in deiner Liste. Vielleicht blendet dein Relay es aus. Es könnte die Links gelesen haben, die gesendet wurden, solange es in der Liste stand. Wenn du es selbst entfernt hast, kannst du das ausblenden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It joined %@ and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this."
+          }
+        }
+      }
+    },
+    "It joined your Tabsend devices %@. If that wasn't you, remove it in Tabsend." : {
+      "comment" : "Notification body: one new device joined. \"It\" is the device named in the title. %@ is how long ago, such as \"3m ago\" or \"just now\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es ist %1$@ zu deinen Tabsend-Geräten hinzugekommen. Wenn du das nicht warst, entferne es in Tabsend."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It joined your Tabsend devices %@. If that wasn't you, remove it in Tabsend."
+          }
+        }
+      }
+    },
+    "It joined your Tabsend devices. If that wasn't you, remove it in Tabsend." : {
+      "comment" : "Notification body: one new device joined and the time is not known. \"It\" is the device named in the title.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es ist zu deinen Tabsend-Geräten hinzugekommen. Wenn du das nicht warst, entferne es in Tabsend."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It joined your Tabsend devices. If that wasn't you, remove it in Tabsend."
+          }
+        }
+      }
+    },
+    "It was me" : {
+      "comment" : "Button on the reset card for the person who asked for the reset themselves. It hides the card on this phone. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das war ich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It was me"
+          }
+        }
+      }
+    },
+    "Linked. A newer Tabsend build is available (this app speaks v%lld, the relay prefers v%lld). Everything works, but it's worth updating." : {
+      "comment" : "Banner after pairing succeeded, when the relay prefers a newer app. The two numbers are protocol versions, not counts: \"v2\", \"v3\". Tabsend build means this app.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gekoppelt. Es gibt eine neuere Tabsend-Version (diese App nutzt v%1$lld, das Relay bevorzugt v%2$lld). Alles funktioniert, ein Update lohnt sich aber."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked. A newer Tabsend build is available (this app speaks v%1$lld, the relay prefers v%2$lld). Everything works, but it's worth updating."
+          }
+        }
+      }
+    },
+    "Move to another relay" : {
+      "comment" : "Title of the move-to-another-relay sheet.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu einem anderen Relay wechseln"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to another relay"
+          }
+        }
+      }
+    },
+    "Move to another relay…" : {
+      "comment" : "Settings row on the home screen that opens the move-to-another-relay sheet. Ends with an ellipsis because it opens a sheet.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu einem anderen Relay wechseln…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to another relay…"
+          }
+        }
+      }
+    },
+    "Never arrived" : {
+      "comment" : "State of a tab this phone sent: the relay stopped holding it and the receiving device never picked it up. Short: it sits beside an icon and a Send again button.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie angekommen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never arrived"
+          }
+        }
+      }
+    },
+    "New from %@" : {
+      "comment" : "First line of a large card on Home and History: a tab that arrived and has not been opened. %@ is the sending device's name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu von %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New from %@"
+          }
+        }
+      }
+    },
+    "Newest first, every device in your group. The last %lld are kept on this phone." : {
+      "comment" : "Footnote under the history list when the relay keeps the group's history. %lld is how many tabs this phone keeps, such as 50.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neueste zuerst, alle Geräte in deiner Gruppe. Auf diesem Smartphone bleibt %lld Tab gespeichert."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neueste zuerst, alle Geräte in deiner Gruppe. Auf diesem Smartphone bleiben die letzten %lld Tabs gespeichert."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Newest first, every device in your group. The last %lld is kept on this phone."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Newest first, every device in your group. The last %lld are kept on this phone."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Newest first. The last %lld are kept on this phone." : {
+      "comment" : "Footnote under the history list when the relay keeps no group history, so only this phone's own tabs are listed. %lld is how many tabs this phone keeps, such as 50.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neueste zuerst. Auf diesem Smartphone bleibt %lld Tab gespeichert."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Neueste zuerst. Auf diesem Smartphone bleiben die letzten %lld Tabs gespeichert."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Newest first. The last %lld is kept on this phone."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Newest first. The last %lld are kept on this phone."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "No connection. Will send when you're back online" : {
+      "comment" : "Share-sheet message when this phone is offline. The tab is kept and sent later. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Verbindung. Wird gesendet, sobald du wieder online bist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No connection. Will send when you're back online"
+          }
+        }
+      }
+    },
+    "No devices yet. Pair one to start sending" : {
+      "comment" : "Share-sheet message when no other device has joined the group yet. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Geräte. Koppele eines, um zu senden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No devices yet. Pair one to start sending"
+          }
+        }
+      }
+    },
+    "No other device to send it to." : {
+      "comment" : "Line under a waiting tab whose device is gone, when this phone has no other device to send it to.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein anderes Gerät zum Senden vorhanden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No other device to send it to."
+          }
+        }
+      }
+    },
+    "Nothing picked them up, and the relay has stopped holding them. Open Tabsend to see which, and to send them again." : {
+      "comment" : "Notification body for several tabs that never arrived. \"Them\" are the tabs. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Gerät hat sie abgeholt, und das Relay hält sie nicht mehr zurück. Öffne Tabsend, um zu sehen, welche, und um sie erneut zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing picked them up, and the relay has stopped holding them. Open Tabsend to see which, and to send them again."
+          }
+        }
+      }
+    },
+    "Now using %@." : {
+      "comment" : "Banner on the home screen after the relay address was changed. %@ is the new address.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du nutzt jetzt %1$@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now using %@."
+          }
+        }
+      }
+    },
+    "On %@ at %@, every device is removed, this one too." : {
+      "comment" : "Second sentence of the reset card. The first %@ is the date, such as \"October 30\". The second %@ is the time of day, such as \"2:05 PM\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Am %1$@ um %2$@ Uhr werden alle Geräte entfernt, auch dieses."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On %1$@ at %2$@, every device is removed, this one too."
+          }
+        }
+      }
+    },
+    "Paste or scan a setup link created by that relay." : {
+      "comment" : "Message on the first-run screen after switching to a different relay. A setup link is the pairing link a device already using Tabsend shows.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge einen Einrichtungslink von diesem Relay ein oder scanne ihn."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste or scan a setup link created by that relay."
+          }
+        }
+      }
+    },
+    "Probably the same relay. It's too old to confirm, but it accepted this phone's login." : {
+      "comment" : "Result on the move-to-another-relay sheet: the relay is too old to confirm its identity, but it accepted this phone's credentials.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wahrscheinlich dasselbe Relay. Es ist zu alt, um das zu bestätigen, hat aber die Anmeldung dieses Smartphones akzeptiert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probably the same relay. It's too old to confirm, but it accepted this phone's login."
+          }
+        }
+      }
+    },
+    "Request failed (%lld)." : {
+      "comment" : "Error shown when the relay answered with an error that has no readable message. %lld is the HTTP status number, such as 502, not a count.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anfrage fehlgeschlagen (%1$lld)."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Request failed (%lld)."
+          }
+        }
+      }
+    },
+    "Reset stopped. Nothing was removed." : {
+      "comment" : "Banner on the home screen after the reset was stopped.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzen gestoppt. Es wurde nichts entfernt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset stopped. Nothing was removed."
+          }
+        }
+      }
+    },
+    "Same relay. Your devices stay paired." : {
+      "comment" : "Result on the move-to-another-relay sheet: the new address is the same relay as before, so nothing needs to be paired again.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dasselbe Relay. Deine Geräte bleiben gekoppelt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same relay. Your devices stay paired."
+          }
+        }
+      }
+    },
+    "Send to…" : {
+      "comment" : "Menu button on a waiting tab whose device is gone. Opens a list of the other devices the tab can go to. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senden an…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send to…"
+          }
+        }
+      }
+    },
+    "Sending is paused. We emailed you what to do next." : {
+      "comment" : "Text of the amber card after the free trial ended. Says what happened and that an email has the next step. Names no price and has no button to pay.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Senden ist pausiert. Wir haben dir per E-Mail geschickt, was jetzt zu tun ist."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sending is paused. We emailed you what to do next."
+          }
+        }
+      }
+    },
+    "Sent %lld tabs that were waiting" : {
+      "comment" : "Notification title: tabs that were waiting have been sent. %lld is how many. The singular form is used when there is one tab and no title to show.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Der wartende Tab wurde gesendet"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld wartende Tabs wurden gesendet"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Sent the tab that was waiting"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Sent %lld tabs that were waiting"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Sent to %@" : {
+      "comment" : "Share-sheet confirmation that a tab was sent. %@ is the name of the receiving device, such as \"Work laptop\". Keep it short: it is a toast.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gesendet an %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent to %@"
+          }
+        }
+      }
+    },
+    "Sent to %@. Opens when it wakes" : {
+      "comment" : "Share-sheet confirmation when the receiving device is asleep and will open the tab when it wakes. %@ is the name of the receiving device. Keep it short: it is a toast.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An %1$@ gesendet. Öffnet sich beim Aufwachen des Geräts"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent to %@. Opens when it wakes"
+          }
+        }
+      }
+    },
+    "Sent “%@”" : {
+      "comment" : "Notification title: the one tab that was waiting has been sent. %@ is the page title, in curly quotes.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%1$@“ gesendet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent “%@”"
+          }
+        }
+      }
+    },
+    "Someone asked to remove all your devices" : {
+      "comment" : "Heading of the red card at the top of the home screen when a reset of the whole device group is waiting. May wrap onto two lines.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jemand hat darum gebeten, alle deine Geräte zu entfernen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Someone asked to remove all your devices"
+          }
+        }
+      }
+    },
+    "Someone asked to remove all your devices on %@. Open Tabsend to stop it." : {
+      "comment" : "Notification body when a reset of the whole device group is waiting. %@ is the date the reset was asked for, such as \"October 27\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jemand hat am %1$@ darum gebeten, alle deine Geräte zu entfernen. Öffne Tabsend, um das zu stoppen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Someone asked to remove all your devices on %@. Open Tabsend to stop it."
+          }
+        }
+      }
+    },
+    "Someone asked to remove all your devices. Open Tabsend to stop it." : {
+      "comment" : "Notification body when a reset of the whole device group is waiting and the date of the request is not known.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jemand hat darum gebeten, alle deine Geräte zu entfernen. Öffne Tabsend, um das zu stoppen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Someone asked to remove all your devices. Open Tabsend to stop it."
+          }
+        }
+      }
+    },
+    "Something went wrong inside your relay. It may be worth checking that it is healthy." : {
+      "comment" : "Explanation under a failed request or send: the relay reported an unexpected internal error, or an error this app has no wording for. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In deinem Relay ist etwas schiefgelaufen. Prüfe am besten, ob es einwandfrei läuft."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something went wrong inside your relay. It may be worth checking that it is healthy."
+          }
+        }
+      }
+    },
+    "Soon, every device is removed, this one too." : {
+      "comment" : "Second sentence of the reset card when the time of the reset is not known.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bald werden alle Geräte entfernt, auch dieses."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soon, every device is removed, this one too."
+          }
+        }
+      }
+    },
+    "Start fresh on %@?" : {
+      "comment" : "Title of the confirmation dialog before switching to a different relay. %@ is the relay address.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf %1$@ neu anfangen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start fresh on %@?"
+          }
+        }
+      }
+    },
+    "Stop the reset" : {
+      "comment" : "Button on the reset card. Stops the waiting reset for every device. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurücksetzen stoppen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop the reset"
+          }
+        }
+      }
+    },
+    "Switch to this address" : {
+      "comment" : "Button on the move-to-another-relay sheet, shown when the address is the same relay. It switches the app to the new address.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu dieser Adresse wechseln"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to this address"
+          }
+        }
+      }
+    },
+    "Switch to this relay" : {
+      "comment" : "Destructive button on the move-to-another-relay sheet and in its confirmation dialog, shown when the address is a different relay.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu diesem Relay wechseln"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to this relay"
+          }
+        }
+      }
+    },
+    "Tabsend holds at most %lld tabs while your relay isn't taking them, and this one was the oldest. Send it again once the relay is answering." : {
+      "comment" : "Explanation under a failed send: too many tabs were waiting and this, the oldest, was dropped. %lld is the most tabs kept, such as 200. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tabsend hält höchstens %lld Tab zurück, solange dein Relay ihn nicht annimmt. Dieser war der älteste. Sende ihn erneut, sobald das Relay antwortet."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tabsend hält höchstens %lld Tabs zurück, solange dein Relay sie nicht annimmt. Dieser war der älteste. Sende ihn erneut, sobald das Relay antwortet."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tabsend holds at most %lld tab while your relay isn't taking it, and this one was the oldest. Send it again once the relay is answering."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Tabsend holds at most %lld tabs while your relay isn't taking them, and this one was the oldest. Send it again once the relay is answering."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Tabsend service" : {
+      "comment" : "Heading of the small group on the home screen that shows the free trial. \"Tabsend service\" is Tabsend's own hosted server, as opposed to a server the person runs.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend-Dienst"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend service"
+          }
+        }
+      }
+    },
+    "That address didn't answer like a Tabsend relay. Check it and try again." : {
+      "comment" : "Explanation when the address typed or pasted does not lead to a Tabsend relay (the server that passes tabs between devices).",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Adresse hat nicht wie ein Tabsend-Relay geantwortet. Prüfe sie und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That address didn't answer like a Tabsend relay. Check it and try again."
+          }
+        }
+      }
+    },
+    "That pairing code is no longer valid." : {
+      "comment" : "Explanation under a failed request: the pairing code was used, expired or unknown.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Kopplungscode ist nicht mehr gültig."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That pairing code is no longer valid."
+          }
+        }
+      }
+    },
+    "That relay is running an older version of Tabsend than this app (relay speaks v%lld, app needs v%lld). Update the relay, then pair again." : {
+      "comment" : "Error when pairing: the relay is older than this app can talk to. The two numbers are protocol versions, not counts: \"v1\", \"v2\". The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Relay läuft eine ältere Tabsend-Version, als diese App braucht (Relay nutzt v%1$lld, App braucht v%2$lld). Aktualisiere das Relay und koppele dann erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That relay is running an older version of Tabsend than this app (relay speaks v%1$lld, app needs v%2$lld). Update the relay, then pair again."
+          }
+        }
+      }
+    },
+    "That setup link is unknown, expired, or already used." : {
+      "comment" : "Banner on the first-run screen when the relay refuses the pairing code in the setup link.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Einrichtungslink ist unbekannt, abgelaufen oder wurde schon verwendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That setup link is unknown, expired, or already used."
+          }
+        }
+      }
+    },
+    "The device it was for" : {
+      "comment" : "Stands in for a device's name when the name is unknown. It starts a sentence: \"%@ was removed from your group.\", \"%@ is no longer in your group.\" (and the notification versions, which end \"...send it to another device.\"). A language with cases or genders may need those sentences reworded when this phrase is used.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Zielgerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The device it was for"
+          }
+        }
+      }
+    },
+    "The device they were for" : {
+      "comment" : "Stands in for a device's name when the name is unknown and several tabs were waiting for it. It starts a sentence: \"%@ was removed from your group. Open Tabsend to send them to another device.\" A language with cases or genders may need that sentence reworded when this phrase is used.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Zielgerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The device they were for"
+          }
+        }
+      }
+    },
+    "The device you paired with didn't list it. If it isn't yours, remove it in Tabsend." : {
+      "comment" : "Notification body on a fresh pairing: one device is in the group that the device you paired with did not mention. \"It\" is the device named in the title.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Gerät, mit dem du gekoppelt hast, hat es nicht aufgelistet. Wenn es nicht deins ist, entferne es in Tabsend."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The device you paired with didn't list it. If it isn't yours, remove it in Tabsend."
+          }
+        }
+      }
+    },
+    "The keys on %@ have changed since this phone last saw them. Open Tabsend once to pick up the new ones, then send again." : {
+      "comment" : "Explanation under a failed send: the receiving device has new encryption keys. %@ is the device name, or \"that device\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ hat neue Schlüssel, seit dieses Smartphone sie zuletzt gesehen hat. Öffne Tabsend einmal, um die neuen Schlüssel zu holen, und sende dann erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The keys on %@ have changed since this phone last saw them. Open Tabsend once to pick up the new ones, then send again."
+          }
+        }
+      }
+    },
+    "The relay refused the check: %@" : {
+      "comment" : "Result on the move-to-another-relay sheet when the relay answered with an error. %@ is a full sentence saying why, such as \"Your relay is busy right now. Give it a moment and try again.\"",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Relay hat die Prüfung abgelehnt: %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The relay refused the check: %@"
+          }
+        }
+      }
+    },
+    "There's no link in what you shared." : {
+      "comment" : "Message in the share sheet when the shared item contains no web address that could be sent.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In dem, was du geteilt hast, ist kein Link."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There's no link in what you shared."
+          }
+        }
+      }
+    },
+    "This address only works on your home network. Away from home or on mobile data? Connect to your home Wi-Fi or turn on your VPN." : {
+      "comment" : "Sentence added after the \"can't reach your relay\" notice when the relay address is a home-network address. Shown on the home screen banner and in notifications.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Adresse funktioniert nur in deinem Heimnetz. Unterwegs oder mit mobilen Daten? Verbinde dich mit deinem WLAN zu Hause oder schalte dein VPN ein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This address only works on your home network. Away from home or on mobile data? Connect to your home Wi-Fi or turn on your VPN."
+          }
+        }
+      }
+    },
+    "This group already has the most unused pairing links it allows. Try again in a few minutes, when the oldest one expires." : {
+      "comment" : "Explanation when making a new pairing link failed: too many links are waiting to be used, and each expires by itself after a few minutes.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Gruppe hat bereits die höchste erlaubte Zahl an ungenutzten Kopplungslinks. Versuche es in ein paar Minuten erneut, wenn der älteste abläuft."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This group already has the most unused pairing links it allows. Try again in a few minutes, when the oldest one expires."
+          }
+        }
+      }
+    },
+    "This is a different relay. It doesn't know your devices, so each one will need to pair again." : {
+      "comment" : "Result on the move-to-another-relay sheet: the address is a different relay, so every device has to be paired again.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das ist ein anderes Relay. Es kennt deine Geräte nicht, deshalb muss jedes erneut gekoppelt werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is a different relay. It doesn't know your devices, so each one will need to pair again."
+          }
+        }
+      }
+    },
+    "This phone leaves its current device group. Every device you want to keep has to pair again on the new relay." : {
+      "comment" : "Body of the confirmation dialog before switching to a different relay. The device group is the set of devices that send tabs to each other.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Smartphone verlässt seine aktuelle Gerätegruppe. Jedes Gerät, das du behalten willst, muss auf dem neuen Relay erneut gekoppelt werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This phone leaves its current device group. Every device you want to keep has to pair again on the new relay."
+          }
+        }
+      }
+    },
+    "This phone · Paused" : {
+      "comment" : "Second line of this phone's own row in \"Your devices\" after the free trial ended and sending is paused. A dot separates the two parts. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Smartphone · Pausiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This phone · Paused"
+          }
+        }
+      }
+    },
+    "This tab waited %lld days for your relay and was never taken, so Tabsend has stopped holding it. Send it again once the relay is answering." : {
+      "comment" : "Explanation under a failed send: the tab waited too long for the relay and was dropped. %lld is the number of days, such as 7. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dieser Tab hat %lld Tag auf dein Relay gewartet und wurde nie angenommen. Deshalb hält Tabsend ihn nicht mehr zurück. Sende ihn erneut, sobald das Relay antwortet."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dieser Tab hat %lld Tage auf dein Relay gewartet und wurde nie angenommen. Deshalb hält Tabsend ihn nicht mehr zurück. Sende ihn erneut, sobald das Relay antwortet."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "This tab waited %lld day for your relay and was never taken, so Tabsend has stopped holding it. Send it again once the relay is answering."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "This tab waited %lld days for your relay and was never taken, so Tabsend has stopped holding it. Send it again once the relay is answering."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "This version of the Tabsend app is too old for that relay (app speaks v%lld, relay needs v%lld). Install the latest build, then pair again." : {
+      "comment" : "Error when pairing: the app is older than the relay allows. The two numbers are protocol versions, not counts: \"v1\", \"v2\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Version der Tabsend-App ist zu alt für dieses Relay (App nutzt v%1$lld, Relay braucht v%2$lld). Installiere die neueste Version und koppele dann erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This version of the Tabsend app is too old for that relay (app speaks v%1$lld, relay needs v%2$lld). Install the latest build, then pair again."
+          }
+        }
+      }
+    },
+    "Until %@" : {
+      "comment" : "Value on the right of the \"Free trial\" row. %@ is the date the trial ends, such as \"Nov 18\". Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bis %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Until %@"
+          }
+        }
+      }
+    },
+    "Untitled tab" : {
+      "comment" : "Name of a waiting tab that has neither a title nor an address to show.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab ohne Titel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled tab"
+          }
+        }
+      }
+    },
+    "Waiting for %@" : {
+      "comment" : "State of a tab this phone sent: the relay holds it until the receiving device picks it up. %@ is the device name, or \"that device\" when unknown. Short: it sits beside an icon.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartet auf %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for %@"
+          }
+        }
+      }
+    },
+    "Waiting to send to %@" : {
+      "comment" : "Headline of a toast or notification: the tab could not be sent yet and will go by itself. %@ is the name of the receiving device. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird später an %1$@ gesendet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting to send to %@"
+          }
+        }
+      }
+    },
+    "We email you before it ends." : {
+      "comment" : "Small note under the \"Free trial\" row on the home screen. \"It\" is the free trial; the email is sent three days before.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir schreiben dir per E-Mail, bevor sie endet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We email you before it ends."
+          }
+        }
+      }
+    },
+    "Where is your relay now?" : {
+      "comment" : "Heading above the address field on the move-to-another-relay sheet. The relay is the server that passes tabs between devices.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wo ist dein Relay jetzt?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where is your relay now?"
+          }
+        }
+      }
+    },
+    "You're offline. This tab sends itself as soon as you're back." : {
+      "comment" : "Explanation under a failed or waiting send: this phone has no internet connection. The tab is kept and sent later.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du bist offline. Dieser Tab wird automatisch gesendet, sobald du wieder online bist."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're offline. This tab sends itself as soon as you're back."
+          }
+        }
+      }
+    },
+    "Your account is ready, and your 14-day free trial has started." : {
+      "comment" : "Notice above the \"Name this phone\" screen, right after the account was made. Used when the end date of the trial is not known.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Konto ist bereit, und deine 14-tägige kostenlose Testphase hat begonnen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account is ready, and your 14-day free trial has started."
+          }
+        }
+      }
+    },
+    "Your account is ready, and your 14-day free trial has started. It runs until %@." : {
+      "comment" : "Notice above the \"Name this phone\" screen, right after the account was made. %@ is the date the trial ends, such as \"Nov 18\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Konto ist bereit, und deine 14-tägige kostenlose Testphase hat begonnen. Sie läuft bis %1$@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account is ready, and your 14-day free trial has started. It runs until %@."
+          }
+        }
+      }
+    },
+    "Your free trial has ended" : {
+      "comment" : "Heading of the amber card at the top of the home screen after the free trial ended.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine kostenlose Testphase ist zu Ende"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your free trial has ended"
+          }
+        }
+      }
+    },
+    "Your relay already hosts a group of devices." : {
+      "comment" : "Explanation under a failed request: the relay already has a device group and allows only one. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay verwaltet bereits eine Gruppe von Geräten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay already hosts a group of devices."
+          }
+        }
+      }
+    },
+    "Your relay couldn't find %@." : {
+      "comment" : "Explanation under a failed send: the relay has no such device. %@ is the device name, or \"that device\". The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat %1$@ nicht gefunden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay couldn't find %@."
+          }
+        }
+      }
+    },
+    "Your relay couldn't find that device. It may already be gone." : {
+      "comment" : "Explanation after renaming or removing a device failed: the relay has no such device in the group. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat dieses Gerät nicht gefunden. Möglicherweise ist es schon weg."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay couldn't find that device. It may already be gone."
+          }
+        }
+      }
+    },
+    "Your relay didn't understand that. It's most likely running an older version than this phone. Updating it should fix this." : {
+      "comment" : "Explanation after a request failed: the relay could not read what the phone sent. The relay is the server, probably out of date.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat das nicht verstanden. Wahrscheinlich läuft darauf eine ältere Version als auf diesem Smartphone. Ein Update sollte das beheben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay didn't understand that. It's most likely running an older version than this phone. Updating it should fix this."
+          }
+        }
+      }
+    },
+    "Your relay didn't understand this send. It's most likely running an older version than this phone. Updating it should fix this." : {
+      "comment" : "Explanation under a failed send: the relay could not read the request. The relay is the server, probably out of date.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat diesen Versand nicht verstanden. Wahrscheinlich läuft darauf eine ältere Version als auf diesem Smartphone. Ein Update sollte das beheben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay didn't understand this send. It's most likely running an older version than this phone. Updating it should fix this."
+          }
+        }
+      }
+    },
+    "Your relay doesn't know %@ any more. Pair it again, then send this tab a second time." : {
+      "comment" : "Explanation under a failed send: the relay no longer knows the receiving device. %@ is the device name, or \"that device\". The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay kennt %1$@ nicht mehr. Koppele es erneut und sende diesen Tab dann noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay doesn't know %@ any more. Pair it again, then send this tab a second time."
+          }
+        }
+      }
+    },
+    "Your relay doesn't recognise this phone any more. Set Tabsend up again here to start sending." : {
+      "comment" : "Explanation under a failed send: the relay does not accept this phone's credentials. Setting up again means pairing again. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay erkennt dieses Smartphone nicht mehr. Richte Tabsend hier neu ein, um wieder zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay doesn't recognise this phone any more. Set Tabsend up again here to start sending."
+          }
+        }
+      }
+    },
+    "Your relay has reached a limit for your group." : {
+      "comment" : "Explanation after a request failed: some limit for this group was reached on the relay. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat für deine Gruppe ein Limit erreicht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay has reached a limit for your group."
+          }
+        }
+      }
+    },
+    "Your relay has reached a limit for your group. This tab is queued and will send itself once there is room." : {
+      "comment" : "Explanation under a waiting send: the relay reached some limit for this group. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat für deine Gruppe ein Limit erreicht. Dieser Tab steht in der Warteschlange und wird automatisch gesendet, sobald wieder Platz ist."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay has reached a limit for your group. This tab is queued and will send itself once there is room."
+          }
+        }
+      }
+    },
+    "Your relay has reached its device limit for your group. Remove a device you are not using, then pair this one again." : {
+      "comment" : "Banner when pairing is refused because the group already has the most devices the relay allows. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat für deine Gruppe die Obergrenze für Geräte erreicht. Entferne ein Gerät, das du nicht nutzt, und koppele dieses dann erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay has reached its device limit for your group. Remove a device you are not using, then pair this one again."
+          }
+        }
+      }
+    },
+    "Your relay is answering again." : {
+      "comment" : "Notification body after waiting tabs were sent: the relay (the server that passes tabs between devices) is working again.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay antwortet wieder."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay is answering again."
+          }
+        }
+      }
+    },
+    "Your relay is busy right now. Give it a moment and send again." : {
+      "comment" : "Explanation under a failed send: the relay is rate limiting requests. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay ist gerade ausgelastet. Warte einen Moment und sende erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay is busy right now. Give it a moment and send again."
+          }
+        }
+      }
+    },
+    "Your relay is busy right now. Give it a moment and try again." : {
+      "comment" : "Explanation after a request failed: the relay is limiting how fast requests may come. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay ist gerade ausgelastet. Warte einen Moment und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay is busy right now. Give it a moment and try again."
+          }
+        }
+      }
+    },
+    "Your relay is having trouble right now. The tab is held here and sends itself once the relay is answering properly again." : {
+      "comment" : "Explanation under a waiting send: the relay answered with a server error. The relay is the server that passes tabs between devices.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat gerade Probleme. Der Tab bleibt hier und wird automatisch gesendet, sobald das Relay wieder richtig antwortet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay is having trouble right now. The tab is held here and sends itself once the relay is answering properly again."
+          }
+        }
+      }
+    },
+    "Your relay is holding as much as your group's limit allows. This tab is queued and will send once the receiving device catches up." : {
+      "comment" : "Explanation under a waiting send: the relay holds the most it may for this group. The tab goes when the receiving device collects what is already waiting. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hält so viel zurück, wie das Limit deiner Gruppe erlaubt. Dieser Tab steht in der Warteschlange und wird gesendet, sobald das empfangende Gerät alles Wartende abgeholt hat."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay is holding as much as your group's limit allows. This tab is queued and will send once the receiving device catches up."
+          }
+        }
+      }
+    },
+    "Your relay is pacing sends for your group right now. This tab is queued and will send itself shortly." : {
+      "comment" : "Explanation under a waiting send: the relay limits how fast this group may send. The wait clears within about a minute. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay bremst gerade das Senden für deine Gruppe. Dieser Tab steht in der Warteschlange und wird in Kürze automatisch gesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay is pacing sends for your group right now. This tab is queued and will send itself shortly."
+          }
+        }
+      }
+    },
+    "Your relay no longer accepts this phone. Set Tabsend up again here." : {
+      "comment" : "Explanation after a request failed: the relay does not accept this phone's credentials. Setting up again means pairing again. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay akzeptiert dieses Smartphone nicht mehr. Richte Tabsend hier neu ein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay no longer accepts this phone. Set Tabsend up again here."
+          }
+        }
+      }
+    },
+    "Your relay no longer has this group. Pair this phone again if you still have access." : {
+      "comment" : "Explanation after a request failed: the group was deleted on the relay. Pairing again means joining with a new setup link. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay hat diese Gruppe nicht mehr. Koppele dieses Smartphone erneut, falls du noch Zugriff hast."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay no longer has this group. Pair this phone again if you still have access."
+          }
+        }
+      }
+    },
+    "Your relay says %@ has left your group of devices." : {
+      "comment" : "Explanation under a failed send: the receiving device is no longer in the group. %@ is the device name, or \"that device\". The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay meldet, dass %1$@ deine Gruppe verlassen hat."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay says %@ has left your group of devices."
+          }
+        }
+      }
+    },
+    "Your relay wouldn't allow that. If your group is suspended, whoever runs the relay can lift the suspension." : {
+      "comment" : "Explanation after a request failed: the relay refused permission. A group can be suspended on a relay, and only the person or company running the relay can lift that. The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay erlaubt das nicht. Ist deine Gruppe gesperrt, kann die Person, die das Relay betreibt, die Sperre aufheben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay wouldn't allow that. If your group is suspended, whoever runs the relay can lift the suspension."
+          }
+        }
+      }
+    },
+    "Your relay wouldn't let this phone send to %@." : {
+      "comment" : "Explanation under a failed send: the relay refused permission. %@ is the device name, or \"that device\". The relay is the server.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay erlaubt diesem Smartphone nicht, an %1$@ zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay wouldn't let this phone send to %@."
+          }
+        }
+      }
+    },
+    "from %@" : {
+      "comment" : "Part of a history row: this phone received the tab. %@ is the name of the sending device, such as \"Work laptop\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "von %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "from %@"
+          }
+        }
+      }
+    },
+    "just now" : {
+      "comment" : "Age of something that happened less than a minute ago. Short: it sits in a row of small print, after a dot.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gerade eben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "just now"
+          }
+        }
+      }
+    },
+    "recently" : {
+      "comment" : "Stands in for how long ago a device joined, when the time is not known. Fits after \"It joined\" in a sentence.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kürzlich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "recently"
+          }
+        }
+      }
+    },
+    "sealed with a group key this phone doesn't have" : {
+      "comment" : "Second line of a history row for a tab this phone cannot read, in place of the website. Group key: the shared key that unlocks history.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mit einem Gruppenschlüssel verschlüsselt, den dieses Smartphone nicht hat"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sealed with a group key this phone doesn't have"
+          }
+        }
+      }
+    },
+    "that device" : {
+      "comment" : "Stands in for a device's name when the name is unknown. It sits inside a sentence, where %@ is a device name: \"Your relay couldn't find %@.\", \"Waiting for %@\", \"%@ never picked it up...\". Not capitalized: it never starts a sentence. A language with cases or genders may need those sentences reworded when this phrase is used.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dieses Gerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "that device"
+          }
+        }
+      }
+    },
+    "to %@" : {
+      "comment" : "Part of a history row: this phone sent the tab. %@ is the name of the receiving device, such as \"Work laptop\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "an %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "to %@"
+          }
+        }
+      }
+    },
+    "unknown" : {
+      "comment" : "Age of something whose time cannot be read. Short: it sits in a row of small print.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "unbekannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "unknown"
+          }
+        }
+      }
+    },
+    "your device" : {
+      "comment" : "Stands in for a device's name when the name is unknown. It sits inside the headlines \"Sent to %@\", \"Waiting to send to %@\" and \"Couldn't send to %@\". A language with cases or genders may need those headlines reworded when this phrase is used.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dein Gerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "your device"
+          }
+        }
+      }
+    },
+    "“%@” is waiting for a new device" : {
+      "comment" : "Notification title: one waiting tab has no device to go to. %@ is the title of the page, in curly quotes.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%1$@“ wartet auf ein neues Gerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is waiting for a new device"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

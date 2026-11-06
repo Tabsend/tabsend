@@ -9,15 +9,24 @@ options:
     iOS: "16.0"
   xcodeVersion: "15.0"
   createIntermediateGroups: true
+  # English is the source language (docs/L10N.md). To add a language, translate the
+  # catalogs; XcodeGen then lists it as a known region by itself. See "Text and
+  # languages" in README.md.
+  developmentLanguage: en
 
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "0.10.0"
+    MARKETING_VERSION: "0.11.0"
     CURRENT_PROJECT_VERSION: "1"
     CODE_SIGN_STYLE: Automatic
-    # Set your Apple Developer team once here (or in Xcode's Signing pane):
-    # DEVELOPMENT_TEAM: ABCDE12345
+    # Zinnia Drive LLC's Apple Developer team. Building your own copy? Put your team here
+    # (or in Xcode's Signing pane):
+    DEVELOPMENT_TEAM: 6Z5P8M8V52
+    # String Catalogs: let the compiler list the strings it finds in Swift code, so a
+    # new Text("...") or String(localized:) shows up in the catalog on the next build.
+    SWIFT_EMIT_LOC_STRINGS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
 
 packages:
   TabsendKit:
@@ -41,9 +50,15 @@ targets:
       # run time if that ever fails, and falls back to the system font after that.
       - path: App/Fonts
         buildPhase: resources
+      # Apple's privacy manifest, one copy in each bundle. It declares App Group
+      # UserDefaults (AppGroupStore, ShareSuggestions), with `.standard` as the fallback.
+      - path: App/PrivacyInfo.xcprivacy
+        buildPhase: resources
     dependencies:
       - package: TabsendKit
       - target: TabsendShare
+        embed: true
+      - target: TabsendNotify
         embed: true
     info:
       path: App/Info.plist
@@ -107,6 +122,13 @@ targets:
         aps-environment: development
         com.apple.security.application-groups:
           - group.io.tabsend.app
+        # Universal links (docs/PLANS.md P-19): iOS hands this app the two paths the account
+        # site lists in its apple-app-site-association file (/app-start and /app-signin), when
+        # a person taps the sign-in link emailed to the sign-up sheet. Needs the Associated
+        # Domains capability on the App ID in the Apple Developer account. A locally signed
+        # build has empty entitlements, so this only works from TestFlight or the App Store.
+        com.apple.developer.associated-domains:
+          - applinks:account.tabsend.org
         # First (only) group becomes the default Keychain access group, so the
         # identity/token written by the app are readable in the share extension.
         keychain-access-groups:
@@ -124,6 +146,8 @@ targets:
       - App/ShareExtension
       - App/Shared
       - path: App/Fonts
+        buildPhase: resources
+      - path: App/PrivacyInfo.xcprivacy
         buildPhase: resources
     dependencies:
       - package: TabsendKit
@@ -181,3 +205,41 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.tabsend.app.share
+
+  # The notification extension (docs/PLANS.md P-29). A phone rung in the `alert` style gets
+  # a visible "new link" push; iOS runs this first, and it fetches the link from the relay
+  # and shows its title and address instead. Small on purpose: iOS gives it about 30
+  # seconds and a small memory budget. It reads the same App Group and Keychain group as
+  # the app, and needs no push entitlement of its own.
+  TabsendNotify:
+    type: app-extension
+    platform: iOS
+    sources:
+      - App/NotifyExtension
+      # Apple's privacy manifest, like the other two bundles: this one reads App Group
+      # UserDefaults too (AppGroupStore), and GroupReset keeps the plan words in `.standard`.
+      - path: App/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - package: TabsendKit
+    info:
+      path: App/NotifyExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Tabsend
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    entitlements:
+      path: App/NotifyExtension/TabsendNotify.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.io.tabsend.app
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)io.tabsend.shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.tabsend.app.notify

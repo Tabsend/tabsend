@@ -1,0 +1,118 @@
+{
+  "firstrun.settings.open": {
+    "message": "Open Tabsend settings",
+    "description": "Setup page: spoken name (for screen readers) of the gear icon button at the top right that opens the settings page."
+  },
+  "firstrun.intro": {
+    "message": "Send this browser's tabs to your other browsers and devices.",
+    "description": "Setup page: one-line explanation under the page title."
+  },
+  "firstrun.hostedOffer.title": {
+    "message": "New to Tabsend?",
+    "description": "Setup page: heading of the box that offers Tabsend's hosted service to someone who has not set anything up. Short."
+  },
+  "firstrun.hostedOffer.body": {
+    "message": "Start a free trial of our hosted service, and you get your setup link in two minutes. 14 days free, no card needed, then $14.99 a year or $49.99 once.",
+    "description": "Setup page: text of the hosted-service offer. The prices are in US dollars and are decided by the business; do not convert them."
+  },
+  "firstrun.hostedOffer.link": {
+    "message": "Start at tabsend.org",
+    "description": "Setup page: button-style link in the hosted-service offer that opens the website tabsend.org in a new tab. Keep the web address."
+  },
+  "firstrun.name.label": {
+    "message": "Name this browser",
+    "description": "Setup page: label of the box where the person gives this browser a name, such as “Chrome”."
+  },
+  "firstrun.name.guessHint": {
+    "message": "Some browsers (Dia, Comet, Arc) look exactly like Chrome from in here, so this is our best guess. Keep it, or type the real name.",
+    "description": "Setup page: note under the browser name box, shown when the name filled in is only a guess. Dia, Comet, Arc and Chrome are browser names; keep them."
+  },
+  "firstrun.name.unknownBrowser": {
+    "message": "My favorite browser",
+    "description": "Setup page: name filled in the browser name box when the program cannot tell which browser this is. The person can change it. Becomes part of the device list label, so keep it short."
+  },
+  "firstrun.device.nameSeed": {
+    "message": "{platform, select, macos {Mac} windows {Windows PC} linux {Linux PC} android {Android} ios {iPhone} other {This device}}",
+    "description": "Setup page, second step: name filled in the new device box, chosen by the computer's system. The person can change it. Mac, Windows, Linux, Android and iPhone are product names; translate only the word PC (if your language says it otherwise) and “This device”. Keep it short: it becomes part of the device list label."
+  },
+  "firstrun.link.placeholder": {
+    "message": "https://relay.example/pair#c=…",
+    "description": "Setup page: grey example shown inside the empty setup link box. It is a sample web address; leave it unchanged unless the example format differs in your language."
+  },
+  "firstrun.link.hint": {
+    "message": "Paste the link from your Tabsend account page or from one of your devices. Came here from the install page? It already copied the link for you. The link tells Tabsend which server to use and carries one-time credentials securely.",
+    "description": "Setup page: help under the setup link box."
+  },
+  "firstrun.link.ownServer": {
+    "message": "Running your own server? Use the link it printed when it started.",
+    "description": "Setup page: second help line under the setup link box, for people who run their own relay (server)."
+  },
+  "firstrun.join": {
+    "message": "Pair this browser",
+    "description": "Setup page: main button of the first step. It joins this browser to the group using the pasted setup link. Short."
+  },
+  "firstrun.device.title": {
+    "message": "Which device is this browser on?",
+    "description": "Setup page, second step: heading. The “device” is the computer or phone the browser runs on, such as “MacBook Pro M1”."
+  },
+  "firstrun.device.existingHint": {
+    "message": "Pick the device this browser runs on, or add a new one.",
+    "description": "Setup page, second step: shown above buttons that name devices already in the group."
+  },
+  "firstrun.device.newLabel": {
+    "message": "Add a new device",
+    "description": "Setup page, second step: label of the box where a new device name is typed."
+  },
+  "firstrun.device.examples": {
+    "message": "Examples: “MacBook Pro M1”, “Home PC”.",
+    "description": "Setup page, second step: examples of device names under the new device box. The names are samples of what someone might type."
+  },
+  "firstrun.device.continue": {
+    "message": "Continue",
+    "description": "Setup page, second step: button that saves the device name and moves on. Short."
+  },
+  "firstrun.manage.title": {
+    "message": "This browser is paired",
+    "description": "Setup page, last step: heading, shown after a green check mark. It means this browser is now part of the group."
+  },
+  "firstrun.manage.youAre": {
+    "message": "You are “{device}”.",
+    "description": "Setup page, last step: tells the person the name of this browser in the group. {device} is the name, such as “Chrome · Mac”."
+  },
+  "firstrun.pin.body": {
+    "message": "Pin Tabsend to your toolbar so it is always one click away. Find it in your browser's extensions menu, the puzzle piece next to the address bar.",
+    "description": "Setup page, last step: a short tip under the name line, shown only while Tabsend is not pinned to the toolbar. “Pin” is the browser's own word for keeping an extension's icon visible on the toolbar. The puzzle piece is the icon of the extensions menu in Chrome, Edge, Brave, Firefox and similar browsers; use your language's usual wording for it."
+  },
+  "firstrun.manage.change": {
+    "message": "Change…",
+    "description": "Setup page, last step: link-style button after the relay address that opens the settings page, Connection section. The ellipsis shows that another page opens. Short."
+  },
+  "firstrun.manage.close": {
+    "message": "You can close this page now.",
+    "description": "Setup page, last step: closing line at the bottom."
+  },
+  "firstrun.solo.checkAddress": {
+    "message": "Check the relay address",
+    "description": "Setup page, last step: button in the note that says this browser is alone in its group. It opens the settings page where the relay address can be checked."
+  },
+  "firstrun.rename.duplicate": {
+    "message": "There was already a “{wanted}” on “{device}”, so this one is “{actual}”. Rename it below any time.",
+    "description": "Setup page, last step: note shown when the browser name the person chose was already taken on this device, so Tabsend picked a different one. {wanted} is the name the person typed, {device} is the device name, {actual} is the name that was used instead. “Below” points to the device list under the note."
+  },
+  "firstrun.error.nameMissing": {
+    "message": "Give this browser a name first.",
+    "description": "Setup page: error when the person pressed the pair button with the browser name box empty."
+  },
+  "firstrun.error.linkIncomplete": {
+    "message": "Paste the complete setup link. It identifies and securely connects to the relay.",
+    "description": "Setup page: error when the setup link box is empty or the link is not a complete Tabsend setup link."
+  },
+  "firstrun.error.devicePick": {
+    "message": "Pick a device or type a new one.",
+    "description": "Setup page, second step: error when the person pressed Continue without choosing or typing a device."
+  },
+  "firstrun.error.removed": {
+    "message": "This browser was removed from its group by another device. Set it up again below.",
+    "description": "Setup page: error shown at the top when this browser used to be set up but another device removed it from the group. “Below” points to the setup form under the message."
+  }
+}

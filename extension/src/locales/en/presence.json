@@ -1,0 +1,14 @@
+{
+  "presence.online": {
+    "message": "online",
+    "description": "Status in a device row: the device is connected right now. Lowercase, short."
+  },
+  "presence.inactive": {
+    "message": "inactive",
+    "description": "Status in a device row: the device has not been seen for a long time. Lowercase, short."
+  },
+  "presence.lastSeen": {
+    "message": "last seen {ago}",
+    "description": "Status in a device row: when the device was last seen. {ago} is a short relative time such as “5m ago” or “just now”. Lowercase, short."
+  }
+}

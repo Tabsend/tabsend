@@ -157,11 +157,28 @@ describe('classifyMintFailure', () => {
     expect(classifyMintFailure(err, relayUrl)).toEqual({ kind: 'unauthorized' })
   })
 
-  it('passes any other relay refusal through with its message', () => {
+  it('words any other relay refusal from its code, not its message', () => {
     const err = new ApiClientError(429, 'rate_limited', 'Too many pairing links.')
     expect(classifyMintFailure(err, relayUrl)).toEqual({
       kind: 'relay',
-      detail: 'Too many pairing links.',
+      detail: 'Your relay is busy right now. Give it a moment and try again.',
+    })
+  })
+
+  it('says what a full set of unused links means, whatever number the relay printed', () => {
+    const err = new ApiClientError(409, 'limit_reached', 'This group has 5 unused pairing links.')
+    expect(classifyMintFailure(err, relayUrl)).toEqual({
+      kind: 'relay',
+      detail:
+        'This group already has the most unused setup links it allows. Try again in a few minutes, when the oldest one expires.',
+    })
+  })
+
+  it('reads a reply with no error envelope as its status', () => {
+    const err = new ApiClientError(502, 'internal', 'Request failed (502).', true)
+    expect(classifyMintFailure(err, relayUrl)).toEqual({
+      kind: 'relay',
+      detail: 'Request failed (502).',
     })
   })
 

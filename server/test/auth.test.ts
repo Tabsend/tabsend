@@ -346,6 +346,30 @@ describe('removal is distinguishable from an unrecognised token', () => {
     expect(res.body.error.code).toBe('endpoint_removed')
   })
 
+  it('lets a device remove ITSELF with its own token, as Unpair does on every client', async () => {
+    // PLANS P-28. What a leaving client relies on: the entry goes from the others' lists,
+    // and its token then answers 401, including the heartbeat its wake token retirement
+    // still sends after the removal.
+    const owner = await register(server.baseUrl)
+    const code = await mintPairing(owner.token)
+    const leaving = await register(server.baseUrl, { pairingCode: code })
+
+    const del = await http.del(server.baseUrl, `/v1/endpoints/${leaving.endpointId}`, leaving.token)
+    expect(del.status).toBe(200)
+
+    const list = await http.get<{ id: string }[]>(server.baseUrl, '/v1/endpoints', owner.token)
+    expect(list.body.map((e) => e.id)).toEqual([owner.endpointId])
+
+    const heartbeat = await http.post<ApiError>(
+      server.baseUrl,
+      `/v1/endpoints/${leaving.endpointId}/heartbeat`,
+      { pushSubscription: { transport: 'none' } },
+      leaving.token,
+    )
+    expect(heartbeat.status).toBe(401)
+    expect(heartbeat.body.error.code).toBe('endpoint_removed')
+  })
+
   it('answers a merely UNKNOWN token with plain unauthorized', async () => {
     const res = await http.get<ApiError>(server.baseUrl, '/v1/endpoints', 'never-issued-token')
     expect(res.status).toBe(401)

@@ -125,7 +125,7 @@ public enum Sender {
         let item = OutboundItem(
             id: id, targetEndpointId: target.id, envelope: envelope,
             createdAt: payload.sentAt, title: payload.title, url: payload.url,
-            targetLabel: target.label, history: history
+            image: payload.image, targetLabel: target.label, history: history
         )
 
         // Queue FIRST, then POST, then dequeue on a definite answer. A share
@@ -428,7 +428,7 @@ public enum Sender {
         else { return false }
         // The time the user first sent it, so the tab and its history row are
         // dated honestly and the queue's age bound still counts from then.
-        let payload = SendPayload(url: url, title: old.title, sentAt: old.createdAt)
+        let payload = SendPayload(url: url, title: old.title, image: old.image, sentAt: old.createdAt)
         guard let plaintext = try? Wire.encoder.encode(payload),
               let envelope = try? Sealer.seal(
                   plaintext: plaintext,
@@ -441,7 +441,7 @@ public enum Sender {
         let moved = OutboundItem(
             id: UUID().uuidString.lowercased(), targetEndpointId: chosen.id,
             envelope: envelope, createdAt: old.createdAt, title: old.title, url: url,
-            targetLabel: chosen.label,
+            image: old.image, targetLabel: chosen.label,
             history: historyBlob(payload: payload, target: chosen, store: store)
         )
         var done = false
@@ -527,6 +527,7 @@ public enum Sender {
         guard let key = Keyring.current(store.groupKeyring) else { return nil }
         let record = HistoryRecord(
             payload: payload,
+            // l10n-ignore: fallback label sealed into the group history and read on other devices, so no one language fits
             sourceLabelAtSend: store.registration?.label ?? "This phone",
             targetLabelAtSend: target.label
         )

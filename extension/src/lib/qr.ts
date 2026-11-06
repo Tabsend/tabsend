@@ -1,4 +1,5 @@
 import qrcode from 'qrcode-generator'
+import { t } from './i18n'
 
 /**
  * Render a string as a self-contained QR SVG (qrcode-generator, MIT). Used for
@@ -37,6 +38,11 @@ function qrLayout(text: string, opts: { cellSize?: number; margin?: number } = {
   return { cell, size, darkModules }
 }
 
+/** Text for inside a double-quoted attribute of the SVG string. */
+function attribute(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+}
+
 export function qrSvg(text: string, opts: { cellSize?: number; margin?: number } = {}): string {
   const { cell, size, darkModules } = qrLayout(text, opts)
   const rects = darkModules
@@ -45,7 +51,7 @@ export function qrSvg(text: string, opts: { cellSize?: number; margin?: number }
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
-    `viewBox="0 0 ${size} ${size}" role="img" aria-label="Pairing QR code">` +
+    `viewBox="0 0 ${size} ${size}" role="img" aria-label="${attribute(t('pairing.box.qrLabel'))}">` +
     `<rect width="${size}" height="${size}" fill="#ffffff"/>` +
     `<g fill="#000000">${rects}</g></svg>`
   )
@@ -63,7 +69,7 @@ export function qrElement(
   svg.setAttribute('height', String(size))
   svg.setAttribute('viewBox', `0 0 ${size} ${size}`)
   svg.setAttribute('role', 'img')
-  svg.setAttribute('aria-label', 'Pairing QR code')
+  svg.setAttribute('aria-label', t('pairing.box.qrLabel'))
 
   const background = document.createElementNS(ns, 'rect')
   background.setAttribute('width', String(size))

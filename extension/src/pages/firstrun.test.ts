@@ -1,6 +1,7 @@
 import type { IsoTimestamp, NewDeviceNotice } from '@tabsend/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DeviceRow, DevicesView, RpcRequest, StateView } from '../lib/model'
+import { unlocalizedWords } from '../lib/pseudo'
 import { type FakePage, installFakePage, uninstallFakePage } from './test-dom'
 
 /**
@@ -18,12 +19,30 @@ vi.mock('./rpc-client', () => ({
     return answer(req)
   }),
 }))
+/** The page's storage listeners, so a test can land a fresh device list in the cache. */
+const storageListeners: ((changes: Record<string, unknown>, area: string) => void)[] = []
 /** The browser's permission prompt: what it was asked for, and the user's answer. */
 const permission = { asked: [] as string[][], answer: true }
+/** What the browser says about the toolbar icon: pinned or not, nothing, or an error. */
+const toolbar = {
+  settings: undefined as { isOnToolbar: boolean } | undefined,
+  throws: false,
+}
 vi.mock('../lib/ext', () => ({
   ext: {
     tabs: { create: vi.fn(async () => undefined) },
     runtime: { getURL: (path: string) => `chrome-extension://id/${path}` },
+    action: {
+      getUserSettings: vi.fn(async () => {
+        if (toolbar.throws) throw new Error('not supported')
+        return toolbar.settings
+      }),
+    },
+    storage: {
+      onChanged: {
+        addListener: (l: (typeof storageListeners)[number]) => storageListeners.push(l),
+      },
+    },
     permissions: {
       request: vi.fn(async (p: { origins: string[] }) => {
         permission.asked.push(p.origins)
@@ -49,6 +68,8 @@ function notice(id: string, label: string): NewDeviceNotice {
 }
 
 let devices: DevicesView
+/** What setDevice answers; unset keeps the bare `{ ok: true }` the older tests ran against. */
+let deviceChosen: StateView | undefined
 
 function answer(req: RpcRequest): unknown {
   switch (req.type) {
@@ -56,6 +77,8 @@ function answer(req: RpcRequest): unknown {
       return { ok: true, state }
     case 'getDevices':
       return { ok: true, devices }
+    case 'setDevice':
+      return deviceChosen ? { ok: true, state: deviceChosen } : { ok: true }
     default:
       return { ok: true }
   }
@@ -76,6 +99,10 @@ const removals = () => requests.filter((r) => r.type === 'removeEndpoint')
 
 beforeEach(() => {
   requests.length = 0
+  storageListeners.length = 0
+  deviceChosen = undefined
+  toolbar.settings = undefined
+  toolbar.throws = false
   devices = {
     registered: true,
     selfEndpointId: 'ep-self',
@@ -232,11 +259,168 @@ describe('first run, pair screen: the relay permission (Chrome Web Store review)
   })
 })
 
+describe('first run, manage screen: the tip to pin Tabsend', () => {
+  const tipShown = () => page.byId('pin-note').classList.contains('visible')
+
+  it('is shown while Tabsend is not on the toolbar', async () => {
+    toolbar.settings = { isOnToolbar: false }
+    await openPage()
+    await vi.waitFor(() => expect(tipShown()).toBe(true))
+  })
+
+  it('is left out once the icon is pinned', async () => {
+    toolbar.settings = { isOnToolbar: true }
+    await openPage()
+    // Let the browser's answer land before looking.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(tipShown()).toBe(false)
+  })
+
+  it('is shown when the browser cannot say', async () => {
+    toolbar.settings = undefined
+    await openPage()
+    await vi.waitFor(() => expect(tipShown()).toBe(true))
+
+    toolbar.throws = true
+    await openPage()
+    await vi.waitFor(() => expect(tipShown()).toBe(true))
+  })
+})
+
 describe('first run, manage screen: a device that joined (P-23)', () => {
+  it('shows up while the screen is open, read from the cache', async () => {
+    await openPage()
+    const before = page.byId('device-list').children.length
+    devices = {
+      ...devices,
+      devices: [...devices.devices, row('ep-joined', 'Pixel 9')],
+    }
+    requests.length = 0
+    for (const listener of storageListeners) listener({ endpointsCacheAt: {} }, 'local')
+    await vi.waitFor(() => expect(page.byId('device-list').children).toHaveLength(before + 1))
+    expect(requests).toEqual([{ type: 'getDevices', cached: true }])
+  })
+
   it('is just in the list: no card, no tag, nothing to answer', async () => {
     await openPage()
     expect(page.byId('new-devices').textContent).toBe('')
     expect(page.byId('device-list').textContent).toContain('Galaxy S24')
     expect(page.buttons('device-list', "It's mine: Galaxy S24")).toEqual([])
+  })
+})
+
+/**
+ * Every sentence this page writes with the pseudo-locale on (en-XA): each one must come
+ * through a catalog message, which wraps it in brackets. A sentence typed into the code
+ * would show up as plain words; only what a person supplied (a name, an address, the
+ * background's own error text) may stand outside the brackets.
+ */
+describe('first run: all text written by the page comes from the catalog', () => {
+  async function openPseudoPage(): Promise<void> {
+    page = installFakePage('firstrun.html')
+    vi.resetModules()
+    // The same module registry as the page, so the page sees the pseudo-locale.
+    const { setLocale } = await import('../lib/i18n')
+    setLocale('en-XA')
+    await import('./firstrun')
+    await vi.waitFor(() => expect(document.body.dataset.ready).toBe('1'))
+  }
+  /** The words in `id`'s text that are not catalog text; fails if there is no text at all. */
+  function strays(id: string, allowed: string[] = []): string[] {
+    const text = page.byId(id).textContent
+    expect(text, `#${id} is empty`).not.toBe('')
+    expect(text, `#${id} is not a catalog message`).toMatch(/\[/)
+    return unlocalizedWords(text, allowed)
+  }
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  afterEach(() => {
+    state.registered = true
+    delete state.pendingSwitch
+    delete state.removedNotice
+    delete state.registeredAt
+    state.browserName = 'Chrome'
+  })
+
+  it('what the pair screen says when this browser was removed from its group', async () => {
+    state.registered = false
+    state.removedNotice = true
+    await openPseudoPage()
+    expect(strays('error')).toEqual([])
+  })
+
+  it('each mistake on the pair screen and the device screen', async () => {
+    state.registered = false
+    await openPseudoPage()
+    // The browser's own name is filled in as soon as it is known; wait, then empty it.
+    await settle()
+    page.byId('browser-name').value = ''
+    page.byId('join').click()
+    await vi.waitFor(() => expect(page.byId('error').textContent).not.toBe(''))
+    expect(strays('error')).toEqual([])
+
+    page.byId('browser-name').value = 'Chrome'
+    page.byId('pairing-link-input').value = 'not a link'
+    page.byId('join').click()
+    await settle()
+    expect(strays('error')).toEqual([])
+
+    page.byId('pairing-link-input').value = 'http://192.168.1.20:8080/pair#c=ABCD-1234'
+    page.byId('join').click()
+    await vi.waitFor(() =>
+      expect(page.byId('screen-device').classList.contains('hidden')).toBe(false),
+    )
+    page.byId('device-new').value = ''
+    page.byId('device-confirm').click()
+    await settle()
+    expect(strays('error')).toEqual([])
+  })
+
+  it('the manage screen: who you are, and the note when a name was already taken', async () => {
+    state.registered = false
+    await openPseudoPage()
+    await settle()
+    page.byId('browser-name').value = 'Chrome'
+    page.byId('pairing-link-input').value = 'http://192.168.1.20:8080/pair#c=ABCD-1234'
+    state.registered = true
+    deviceChosen = { ...state, browserName: 'Chrome 2' }
+    page.byId('join').click()
+    await vi.waitFor(() =>
+      expect(page.byId('screen-device').classList.contains('hidden')).toBe(false),
+    )
+    page.byId('device-new').value = 'Mac'
+    page.byId('device-confirm').click()
+    await vi.waitFor(() =>
+      expect(page.byId('screen-manage').classList.contains('hidden')).toBe(false),
+    )
+    expect(strays('self-label-line', ['Chrome', 'Mac'])).toEqual([])
+    expect(strays('rename-note', ['Chrome', 'Mac'])).toEqual([])
+    expect(page.byId('rename-note').textContent).toContain('Chrome 2')
+  })
+
+  it('the solo-group note on the manage screen', async () => {
+    state.registeredAt = '2026-01-01T00:00:00.000Z'
+    devices = { ...devices, devices: [row('ep-self', 'Chrome · Mac', true)] }
+    await openPseudoPage()
+    await vi.waitFor(() => expect(page.byId('solo-body').textContent).not.toBe(''))
+    expect(strays('solo-body', [state.relayUrl])).toEqual([])
+  })
+
+  it('an unfinished move to another relay, from settings', async () => {
+    state.pendingSwitch = {
+      relayUrl: 'https://other.example',
+      pairingLink: 'https://x.example/pair#c=AB',
+    }
+    await openPseudoPage()
+    expect(strays('switch-target', ['https://other.example'])).toEqual([])
+    expect(strays('switch-cost', [state.relayUrl])).toEqual([])
+    expect(strays('switch-keep', [state.relayUrl])).toEqual([])
+    expect(strays('switch-link-note')).toEqual([])
+
+    // Nothing to keep: no pairing left to fall back on.
+    state.registered = false
+    await openPseudoPage()
+    expect(strays('switch-target', ['https://other.example'])).toEqual([])
+    expect(page.byId('switch-cost').textContent).toBe('')
   })
 })

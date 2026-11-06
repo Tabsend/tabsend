@@ -1,0 +1,34 @@
+{
+  "dialog.rename.title": {
+    "message": "Rename device",
+    "description": "Heading of the dialog for renaming a device."
+  },
+  "dialog.rename.label": {
+    "message": "Label",
+    "description": "Label of the text box in the rename dialog, holding the device's name."
+  },
+  "dialog.remove.title": {
+    "message": "Remove device",
+    "description": "Heading of the dialog for removing a device from the group."
+  },
+  "dialog.remove.self": {
+    "message": "This is this console. Removing it ends this session and clears its local history; you would re-pair to use the console again.",
+    "description": "Text of the remove dialog when the device being removed is this console itself."
+  },
+  "dialog.remove.other": {
+    "message": "“{device}” will stop receiving tabs and disappear from every device’s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin.",
+    "description": "Text of the remove dialog for another device. {device} is its name, shown in quotes. A “chooser” is the list a person picks a target device from."
+  },
+  "dialog.unpair.title": {
+    "message": "Unpair this console",
+    "description": "Heading of the dialog for unpairing this console."
+  },
+  "dialog.unpair.body": {
+    "message": "Takes this console out of the group and removes its keys and saved history from this browser. If the relay can’t be reached, the group still lists this console until you use Remove on its row on another device.",
+    "description": "Text of the unpair dialog. “Remove” is the exact label of the button on a device row."
+  },
+  "dialog.unpair.confirm": {
+    "message": "Unpair",
+    "description": "Button in the unpair dialog that unpairs this console. Short."
+  }
+}

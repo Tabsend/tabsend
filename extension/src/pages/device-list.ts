@@ -1,3 +1,4 @@
+import { t } from '../lib/i18n'
 import type { DeviceRow, RpcRequest } from '../lib/model'
 
 /**
@@ -33,12 +34,14 @@ export function removeIfConfirmed(
   dev: Pick<DeviceRow, 'endpointId' | 'label'>,
   confirm: (question: string) => boolean,
 ): Extract<RpcRequest, { type: 'removeEndpoint' }> | null {
-  if (!confirm(`Remove “${dev.label}” from the group?`)) return null
+  if (!confirm(t('devices.list.removeConfirm', { device: dev.label }))) return null
   return { type: 'removeEndpoint', endpointId: dev.endpointId }
 }
 
 export function deviceSubline(dev: Pick<DeviceRow, 'isSelf' | 'presenceLabel'>): string {
-  return dev.isSelf ? `This browser · ${dev.presenceLabel}` : dev.presenceLabel
+  return dev.isSelf
+    ? t('devices.list.thisBrowser', { presence: dev.presenceLabel })
+    : dev.presenceLabel
 }
 
 export function renderDeviceList(
@@ -71,8 +74,14 @@ export function renderDeviceList(
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'linkish'
-      btn.textContent = action === 'rename' ? 'Rename' : 'Remove'
-      btn.setAttribute('aria-label', `${btn.textContent} ${dev.label}`)
+      const renaming = action === 'rename'
+      btn.textContent = renaming ? t('common.rename') : t('common.remove')
+      btn.setAttribute(
+        'aria-label',
+        renaming
+          ? t('devices.list.renameAria', { device: dev.label })
+          : t('devices.list.removeAria', { device: dev.label }),
+      )
       btn.addEventListener('click', () => actions[action](dev))
       row.append(btn)
     }

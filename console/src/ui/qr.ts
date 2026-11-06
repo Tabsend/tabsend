@@ -6,7 +6,10 @@ import qrcode from 'qrcode-generator'
  * of page theme: a scanner needs high contrast, so the QR must not invert in dark
  * mode. Used for the "add a device" pairing payload (INTERACTION_FLOWS §6.2).
  */
-export function qrSvg(text: string, opts: { cellSize?: number; margin?: number } = {}): string {
+export function qrSvg(
+  text: string,
+  opts: { cellSize?: number; margin?: number; label: string },
+): string {
   const cell = opts.cellSize ?? 4
   const margin = opts.margin ?? 4
 
@@ -29,8 +32,17 @@ export function qrSvg(text: string, opts: { cellSize?: number; margin?: number }
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
-    `viewBox="0 0 ${size} ${size}" role="img" aria-label="Pairing QR code">` +
+    `viewBox="0 0 ${size} ${size}" role="img" aria-label="${escapeAttribute(opts.label)}">` +
     `<rect width="${size}" height="${size}" fill="#ffffff"/>` +
     `<g fill="#000000">${rects}</g></svg>`
   )
+}
+
+/** The spoken description goes into an attribute of markup built here, so it is escaped. */
+function escapeAttribute(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }

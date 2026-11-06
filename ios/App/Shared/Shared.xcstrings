@@ -1,0 +1,176 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ · %@" : {
+      "comment" : "Two parts of a device's second line, separated by a dot: the first is the kind or a status, the second is a status. For example \"Chrome · Online\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Android phone" : {
+      "comment" : "Kind of a device in the device list, before its status: \"Android phone · Online\". Android is a product name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android-Smartphone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android phone"
+          }
+        }
+      }
+    },
+    "Browser" : {
+      "comment" : "Kind of a device in the device list, before its status, when the browser is unknown: \"Browser · Online\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browser"
+          }
+        }
+      }
+    },
+    "Console" : {
+      "comment" : "Kind of a device in the device list, before its status: the web console of a Tabsend relay. \"Console · Online\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Web-Konsole"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Console"
+          }
+        }
+      }
+    },
+    "Main" : {
+      "comment" : "Small label beside the device that gets the one-tap share, the main device. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hauptgerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Main"
+          }
+        }
+      }
+    },
+    "Offline" : {
+      "comment" : "Presence of a device in the device list, after its kind: \"Chrome · Offline\". Keep it to one or two words.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline"
+          }
+        }
+      }
+    },
+    "Online" : {
+      "comment" : "Presence of a device in the device list, after its kind: \"Chrome · Online\". Shown in green. Keep it to one or two words.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Online"
+          }
+        }
+      }
+    },
+    "Phone" : {
+      "comment" : "Kind of a device in the device list, before its status, when the phone's system is unknown: \"Phone · Online\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smartphone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phone"
+          }
+        }
+      }
+    },
+    "Status unknown" : {
+      "comment" : "Presence of a device in the share-sheet device list when this phone could not ask the relay (offline): \"Chrome · Status unknown\". Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status unbekannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status unknown"
+          }
+        }
+      }
+    },
+    "inactive" : {
+      "comment" : "Added after a device's status when it has not been seen for a long time: \"Chrome · Offline · inactive\". One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inaktiv"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inactive"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

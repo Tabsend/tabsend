@@ -100,10 +100,16 @@ class RemoveWiringTest {
             .filter { Regex("""\.deleteEndpoint\(""").containsMatchIn(it.readText()) }
             .map { it.name }
             .toList()
-        assertEquals(listOf("MainActivity.kt"), callers)
+            .sorted()
+        assertEquals(listOf("MainActivity.kt", "Registrar.kt"), callers)
         assertFalse(
             "a second removal path would skip the watch",
             Regex("""\.deleteEndpoint\(""").findAll(activity).count() > 1,
         )
+        // The other caller is this phone leaving, and can name no other device. The watch
+        // has nothing to record there: the wipe takes it too.
+        val registrar = File(sourceRoot(), "java/io/tabsend/app/net/Registrar.kt").readText()
+        assertEquals(1, Regex("""\.deleteEndpoint\(""").findAll(registrar).count())
+        assertTrue(registrar.contains(".deleteEndpoint(reg.deviceToken, reg.endpointId)"))
     }
 }

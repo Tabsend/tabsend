@@ -104,6 +104,7 @@ describe('device tokens at rest', () => {
       platform: 'ios',
       deviceToken: fakeApnsToken(),
       environment: 'production',
+      ringStyle: 'background',
       now: 1,
     })
     store.close()
@@ -130,6 +131,7 @@ describe('database file permissions', () => {
         platform: 'ios',
         deviceToken: fakeApnsToken(),
         environment: 'production',
+        ringStyle: 'background',
         now: 1,
       })
       expect(mode(databasePath)).toBe(0o600)
@@ -189,6 +191,7 @@ describe('schema migrations', () => {
         platform: 'ios',
         deviceToken: phone.apnsToken,
         environment: 'sandbox',
+        ringStyle: 'background',
         createdAt: 10,
         lastWakeAt: 20,
         wakeCount: 3,
@@ -198,13 +201,15 @@ describe('schema migrations', () => {
 
       await post(rig, '/v1/wake', {}, phone.wakeToken)
       await post(rig, '/v1/wake', {}, droid.wakeToken)
-      expect(rig.apns.calls).toEqual([{ apnsToken: phone.apnsToken, environment: 'sandbox' }])
+      expect(rig.apns.calls).toEqual([
+        { apnsToken: phone.apnsToken, environment: 'sandbox', ringStyle: 'background' },
+      ])
       expect(rig.fcm?.calls).toEqual([{ fcmToken: droid.fcmToken }])
     } finally {
       await rig.close()
     }
     const db = new SQLite(databasePath, { readonly: true })
-    expect(db.pragma('user_version', { simple: true })).toBe(3)
+    expect(db.pragma('user_version', { simple: true })).toBe(4)
     db.close()
   })
 
@@ -378,12 +383,15 @@ describe('schema migrations', () => {
         platform: 'ios',
         deviceToken: apnsToken,
         environment: 'sandbox',
+        ringStyle: 'background',
         createdAt: 123,
         lastWakeAt: 456,
         wakeCount: 7,
       })
       await post(rig, '/v1/wake', {}, wakeToken)
-      expect(rig.apns.calls).toEqual([{ apnsToken, environment: 'sandbox' }])
+      expect(rig.apns.calls).toEqual([
+        { apnsToken, environment: 'sandbox', ringStyle: 'background' },
+      ])
     } finally {
       await rig.close()
     }
@@ -439,6 +447,7 @@ describe('wake tallies', () => {
         platform: 'ios',
         deviceToken: fakeApnsToken(),
         environment: 'production',
+        ringStyle: 'background',
         now: 1,
       })
       store.recordWake(hash, 5)
@@ -491,6 +500,7 @@ describe('wake tallies', () => {
         platform: 'ios',
         deviceToken: fakeApnsToken(),
         environment: 'production',
+        ringStyle: 'background',
         now: 1,
       })
       // Something else takes the table the flush writes its time to, so the flush fails.
@@ -557,6 +567,7 @@ describe('trimming a nearly full table', () => {
       platform: 'ios',
       deviceToken: fakeApnsToken(),
       environment: 'production',
+      ringStyle: 'background',
       now: at,
     })
     return hash

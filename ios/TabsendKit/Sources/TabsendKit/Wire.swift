@@ -72,6 +72,11 @@ public struct SendPayload: Codable, Sendable, Equatable {
     public var url: String
     public var title: String?
     public var favicon: String?
+    /// The page's preview picture, an https address the sender found. Lets a browser
+    /// show a picture without the host access it would need to read the page.
+    /// Best-effort and optional: every receiver re-checks it with
+    /// `LinkPreviewMetadata.usableImage`, and old senders omit it.
+    public var image: String?
     public var sentAt: String
     public var historyOf: HistoryOf?
     /// Present only when this link is part of a multi-tab send: the id shared
@@ -93,10 +98,11 @@ public struct SendPayload: Codable, Sendable, Equatable {
         }
     }
 
-    public init(url: String, title: String? = nil, favicon: String? = nil, sentAt: String, historyOf: HistoryOf? = nil, batch: Batch? = nil) {
+    public init(url: String, title: String? = nil, favicon: String? = nil, image: String? = nil, sentAt: String, historyOf: HistoryOf? = nil, batch: Batch? = nil) {
         self.url = url
         self.title = title
         self.favicon = favicon
+        self.image = image
         self.sentAt = sentAt
         self.historyOf = historyOf
         self.batch = batch
@@ -468,10 +474,26 @@ public struct GroupResetState: Codable, Sendable, Equatable {
     }
 }
 
+/// What the account site (Tabsend's own service) wrote for this group's phones
+/// (docs/PLANS.md P-19): `state` is "trial", "trial_ended" or "account", and `trialEndsAt` is
+/// the trial's end for the first two. Read through `GroupService.plan`, which treats a state
+/// it does not know as no answer.
+public struct GroupServiceState: Codable, Sendable, Equatable {
+    public var state: String
+    public var trialEndsAt: String?
+
+    public init(state: String, trialEndsAt: String? = nil) {
+        self.state = state
+        self.trialEndsAt = trialEndsAt
+    }
+}
+
 /// GET /v1/group. `reset` is null when none is pending. An older relay answers
-/// the route 404, which `GroupReset.fetch` reads as `reset: null`.
+/// the route 404, which `GroupReset.fetch` reads as `reset: null`. `service` is missing on a
+/// relay with no account site (every self-hosted one) and on a relay older than P-19.
 public struct GroupStateResponse: Codable, Sendable {
     public var reset: GroupResetState?
+    public var service: GroupServiceState?
 }
 
 /// POST /v1/group/reset/stop. Always `{ "reset": null }`, also when nothing was

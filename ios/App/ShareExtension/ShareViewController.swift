@@ -101,6 +101,9 @@ private struct ShareRootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var payload: SendPayload?
+    /// The page's picture address, looked up as soon as the sheet opens so it is
+    /// usually ready before a device is picked. Bounded by `PictureLookup.budget`.
+    @State private var pictureLookup: Task<String?, Never>?
     @State private var rows: [Chooser.Row] = []
     /// What is currently on offer in the suggestions row, so a send can feed its
     /// usage back to the right target and only to one that has a slot.
@@ -129,7 +132,10 @@ private struct ShareRootView: View {
                     ProgressView()
                         .tint(Palette.muted)
                 } else if store.registration == nil {
-                    resultView("Tabsend isn't linked yet — open the app to pair this phone.")
+                    resultView(String(
+                        localized: "Tabsend isn't linked yet. Open the app to pair this phone.",
+                        comment: "Message in the share sheet when Tabsend has not been paired yet. Pairing means linking this phone to the user's other devices."
+                    ))
                 } else if rows.isEmpty {
                     resultView(Feedback.noDevices)
                 } else {
@@ -272,6 +278,9 @@ private struct ShareRootView: View {
             loaded = true
             return
         }
+        if let page = payload?.url, !store.websiteImagesOff {
+            pictureLookup = Task.detached { await PictureLookup.address(forPage: page) }
+        }
         let api = ApiClient(
             relayUrl: reg.relayUrl,
             deviceToken: reg.deviceToken,
@@ -314,7 +323,10 @@ private struct ShareRootView: View {
             await send(to: picked)
             return
         }
-        notice = "That device isn't in your group any more — pick another."
+        notice = String(
+            localized: "That device isn't in your group any more. Pick another.",
+            comment: "Note in the share sheet above the device list, shown when the device chosen from the share-sheet suggestions has left the group."
+        )
     }
 
     /// Send, then report — in the toast AND, when it matters, as a notification.
@@ -328,10 +340,11 @@ private struct ShareRootView: View {
     @MainActor
     private func send(to row: Chooser.Row) async {
         guard !sending, toast == nil else { return }
-        guard let payload, let reg = store.registration else { return }
+        guard var payload, let reg = store.registration else { return }
         sending = true
         let label = row.endpoint.label
         show(.sending(label: label, title: Self.tabName(payload)))
+        payload.image = await pictureLookup?.value
         let api = ApiClient(
             relayUrl: reg.relayUrl,
             deviceToken: reg.deviceToken,

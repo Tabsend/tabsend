@@ -30,7 +30,7 @@ struct PairSheetView: View {
                             .panelRow()
                     }
                 } footer: {
-                    Text("Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it. It works once and expires in about 10 minutes.")
+                    Text("Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it. It works once and expires in 10 minutes.")
                         .foregroundColor(Palette.muted)
                 }
 

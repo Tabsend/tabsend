@@ -7,7 +7,6 @@ import io.tabsend.app.wire.Endpoint
 import io.tabsend.app.wire.GroupKeyDelivery
 import io.tabsend.app.wire.GroupKeyRequest
 import io.tabsend.app.wire.GroupKeyResponse
-import io.tabsend.app.wire.GroupResetState
 import io.tabsend.app.wire.GroupStateResponse
 import io.tabsend.app.wire.HeartbeatRequest
 import io.tabsend.app.wire.HeartbeatResponse
@@ -90,13 +89,14 @@ class ApiClient(private val relayUrl: String, certFingerprint: String? = null) {
         )
 
     /**
-     * The reset waiting on this group, or null [P-18 item 12]. A relay predating the
-     * route answers 404, which means it cannot schedule one either: null, quietly.
+     * The group's state: the reset waiting on it, if any [P-18 item 12], and the plan words
+     * Tabsend's own service wrote, if any [P-19]. A relay predating the route answers 404,
+     * which means it can schedule no reset and knows no plan either: nothing, quietly.
      */
-    fun getGroupReset(token: String): GroupResetState? = try {
-        exec(build("GET", "/v1/group", token, null), GroupStateResponse.serializer()).reset
+    fun getGroupState(token: String): GroupStateResponse = try {
+        exec(build("GET", "/v1/group", token, null), GroupStateResponse.serializer())
     } catch (e: ApiException) {
-        if (e.status == 404) null else throw e
+        if (e.status == 404) GroupStateResponse() else throw e
     }
 
     /** Stop the pending reset. The relay answers `{reset:null}` also when none was pending. */
@@ -122,8 +122,9 @@ class ApiClient(private val relayUrl: String, certFingerprint: String? = null) {
         )
 
     /**
-     * Remove another device from the group (DELETE /v1/endpoints/{id}). A 404 means
-     * it is already gone, which is what the caller wanted, so it is not an error.
+     * Remove a device from the group (DELETE /v1/endpoints/{id}): another one, or this
+     * phone as it leaves ([Registrar.leaveRelay]). A 404 means it is already gone, which
+     * is what the caller wanted, so it is not an error.
      */
     fun deleteEndpoint(token: String, endpointId: String) {
         try {

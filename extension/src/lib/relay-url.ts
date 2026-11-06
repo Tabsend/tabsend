@@ -1,3 +1,5 @@
+import { t } from './i18n'
+
 /**
  * Turn the kinds of relay addresses people naturally paste into one API base
  * URL. The relay itself has no reason to care about a final slash, but the
@@ -35,7 +37,7 @@ function defaultProtocol(value: string): 'http:' | 'https:' {
  */
 export function normalizeRelayUrl(input: string): string {
   const trimmed = input.trim()
-  if (trimmed === '') throw new RelayUrlError('Enter the relay address.')
+  if (trimmed === '') throw new RelayUrlError(t('errors.relayUrl.empty'))
 
   const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
     ? trimmed
@@ -45,17 +47,17 @@ export function normalizeRelayUrl(input: string): string {
   try {
     parsed = new URL(candidate)
   } catch {
-    throw new RelayUrlError('Enter a valid relay address, such as http://192.168.1.50:8787.')
+    throw new RelayUrlError(t('errors.relayUrl.invalid'))
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new RelayUrlError('The relay address must start with http:// or https://.')
+    throw new RelayUrlError(t('errors.relayUrl.scheme'))
   }
   if (parsed.username || parsed.password) {
-    throw new RelayUrlError('The relay address cannot include a username or password.')
+    throw new RelayUrlError(t('errors.relayUrl.credentials'))
   }
   if (parsed.search) {
-    throw new RelayUrlError('Use the relay address itself, without a query string.')
+    throw new RelayUrlError(t('errors.relayUrl.query'))
   }
 
   // A full pairing link is also a useful thing to paste. Its fragment is not
@@ -76,7 +78,7 @@ export function browserTlsHint(relayUrl: string): string | undefined {
       !(isPrivateIpv4 || host === 'localhost' || host.endsWith('.local'))
     )
       return undefined
-    return 'Browser extensions cannot accept a self-signed HTTPS certificate. If this is the included LAN setup, use its browser address: http://the-same-LAN-address:8786.'
+    return t('errors.relayUrl.selfSigned')
   } catch {
     return undefined
   }

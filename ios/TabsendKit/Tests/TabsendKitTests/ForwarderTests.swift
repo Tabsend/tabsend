@@ -402,6 +402,93 @@ struct ForwarderTests {
         #expect(store.wakeRegistration?.wakeToken == "WAKE-PROD")
     }
 
+    // MARK: the ring style (P-29)
+
+    @Test func registerSaysWhichRingStyleThePhoneWants() async throws {
+        let stub = StubServer()
+        stub.stub("/v1/register", json: #"{"wakeToken":"WAKE-1"}"#)
+        let client = ForwarderClient(url: stub.baseURL, session: stub.session())
+
+        _ = try await client.register(apnsToken: "abc", environment: "production")
+        _ = try await client.register(apnsToken: "abc", environment: "production", ringStyle: .alert)
+
+        #expect(stub.recorded.first?.body?["ringStyle"] as? String == "background")
+        #expect(stub.recorded.last?.body?["ringStyle"] as? String == "alert")
+    }
+
+    @Test func alertOnlyWhileNotificationsAreAllowed() {
+        // iOS runs neither the notification nor the extension for an app whose
+        // notifications are off, so an alert ring would then deliver nothing at all.
+        #expect(WakePath.preferredRingStyle(notificationsAllowed: true) == .alert)
+        #expect(WakePath.preferredRingStyle(notificationsAllowed: false) == .background)
+    }
+
+    @Test func aRecordKeptBeforeRingStylesIsRungInTheBackground() throws {
+        let old = #"{"apnsToken":"aaaa","environment":"production","wakeToken":"WAKE"}"#
+        let record = try JSONDecoder().decode(WakeRegistration.self, from: Data(old.utf8))
+        #expect(record.ringStyle == nil)
+        #expect(record.effectiveRingStyle == .background)
+    }
+
+    @Test func aChangedRingStyleSignsUpAgainAndAnUnchangedOneDoesNot() async {
+        enabled()
+        let stub = StubServer()
+        stub.stub("/v1/register", json: #"{"wakeToken":"WAKE-SILENT"}"#)
+        let client = ForwarderClient(url: stub.baseURL, session: stub.session())
+        let store = MemoryStore()
+        paired(store, relay: "https://relay.invalid", advertises: true)
+
+        await WakePath.deviceTokenArrived("aaaa", store: store, client: client)
+        #expect(store.wakeRegistration?.effectiveRingStyle == .background)
+        #expect(stub.recorded.count == 1)
+
+        // Same style: nothing to do, no round trip.
+        let same = await WakePath.ringStyleChosen(.background, store: store, client: client)
+        #expect(!same)
+        #expect(stub.recorded.count == 1)
+
+        // Notifications allowed: signed up again as alert, which replaces the old wake
+        // token at the forwarder (PROTOCOL.md §3.1).
+        stub.stub("/v1/register", json: #"{"wakeToken":"WAKE-ALERT"}"#)
+        let changed = await WakePath.ringStyleChosen(.alert, store: store, client: client)
+        #expect(changed)
+        #expect(store.wakeRegistration?.wakeToken == "WAKE-ALERT")
+        #expect(store.wakeRegistration?.ringStyle == .alert)
+        #expect(stub.recorded.last?.body?["ringStyle"] as? String == "alert")
+
+        // A device token Apple redelivers in the same style is still no change.
+        let redelivered = await WakePath.deviceTokenArrived(
+            "aaaa", ringStyle: .alert, store: store, client: client
+        )
+        #expect(!redelivered)
+        #expect(stub.recorded.count == 2)
+    }
+
+    @Test func twoMintsAtOnceRegisterOnce() async {
+        enabled()
+        let stub = StubServer()
+        stub.stub("/v1/register", json: #"{"wakeToken":"WAKE-1"}"#)
+        let client = ForwarderClient(url: stub.baseURL, session: stub.session())
+        let store = MemoryStore()
+        paired(store, relay: "https://relay.invalid", advertises: true)
+        store.wakeRegistration = WakeRegistration(apnsToken: "aaaa", environment: "production")
+
+        // The launch and the first heartbeat arrive together. Each registration replaces
+        // the last at the forwarder, so a second one would leave the phone holding a
+        // replaced token. The second must find the first one's token and stop.
+        async let first = WakePath.mintIfNeeded(
+            store: store, relayAdvertisesForwarder: true, client: client
+        )
+        async let second = WakePath.mintIfNeeded(
+            store: store, relayAdvertisesForwarder: true, client: client
+        )
+        let results = await [first, second]
+
+        #expect(results.filter { $0 }.count == 1)
+        #expect(stub.recorded.count == 1)
+        #expect(store.wakeRegistration?.wakeToken == "WAKE-1")
+    }
+
     @Test func mintingSurvivesAForwarderThatIsDown() async {
         enabled()
         let stub = StubServer()  // no /v1/register stub: the call 404s

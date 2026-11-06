@@ -247,6 +247,55 @@ struct DelivererListTests {
         #expect(!stub.recorded.contains { $0.path == "/v1/messages" }, "treated as a failed fetch")
     }
 
+    /// The notification extension can be ended by iOS at any moment. The new-device rule has already
+    /// saved the notice as told, so it has to be shown before the slow fetch of waiting messages, or
+    /// it is lost for good (security review v0.11.0, P1).
+    @Test func theNewDeviceNoticeGoesOutBeforeTheMessagesAreFetched() async throws {
+        let stub = StubServer()
+        let me = device("b"), other = device("c"), joiner = device("d")
+        let store = paired(me, relay: stub.baseURL)
+        stub.stub("/v1/endpoints", json: try json([me.endpoint, other.endpoint]))
+        stub.stub("/v1/messages", json: "[]")
+        _ = await drainer(store, stub).drain()  // the first list is the baseline
+
+        stub.stub("/v1/endpoints", json: try json([me.endpoint, other.endpoint, joiner.endpoint]))
+        let seen = Seen()
+        let deliverer = drainer(store, stub)
+        let askedBefore = stub.recorded.filter { $0.path == "/v1/messages" }.count
+        await deliverer.announceNewDevices { announcement in
+            let asked = stub.recorded.filter { $0.path == "/v1/messages" }.count
+            seen.add(announcement.devices.map(\.id), messagesAlreadyAsked: asked > askedBefore)
+        }
+        let summary = await deliverer.drain()
+        #expect(seen.ids == ["d"], "the joiner is announced")
+        #expect(seen.messagesAlreadyAsked == false, "before the pending messages are asked for")
+        #expect(summary.newDevices == nil, "and not a second time through the summary")
+    }
+
+    @Test func withoutAHandlerTheNoticeStaysInTheSummary() async throws {
+        let stub = StubServer()
+        let me = device("b"), other = device("c"), joiner = device("d")
+        let store = paired(me, relay: stub.baseURL)
+        stub.stub("/v1/endpoints", json: try json([me.endpoint, other.endpoint]))
+        stub.stub("/v1/messages", json: "[]")
+        _ = await drainer(store, stub).drain()
+        stub.stub("/v1/endpoints", json: try json([me.endpoint, other.endpoint, joiner.endpoint]))
+        let summary = await drainer(store, stub).drain()
+        #expect(summary.newDevices?.devices.map(\.id) == ["d"])
+    }
+
+    private final class Seen: @unchecked Sendable {
+        private let lock = NSLock()
+        private(set) var ids: [String] = []
+        private(set) var messagesAlreadyAsked: Bool?
+        func add(_ ids: [String], messagesAlreadyAsked: Bool) {
+            lock.withLock {
+                self.ids += ids
+                self.messagesAlreadyAsked = messagesAlreadyAsked
+            }
+        }
+    }
+
     @Test func anAcceptedListIsCachedAndPassedOn() async throws {
         let stub = StubServer()
         let me = device("b"), other = device("c")

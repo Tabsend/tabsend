@@ -103,7 +103,16 @@ export async function launchProfile(userDataDir?: string): Promise<Profile> {
     // headless shell does not support extensions.
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${EXTENSION_DIST}`, `--load-extension=${EXTENSION_DIST}`],
+    // The tests read English sentences, and the extension follows the browser's language, so the
+    // rig pins English whatever the Mac is set to (a German Mac would otherwise show German).
+    // TABSEND_E2E_LANG (for example "de") picks another language on purpose: the store
+    // screenshots in that language use it.
+    locale: process.env.TABSEND_E2E_LANG ?? 'en-US',
+    args: [
+      `--disable-extensions-except=${EXTENSION_DIST}`,
+      `--load-extension=${EXTENSION_DIST}`,
+      `--lang=${process.env.TABSEND_E2E_LANG ?? 'en-US'}`,
+    ],
   })
 
   // The MV3 service worker is the one chrome-extension:// worker in the context.

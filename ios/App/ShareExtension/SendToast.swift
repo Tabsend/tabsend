@@ -36,8 +36,12 @@ enum SendToastState: Equatable {
 
     var headline: String {
         switch self {
-        case .sending(let label, _): return "Sending to \(label)…"
-        case .sent(let label, _): return "Sent to \(label)"
+        case .sending(let label, _):
+            return String(
+                localized: "Sending to \(label)…",
+                comment: "Headline of the toast while a tab is being sent. %@ is the name of the receiving device, such as \"Work laptop\". Keep it short."
+            )
+        case .sent(let label, _): return Feedback.sent(to: label)
         case .heldOnPhone(let banner), .failed(let banner): return banner.headline
         }
     }
@@ -75,7 +79,8 @@ enum SendToastState: Equatable {
 
     /// What VoiceOver hears when the result lands.
     var announcement: String {
-        [headline, tabLine, detail].compactMap { $0 }.joined(separator: ". ")
+        // Joins texts that are already translated; the full stop and space are punctuation.
+        [headline, tabLine, detail].compactMap { $0 }.joined(separator: ". ") // l10n-ignore: punctuation
     }
 }
 

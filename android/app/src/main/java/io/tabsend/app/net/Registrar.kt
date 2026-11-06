@@ -9,8 +9,11 @@ import io.tabsend.app.store.Registration
 import io.tabsend.app.store.Store
 import io.tabsend.app.wire.PushSubscription
 import io.tabsend.app.wire.RegisterRequest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 
 /**
@@ -20,6 +23,9 @@ import java.io.IOException
  * setup at all. Delivery: WS fast path while the app is alive, polling otherwise.
  */
 object Registrar {
+
+    /** How long leaving waits to hear from the relay before wiping the phone anyway. */
+    private const val LEAVE_PATIENCE_MS = 3_000L
 
     /** Ensure this install has an X25519 identity, generating one on first use. */
     fun ensureIdentity(store: Store): Identity {
@@ -112,5 +118,35 @@ object Registrar {
         val reg = store.registration ?: return@withContext
         val stored = ApiClient.forRegistration(reg).rename(reg.deviceToken, reg.endpointId, label)
         store.updateLabel(stored.label)
+    }
+
+    /**
+     * Ask the relay to drop this phone from its group, for Unpair and Start fresh [PLANS P-28].
+     * Best effort, like the iPhone and the browsers: a relay that is down, or refuses, must
+     * not keep anyone from leaving, so nothing here throws.
+     *
+     * Returns when the relay has answered or after [patienceMs], whichever is first, because
+     * the caller's wipe should not wait out a dead relay's timeouts. The call itself runs
+     * on in [background], with its own copy of the token, so a slow relay still gets it.
+     *
+     * The relay also retires the wake token it holds for this entry, and the phone's own
+     * retirement (`Store.leavePairing`, then `PushCore`) still runs after this. Either order
+     * is safe: a relay that has already dropped the entry answers 401, which counts as told,
+     * and the forwarder answers a second revoke the same as the first.
+     */
+    internal suspend fun leaveRelay(
+        reg: Registration,
+        background: CoroutineScope,
+        patienceMs: Long = LEAVE_PATIENCE_MS,
+        delete: () -> Unit = { ApiClient.forRegistration(reg).deleteEndpoint(reg.deviceToken, reg.endpointId) },
+    ) {
+        val removal = background.launch(Dispatchers.IO) {
+            try {
+                delete()
+            } catch (_: Exception) {
+                // Down, refused or unreadable: the local wipe is what the user asked for.
+            }
+        }
+        withTimeoutOrNull(patienceMs) { removal.join() }
     }
 }

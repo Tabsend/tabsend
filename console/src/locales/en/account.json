@@ -1,0 +1,70 @@
+{
+  "account.title": {
+    "message": "Account",
+    "description": "Heading of the Account tab."
+  },
+  "account.relay.label": {
+    "message": "Relay",
+    "description": "Label in the Account list, before the address of the relay. A “relay” is the server that passes tabs between devices."
+  },
+  "account.relay.sameOrigin": {
+    "message": "same origin as this page",
+    "description": "Value after “Relay” when the relay is at the same web address as this page, so there is no address to show."
+  },
+  "account.group.label": {
+    "message": "Group",
+    "description": "Label in the Account list, before this console's group identifier."
+  },
+  "account.self.label": {
+    "message": "This console",
+    "description": "Label in the Account list, before this console's own identifier."
+  },
+  "account.push.label": {
+    "message": "Push wake",
+    "description": "Label in the Account list, before whether the relay can wake devices with a push message."
+  },
+  "account.push.on": {
+    "message": "enabled on this relay",
+    "description": "Value after “Push wake” when the relay can send push messages."
+  },
+  "account.push.off": {
+    "message": "not configured (the console pulls; it needs no push)",
+    "description": "Value after “Push wake” when the relay cannot send push messages. The console asks the relay for news, so it does not need them."
+  },
+  "account.keys.label": {
+    "message": "History keys",
+    "description": "Label in the Account list, before how many history keys this console holds."
+  },
+  "account.keys.none": {
+    "message": "none received yet",
+    "description": "Value after “History keys” when no key has arrived."
+  },
+  "account.keys.held": {
+    "message": "{count, plural, other {# held}}",
+    "description": "Value after “History keys”. {count} is how many keys this console holds. More than one is normal."
+  },
+  "account.recovery.title": {
+    "message": "Getting back in",
+    "description": "Heading of the section about what to do when access is lost."
+  },
+  "account.recovery.body": {
+    "message": "There is no recovery phrase and no backup login. To add a device, including this console, a device that is already paired makes a setup link.",
+    "description": "Paragraph in that section. Tabsend has no account password and no recovery option on purpose: only a device that is already in the group can add another."
+  },
+  "account.recovery.warning": {
+    "message": "If you lose every paired device at once, the group cannot be restored. Its history is encrypted, and the keys were only on those devices. To start over, set up the relay again with new, empty storage, keep the old files, and pair your devices again.",
+    "description": "Boxed warning in that section about losing every device at once. A “relay” is the server that passes tabs between devices. “Storage” is where the relay keeps its data (its database); the person starts the relay again with an empty one."
+  },
+  "account.unpair.title": {
+    "message": "This console",
+    "description": "Heading of the section about unpairing this browser."
+  },
+  "account.unpair.body": {
+    "message": "Unpair takes this console out of the group and removes its keys and history from this browser. If the relay can’t be reached, the group still lists this console until you use <em>Remove</em> on its row on another device.",
+    "description": "Paragraph in that section. The part in <em>…</em> is the exact label of the Remove button on a device row (common.remove) and stays inside the tags."
+  },
+  "account.unpair.button": {
+    "message": "Unpair this console",
+    "description": "Button in that section that opens the unpair confirmation."
+  }
+}

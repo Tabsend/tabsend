@@ -303,7 +303,7 @@ struct HistoryCopyTests {
         var row = item(source: selfId, target: "ep-b")
         #expect(History.stateLine(row, now: now) == "Never arrived")
         row.ackedAt = "2026-08-05T10:00:01.000Z"
-        #expect(History.stateLine(row, now: now) == "Arrived")
+        #expect(History.stateLine(row, now: now) == "Delivered")
         row.ackedAt = nil
         row.expiresAt = "2026-08-20T10:00:00.000Z"
         #expect(History.stateLine(row, now: now) == "Waiting for Mac")
@@ -356,5 +356,101 @@ struct HistorySendAgainTests {
 
     @Test func aRowWithNoPlaintextIsNotOffered() {
         #expect(History.sendAgainPayload(row(nil)) == nil)
+    }
+}
+
+struct HistoryLatestTests {
+    private func item(
+        id: String = "m", source: String, target: String, payload: SendPayload? = payload()
+    ) -> HistoryItem {
+        HistoryItem(
+            id: id, sourceEndpointId: source, targetEndpointId: target,
+            createdAt: "2026-08-05T10:00:00.000Z",
+            payload: payload, sourceLabel: "Pixel", targetLabel: "Mac"
+        )
+    }
+
+    // MARK: Latest
+
+    @Test func latestIsTheNewestTwoInAnyDirectionOpenedOrNot() {
+        var opened = item(id: "1", source: "ep-a", target: selfId)
+        opened.openedAt = Date()
+        let sent = item(id: "2", source: selfId, target: "ep-a")
+        let older = item(id: "3", source: "ep-a", target: selfId)
+        #expect(History.latest([opened, sent, older]).map(\.id) == ["1", "2"])
+    }
+
+    @Test func latestSkipsWhatACardCouldNotDo() {
+        let now = WireDate.date(from: "2026-08-20T10:00:00.000Z")!
+        var failed = item(id: "failed", source: selfId, target: "ep-a")
+        failed.expiresAt = "2026-08-06T10:00:00.000Z"
+        let sealed = item(id: "sealed", source: "ep-a", target: "ep-b", payload: nil)
+        let unsafe = item(
+            id: "unsafe", source: "ep-a", target: selfId,
+            payload: payload("javascript:alert(1)")
+        )
+        var good = item(id: "good", source: "ep-a", target: selfId)
+        good.ackedAt = "2026-08-05T10:00:01.000Z"
+        #expect(History.latest([failed, sealed, unsafe, good], now: now).map(\.id) == ["good"])
+        #expect(History.latest([], now: now).isEmpty)
+    }
+
+    @Test func latestCopyNamesWhereEachTabWent() {
+        var received = item(source: "ep-a", target: selfId)
+        received.sourceLabel = "Mac"
+        #expect(History.latestLine(received, direction: .received) == "New from Mac")
+        #expect(History.isNew(received, direction: .received))
+        received.openedAt = Date()
+        #expect(History.latestLine(received, direction: .received) == "From Mac")
+        #expect(!History.isNew(received, direction: .received))
+
+        var sent = item(source: selfId, target: "ep-a")
+        sent.targetLabel = "Mac"
+        #expect(History.latestLine(sent, direction: .sent) == "Sent to Mac")
+        #expect(!History.isNew(sent, direction: .sent))
+
+        var between = item(source: "ep-a", target: "ep-b")
+        between.sourceLabel = "Mac"
+        between.targetLabel = "Pixel"
+        #expect(History.latestLine(between, direction: .between) == "Mac → Pixel")
+    }
+
+    @Test func latestDetailSaysWhereASendStandsAndNothingForAReceivedTab() {
+        let now = WireDate.date(from: "2026-08-05T10:05:00.000Z")!
+        var sent = item(source: selfId, target: "ep-a")
+        sent.expiresAt = "2026-08-12T10:00:00.000Z"
+        #expect(History.latestDetail(sent, direction: .sent, now: now) == "example.com · 5m ago · Waiting")
+        sent.ackedAt = "2026-08-05T10:00:01.000Z"
+        #expect(History.latestDetail(sent, direction: .sent, now: now) == "example.com · 5m ago · Delivered")
+        let received = item(source: "ep-a", target: selfId)
+        #expect(History.latestDetail(received, direction: .received, now: now) == "example.com · 5m ago")
+    }
+
+    @Test func siteLetterIgnoresWww() {
+        #expect(History.siteLetter(item(source: "a", target: "b", payload: payload("https://www.github.com/x"))) == "G")
+        #expect(History.siteLetter(item(source: "a", target: "b", payload: nil)) == "")
+    }
+
+    // MARK: the picture travels with the tab
+
+    @Test func thePictureSurvivesTheInboxAndSendAgain() {
+        let sent = SendPayload(
+            url: "https://example.com/a", title: "A", image: "https://example.com/a.jpg",
+            sentAt: "2026-08-05T10:00:00.000Z"
+        )
+        let inbox = Inbox.project(messageId: "m", payload: sent, sourceLabel: "Mac", receivedAt: Date())
+        let row = History.project(inboxItem: inbox, selfEndpointId: selfId, selfLabel: "iPhone")
+        #expect(row.payload?.image == sent.image)
+        #expect(History.sendAgainPayload(row)?.image == sent.image)
+    }
+
+    @Test func aPayloadWithoutAPictureDecodesAndOneWithItRoundTrips() throws {
+        let old = try Wire.decoder.decode(
+            SendPayload.self,
+            from: Data(#"{"url":"https://example.com","sentAt":"2026-08-05T10:00:00.000Z"}"#.utf8)
+        )
+        #expect(old.image == nil)
+        let full = SendPayload(url: "https://example.com", image: "https://example.com/a.jpg", sentAt: "2026-08-05T10:00:00.000Z")
+        #expect(try Wire.decoder.decode(SendPayload.self, from: Wire.encoder.encode(full)) == full)
     }
 }

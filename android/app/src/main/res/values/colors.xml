@@ -22,8 +22,8 @@
          Prefixed ts_ so no library resource of the same name is overridden by
          accident. values-night/colors.xml redefines every ts_ colour here.
          On the phone these belong to the first-run pairing screen only (the one
-         signature moment), so it matches the extension and the website. -->
-    <color name="ts_ground">#E9F0EE</color>
+         signature moment): its card, ink, outline and shadow. Its ground is the phone
+         ground below, not a generic one (APP_UI "One ground per phone app"). -->
     <color name="ts_card">#FFFFFF</color>
     <color name="ts_chip">#D9E5E2</color>
     <color name="ts_line">#CBDAD6</color>

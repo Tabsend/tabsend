@@ -1,0 +1,1570 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@\n\nWebsite images load from linked sites, which can see requests from this device." : {
+      "comment" : "Footer of the History screen. %@ is the sentence saying how far back the list goes. Shown only while website images are on.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@\n\nWebsite-Bilder werden von verlinkten Websites geladen. Diese sehen Anfragen von diesem Gerät."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@\n\nWebsite images load from linked sites, which can see requests from this device."
+          }
+        }
+      }
+    },
+    "%@ · %@ · %@" : {
+      "comment" : "Heading of a block of tabs that were sent together, on the History screen. The first %@ is how many tabs (\"3 tabs\"), the second is who moved them (\"from Work laptop\"), the third is how long ago (\"3m ago\"). The dots separate the three.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "About %@" : {
+      "comment" : "Spoken label of the info icon beside a Privacy switch. %@ is the name of the switch.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Info zu %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About %@"
+          }
+        }
+      }
+    },
+    "Account" : {
+      "comment" : "Heading of the Account group in Settings on the home screen. It holds Manage account and Delete account. Shown on the US App Store only. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konto"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account"
+          }
+        }
+      }
+    },
+    "Add a device" : {
+      "comment" : "Button on the home screen, and title of the sheet that shows a QR code. A device is a browser or phone that joins the group. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerät hinzufügen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a device"
+          }
+        }
+      }
+    },
+    "Add your computer or another phone to send your first link." : {
+      "comment" : "Small line under the Your devices list on the home screen while this phone is the only device in the group. Tells a newcomer what to do next. A device is a browser or phone that joins the group.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge deinen Computer oder ein anderes Smartphone hinzu, um deinen ersten Link zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add your computer or another phone to send your first link."
+          }
+        }
+      }
+    },
+    "Camera unavailable.\nAllow camera access in Settings, or paste the setup link instead." : {
+      "comment" : "Centered message on the QR scanner when the camera cannot be used. Two lines: the second starts after a line break. Settings is the iOS Settings app. A setup link is the pairing link another device shows.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kamera nicht verfügbar.\nErlaube den Kamerazugriff in den Einstellungen oder füge stattdessen den Einrichtungslink ein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera unavailable.\nAllow camera access in Settings, or paste the setup link instead."
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "comment" : "Button that closes a dialog or sheet without doing anything. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "Choose the name your other devices will see." : {
+      "comment" : "Line under the title of the Name this phone screen. The name is how this phone appears in the device list on the person's other devices.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle den Namen, den deine anderen Geräte sehen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose the name your other devices will see."
+          }
+        }
+      }
+    },
+    "Close" : {
+      "comment" : "Button that closes the sheet showing the QR code. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "Continue on tabsend.org" : {
+      "comment" : "Button in the Delete account confirmation. It opens the account website (tabsend.org) in a sheet inside the app, where the deletion is finished. Keep the web address unchanged. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter auf tabsend.org"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue on tabsend.org"
+          }
+        }
+      }
+    },
+    "Copy link" : {
+      "comment" : "Row on the Add a device sheet. Copies the pairing link to the clipboard so it can be pasted into another browser.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link kopieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy link"
+          }
+        }
+      }
+    },
+    "Couldn't reach Tabsend's service. Check your connection, then open the link in your email again." : {
+      "comment" : "Banner on the first-run screen when the app could not reach Tabsend's own hosted service to finish setting up an account.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Tabsend-Dienst ist nicht erreichbar. Prüfe deine Verbindung und öffne dann den Link in deiner E-Mail erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't reach Tabsend's service. Check your connection, then open the link in your email again."
+          }
+        }
+      }
+    },
+    "Couldn't reach the relay. Check the URL and that your phone is on the same network." : {
+      "comment" : "Banner on the first-run screen when pairing could not reach the relay (the server that passes tabs between devices). URL is the address in the setup link.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relay nicht erreichbar. Prüfe die URL und ob dein Smartphone im selben Netzwerk ist."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't reach the relay. Check the URL and that your phone is on the same network."
+          }
+        }
+      }
+    },
+    "Delete account" : {
+      "comment" : "Row in the Account group in Settings. Starts deleting the person's Tabsend account. Shown in red. Two words.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konto löschen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete account"
+          }
+        }
+      }
+    },
+    "Delete your account?" : {
+      "comment" : "Title of the confirmation that opens when Delete account is tapped. A question.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Konto löschen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete your account?"
+          }
+        }
+      }
+    },
+    "Don't load website images" : {
+      "comment" : "Settings, Privacy section: label of a switch, off by default. On means no pictures are fetched from websites; each tab shows its site's first letter.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Website-Bilder nicht laden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don't load website images"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "comment" : "Button that closes the info sheet of a Privacy switch.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "Earlier" : {
+      "comment" : "Heading above History rows older than yesterday. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Früher"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Earlier"
+          }
+        }
+      }
+    },
+    "Enter a complete setup link." : {
+      "comment" : "Banner on the first-run screen when Join is pressed and the pasted setup link cannot be read. A setup link is the pairing link another device shows.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib einen vollständigen Einrichtungslink ein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a complete setup link."
+          }
+        }
+      }
+    },
+    "History" : {
+      "comment" : "Row on the home screen and title of the screen that lists every tab the group sent and received. One word if possible.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History"
+          }
+        }
+      }
+    },
+    "Home" : {
+      "comment" : "Bottom tab: the first screen, with the latest tabs and the devices. Short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        }
+      }
+    },
+    "How pairing works" : {
+      "comment" : "Small button on the first-run screen, and title of the alert it opens.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So funktioniert die Kopplung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How pairing works"
+          }
+        }
+      }
+    },
+    "In a browser, or on a phone that's already paired, open Tabsend and show a code." : {
+      "comment" : "Step 1 in the \"How pairing works\" sheet on the first-run screen. \"A code\" is the pairing code (a QR code with a setup link) that Tabsend shows when you add a device.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffne Tabsend in einem Browser oder auf einem bereits gekoppelten Smartphone und zeige einen Code an."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In a browser, or on a phone that's already paired, open Tabsend and show a code."
+          }
+        }
+      }
+    },
+    "Joining" : {
+      "comment" : "Spoken description (VoiceOver) of the spinner shown on the Join button while pairing is in progress.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beitritt läuft"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joining"
+          }
+        }
+      }
+    },
+    "Latest" : {
+      "comment" : "Section heading on Home above the cards for the newest tabs. Short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neueste"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latest"
+          }
+        }
+      }
+    },
+    "Learn more about setting up Tabsend's service at tabsend.org." : {
+      "comment" : "Small plain-text line at the bottom of the first-run screen on every App Store except the US one. It is not a link or a button, and it names no price, on purpose (Apple's rules, docs/PLANS.md P-25). \"Tabsend's service\" is the hosted plan, the same words as on the US screen.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr zur Einrichtung des Tabsend-Dienstes auf tabsend.org."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Learn more about setting up Tabsend's service at tabsend.org."
+          }
+        }
+      }
+    },
+    "Linked" : {
+      "comment" : "Banner after pairing succeeded. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gekoppelt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked"
+          }
+        }
+      }
+    },
+    "Manage account" : {
+      "comment" : "Row in the Account group in Settings. Opens the account page on the Tabsend website in a sheet inside the app. Two words.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konto verwalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage account"
+          }
+        }
+      }
+    },
+    "NEW_LINK" : {
+      "comment" : "Notification text when a link arrived but Tabsend could not fetch it in time to show its title and address, for example on a phone not unlocked since it restarted. Opening Tabsend shows the link.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuer Link"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New link"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "comment" : "Placeholder in the text field of the Rename dialog, and the label of the name field on the Name this phone screen. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "Name this device" : {
+      "comment" : "Label above the name field on the first-run screen, and its spoken description. The device is this phone.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name für dieses Gerät"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name this device"
+          }
+        }
+      }
+    },
+    "Name this phone" : {
+      "comment" : "Title of the screen shown after the account's email link hands the phone back to the app. It asks for the name this phone will have in the group. Large type; may wrap onto two lines.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Smartphone benennen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name this phone"
+          }
+        }
+      }
+    },
+    "New" : {
+      "comment" : "Small label on a History row for a received tab that has not been opened yet. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New"
+          }
+        }
+      }
+    },
+    "New to Tabsend?" : {
+      "comment" : "Small heading above the Set up an account button on the first-run screen. A question; shown on the US App Store only.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu bei Tabsend?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New to Tabsend?"
+          }
+        }
+      }
+    },
+    "No other devices yet." : {
+      "comment" : "Line in the Your devices list when no other device has joined the group.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine anderen Geräte."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No other devices yet."
+          }
+        }
+      }
+    },
+    "Nothing here yet. Tabs you send and tabs that arrive both show up on this screen, so a swiped notification or a closed tab doesn't lose one." : {
+      "comment" : "Message on the empty History screen. Explains what will appear here.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nichts hier. Gesendete und angekommene Tabs erscheinen beide auf diesem Bildschirm. So geht keiner verloren, selbst wenn du eine Mitteilung wegwischst oder einen Tab schließt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing here yet. Tabs you send and tabs that arrive both show up on this screen, so a swiped notification or a closed tab doesn't lose one."
+          }
+        }
+      }
+    },
+    "Notifications are off for Tabsend, so this list is the only place a waiting or failed send shows up. Turn them on in Settings to be told when a tab doesn't land." : {
+      "comment" : "Warning in red under the list of waiting tabs, shown when notifications are switched off. Settings is the iOS Settings app.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mitteilungen sind für Tabsend ausgeschaltet. Nur in dieser Liste siehst du, wenn ein Tab wartet oder nicht gesendet werden konnte. Schalte sie in den Einstellungen ein, um Bescheid zu bekommen, wenn ein Tab nicht ankommt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications are off for Tabsend, so this list is the only place a waiting or failed send shows up. Turn them on in Settings to be told when a tab doesn't land."
+          }
+        }
+      }
+    },
+    "Only get tabs when Tabsend is open" : {
+      "comment" : "Settings, Privacy section: label of a switch, off by default. On means tabs arrive only while the app is open, because Apple is no longer asked to wake the phone.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs nur empfangen, wenn Tabsend geöffnet ist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only get tabs when Tabsend is open"
+          }
+        }
+      }
+    },
+    "Pair it once with a browser or another phone. As soon as that's done, you can share links between these devices." : {
+      "comment" : "Body text of the card on the first-run screen. Pairing means linking this phone to a browser or another phone so they can send links to each other. Two sentences.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koppele es einmal mit einem Browser oder einem anderen Smartphone. Danach kannst du Links zwischen diesen Geräten teilen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pair it once with a browser or another phone. As soon as that's done, you can share links between these devices."
+          }
+        }
+      }
+    },
+    "Pair this phone" : {
+      "comment" : "Main button that links this phone to the group, on the first-run screen once a setup link is filled in and on the Name this phone screen. Matches the button on Android. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Smartphone koppeln"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pair this phone"
+          }
+        }
+      }
+    },
+    "Pairing QR code" : {
+      "comment" : "Spoken description (VoiceOver) of the QR code image on the Add a device sheet.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QR-Code zum Koppeln"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pairing QR code"
+          }
+        }
+      }
+    },
+    "Paste a setup link instead" : {
+      "comment" : "Quiet button on the first-run screen. It shows a field to paste a setup link (the pairing link another device shows) instead of scanning a code.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stattdessen Einrichtungslink einfügen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste a setup link instead"
+          }
+        }
+      }
+    },
+    "Pictures load directly from each website, so those sites can see this phone's internet address and when it asked." : {
+      "comment" : "Info sheet for the switch \"Don't load website images\", first paragraph.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bilder werden direkt von der jeweiligen Website geladen. Diese Websites sehen deshalb die Internetadresse dieses Smartphones und den Zeitpunkt der Anfrage."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pictures load directly from each website, so those sites can see this phone's internet address and when it asked."
+          }
+        }
+      }
+    },
+    "Privacy" : {
+      "comment" : "Section heading in Settings above the switches for delivery and website images.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenschutz"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy"
+          }
+        }
+      }
+    },
+    "Refresh" : {
+      "comment" : "Row in Settings that checks the relay and the device list again. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh"
+          }
+        }
+      }
+    },
+    "Relay" : {
+      "comment" : "Section heading in Settings above the relay's address. A relay is the server that passes tabs between devices.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relay"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relay"
+          }
+        }
+      }
+    },
+    "Remove" : {
+      "comment" : "Button next to a device in the Your devices list, and the button in its confirmation dialog. Removes the device from the group. One word if possible.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove"
+          }
+        }
+      }
+    },
+    "Remove %@" : {
+      "comment" : "Spoken description (VoiceOver) of the Remove button next to a device. %@ is the device name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ entfernen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove %@"
+          }
+        }
+      }
+    },
+    "Remove from group" : {
+      "comment" : "Menu item (touch and hold a device row) that removes the device from the group.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus Gruppe entfernen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from group"
+          }
+        }
+      }
+    },
+    "Remove “%@” from the group?" : {
+      "comment" : "Title of the confirmation dialog before removing a device. %@ is the device name, in curly quotes.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%1$@“ aus der Gruppe entfernen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove “%@” from the group?"
+          }
+        }
+      }
+    },
+    "Rename this device" : {
+      "comment" : "Row in Settings, and title of its dialog. Changes the name of this phone in the group.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Gerät umbenennen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename this device"
+          }
+        }
+      }
+    },
+    "Save" : {
+      "comment" : "Button in the Rename dialog. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        }
+      }
+    },
+    "Scan code" : {
+      "comment" : "Main button on the first-run screen. Opens the camera to scan a pairing QR code. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code scannen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan code"
+          }
+        }
+      }
+    },
+    "Scan the code here, or paste its setup link." : {
+      "comment" : "Step 2 in the \"How pairing works\" sheet on the first-run screen. \"Here\" is this phone. A setup link is the pairing link another device shows.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanne den Code hier oder füge seinen Einrichtungslink ein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan the code here, or paste its setup link."
+          }
+        }
+      }
+    },
+    "Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it. It works once and expires in 10 minutes." : {
+      "comment" : "Note under the QR code on the Add a device sheet.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanne den Code mit der Kamera eines Smartphones oder öffne den Link in einem anderen Browser. Ist Tabsend dort noch nicht installiert, zeigt der Link, wie das geht. Er funktioniert nur einmal und läuft nach 10 Minuten ab."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it. It works once and expires in 10 minutes."
+          }
+        }
+      }
+    },
+    "See all" : {
+      "comment" : "Button beside the Latest heading on Home: opens the History tab. Short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See all"
+          }
+        }
+      }
+    },
+    "Send again" : {
+      "comment" : "Small button on a History row for a tab that never arrived. It sends the tab again to the same device. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut senden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send again"
+          }
+        }
+      }
+    },
+    "Send links to this phone" : {
+      "comment" : "Headline of the card on the first-run screen, in large type. May wrap onto two lines.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Links an dieses Smartphone senden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send links to this phone"
+          }
+        }
+      }
+    },
+    "Set up an account" : {
+      "comment" : "Button on the first-run screen, US App Store only. Opens the Tabsend account website in a sheet inside the app, where a new account is made. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konto einrichten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set up an account"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "comment" : "Heading of the section with this phone's settings on the home screen. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "Setup link" : {
+      "comment" : "Label above the field where a setup link (the pairing link another device shows) is pasted, and its spoken description.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einrichtungslink"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setup link"
+          }
+        }
+      }
+    },
+    "Something went wrong. Open the link in your email again." : {
+      "comment" : "Banner on the first-run screen when the answer from Tabsend's own hosted service could not be read.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etwas ist schiefgelaufen. Öffne den Link in deiner E-Mail erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something went wrong. Open the link in your email again."
+          }
+        }
+      }
+    },
+    "Tabs arrive while Tabsend is open, or when you open it. iOS may also wake it in the background." : {
+      "comment" : "Footer of the Privacy section in Settings on a phone Tabsend can't wake. iOS is Apple's phone system.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs kommen an, solange Tabsend geöffnet ist oder wenn du die App öffnest. iOS kann die App auch im Hintergrund aufwecken."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs arrive while Tabsend is open, or when you open it. iOS may also wake it in the background."
+          }
+        }
+      }
+    },
+    "Tabs normally reach this phone right away, even when Tabsend is closed. To do that, Tabsend's wake-up service asks Apple to wake the phone." : {
+      "comment" : "Info sheet for the switch \"Only get tabs when Tabsend is open\", first paragraph.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs erreichen dieses Smartphone normalerweise sofort, auch wenn Tabsend geschlossen ist. Dafür bittet der Weckdienst von Tabsend Apple, das Smartphone aufzuwecken."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs normally reach this phone right away, even when Tabsend is closed. To do that, Tabsend's wake-up service asks Apple to wake the phone."
+          }
+        }
+      }
+    },
+    "Tabs you send and tabs that arrive show up here." : {
+      "comment" : "Shown on Home in place of the Latest cards before any tab has moved.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gesendete und angekommene Tabs erscheinen hier."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs you send and tabs that arrive show up here."
+          }
+        }
+      }
+    },
+    "Tabsend only opens HTTP and HTTPS links." : {
+      "comment" : "Notification body under \"Unsupported link blocked\". HTTP and HTTPS are the two kinds of web address Tabsend opens.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend öffnet nur HTTP- und HTTPS-Links."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend only opens HTTP and HTTPS links."
+          }
+        }
+      }
+    },
+    "That QR code isn't a Tabsend pairing code." : {
+      "comment" : "Banner on the first-run screen after scanning a QR code that is not a Tabsend pairing code.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser QR-Code ist kein Tabsend-Kopplungscode."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That QR code isn't a Tabsend pairing code."
+          }
+        }
+      }
+    },
+    "That device isn't in your group any more." : {
+      "comment" : "Message on the History screen after Send again, when the device the tab was meant for has left the group.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Gerät ist nicht mehr in deiner Gruppe."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That device isn't in your group any more."
+          }
+        }
+      }
+    },
+    "That sign-in link has expired or was already used. Set up an account again to get a new one." : {
+      "comment" : "Banner on the first-run screen when the sign-in link from the email is too old (it lasts 15 minutes) or was already used.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Anmeldelink ist abgelaufen oder wurde schon verwendet. Richte das Konto noch einmal ein, um einen neuen zu erhalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That sign-in link has expired or was already used. Set up an account again to get a new one."
+          }
+        }
+      }
+    },
+    "The code works once and expires in 10 minutes." : {
+      "comment" : "Third line in the \"How pairing works\" sheet on the first-run screen, next to a clock icon. The pairing code is valid for exactly 10 minutes by default.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Code funktioniert nur einmal und läuft nach 10 Minuten ab."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The code works once and expires in 10 minutes."
+          }
+        }
+      }
+    },
+    "These are still on this phone. Each one sends itself as soon as your relay answers again. Swipe a tab away to stop waiting for it." : {
+      "comment" : "Note under the list of tabs that are waiting on this phone because the relay (the server that passes tabs between devices) is not answering.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Tabs sind noch auf diesem Smartphone. Jeder wird automatisch gesendet, sobald dein Relay wieder antwortet. Wische einen Tab weg, um nicht mehr darauf zu warten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These are still on this phone. Each one sends itself as soon as your relay answers again. Swipe a tab away to stop waiting for it."
+          }
+        }
+      }
+    },
+    "They learn that this phone received something, and when, and Apple also sees its internet address. They never learn what was sent or who sent it." : {
+      "comment" : "Info sheet for the switch \"Only get tabs when Tabsend is open\", second paragraph. They means the wake-up service and Apple. Keep exactly what each one learns.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beide erfahren, dass dieses Smartphone etwas erhalten hat, und wann. Apple sieht außerdem die Internetadresse des Smartphones. Was gesendet wurde und von wem, erfahren beide nie."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They learn that this phone received something, and when, and Apple also sees its internet address. They never learn what was sent or who sent it."
+          }
+        }
+      }
+    },
+    "This account already has a device. On a paired device, choose Add a device, then scan its code here." : {
+      "comment" : "Banner on the first-run screen after the sign-in link from the email was used for an account that already has a device. The setup link only exists while the account's group is empty, so this phone is added from a paired device instead.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Konto hat bereits ein Gerät. Wähle auf einem gekoppelten Gerät „Gerät hinzufügen“ und scanne dann dessen Code hier."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account already has a device. On a paired device, choose Add a device, then scan its code here."
+          }
+        }
+      }
+    },
+    "This ends any plan without a refund, deletes your group and unpairs every device. You finish on tabsend.org." : {
+      "comment" : "Message of the Delete account confirmation. A plan is the paid or trial time on the account. The group is the set of devices that send to each other. Keep the web address unchanged.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das beendet einen laufenden Tarif ohne Rückerstattung, löscht deine Gruppe und hebt die Kopplung aller Geräte auf. Abschließen kannst du auf tabsend.org."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This ends any plan without a refund, deletes your group and unpairs every device. You finish on tabsend.org."
+          }
+        }
+      }
+    },
+    "This phone" : {
+      "comment" : "Settings: label of the row showing this phone's device name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Smartphone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This phone"
+          }
+        }
+      }
+    },
+    "Today" : {
+      "comment" : "Heading above History rows from today. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heute"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today"
+          }
+        }
+      }
+    },
+    "Turn this on if you don't want to be tracked this way. You'll see each site's first letter instead." : {
+      "comment" : "Info sheet for the switch \"Don't load website images\", last paragraph.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schalte das ein, wenn du auf diese Weise nicht verfolgt werden möchtest. Stattdessen siehst du den ersten Buchstaben jeder Website."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn this on if you don't want to be tracked this way. You'll see each site's first letter instead."
+          }
+        }
+      }
+    },
+    "Turn this on if you'd rather not share that. Tabs will then arrive when you open Tabsend." : {
+      "comment" : "Info sheet for the switch \"Only get tabs when Tabsend is open\", last paragraph.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schalte das ein, wenn du das lieber nicht teilen möchtest. Tabs kommen dann an, wenn du Tabsend öffnest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn this on if you'd rather not share that. Tabs will then arrive when you open Tabsend."
+          }
+        }
+      }
+    },
+    "Unpair" : {
+      "comment" : "Row in Settings, and button in its confirmation dialog. Unlinks this phone from the group. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopplung aufheben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpair"
+          }
+        }
+      }
+    },
+    "Unpair this phone? Links already on other devices stay there." : {
+      "comment" : "Title of the confirmation dialog for Unpair. \"Links\" are the tabs that were already sent.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopplung dieses Smartphones aufheben? Links, die schon auf anderen Geräten sind, bleiben dort."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpair this phone? Links already on other devices stay there."
+          }
+        }
+      }
+    },
+    "Unsupported link blocked" : {
+      "comment" : "Notification title when a tab arrived whose address is not a web address (not http or https), so Tabsend will not open it.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht unterstützter Link blockiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsupported link blocked"
+          }
+        }
+      }
+    },
+    "Uses Tabsend's service: free for 14 days, no card needed, paid after that." : {
+      "comment" : "Small line under the Set up an account button on the first-run screen, US App Store only. Tabsend's service is the server Tabsend runs for people. Says what the account is and that it costs money after the trial. No price.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzt den Dienst von Tabsend: 14 Tage kostenlos, keine Karte nötig, danach kostenpflichtig."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses Tabsend's service: free for 14 days, no card needed, paid after that."
+          }
+        }
+      }
+    },
+    "What you copied isn't a Tabsend setup link." : {
+      "comment" : "Banner on the first-run screen after Paste, when the text on the clipboard is not a setup link. A setup link is the pairing link another device shows.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was du kopiert hast, ist kein Tabsend-Einrichtungslink."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you copied isn't a Tabsend setup link."
+          }
+        }
+      }
+    },
+    "Yesterday" : {
+      "comment" : "Heading above History rows from yesterday. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday"
+          }
+        }
+      }
+    },
+    "You can change it later in Tabsend." : {
+      "comment" : "Small line under the name field on the Name this phone screen. Tabsend is the app.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du kannst ihn später in Tabsend ändern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can change it later in Tabsend."
+          }
+        }
+      }
+    },
+    "Your devices" : {
+      "comment" : "Heading of the home-screen section that lists the devices in the group.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Geräte"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your devices"
+          }
+        }
+      }
+    },
+    "Your relay is older than group history, so it keeps no record of what was sent. Sending and receiving work normally. Update the relay to see this screen fill in." : {
+      "comment" : "Message on the empty History screen when the relay (the server that passes tabs between devices) is too old to keep a history. Nothing is wrong with the phone.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Relay ist zu alt für den Gruppenverlauf und speichert daher nicht, was gesendet wurde. Senden und Empfangen funktionieren normal. Aktualisiere das Relay, damit sich dieser Bildschirm füllt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your relay is older than group history, so it keeps no record of what was sent. Sending and receiving work normally. Update the relay to see this screen fill in."
+          }
+        }
+      }
+    },
+    "iPhone" : {
+      "comment" : "Name of this phone in the group when iOS gives it no name of its own. It fills the name box on the first-run screen, is shown as the example in the empty box, and the person keeps it as the device's name. Product name: normally stays \"iPhone\"; translate only if the language has another usual way to name a phone.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone"
+          }
+        }
+      }
+    },
+    "this phone" : {
+      "comment" : "Replaces the status of the device list row that is this phone: \"iPhone · this phone\". Lowercase, short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dieses Smartphone"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "this phone"
+          }
+        }
+      }
+    },
+    "to %@" : {
+      "comment" : "Line under a waiting tab: where it is going. %@ is the receiving device's name, such as \"Work laptop\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "an %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "to %@"
+          }
+        }
+      }
+    },
+    "“%@” will stop receiving tabs and disappear from every device’s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin." : {
+      "comment" : "Body of the confirmation dialog before removing a device. %@ is the device name, in curly quotes. The chooser is the list of devices offered when sending a tab.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%1$@“ erhält keine Tabs mehr und verschwindet aus der Geräteauswahl aller Geräte. Tabs, die noch für das Gerät warten, werden verworfen. Um wieder beizutreten, muss es neu gekoppelt werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” will stop receiving tabs and disappear from every device’s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

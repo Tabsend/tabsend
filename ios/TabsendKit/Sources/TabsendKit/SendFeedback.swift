@@ -147,7 +147,13 @@ extension SendTone: Equatable {}
 
 extension Feedback {
     /// The no-label fallback. NOT a proper noun, hence the mid-sentence rule.
-    public static let thatDevice = "that device"
+    public static var thatDevice: String {
+        String(
+            localized: "that device",
+            bundle: .module,
+            comment: "Stands in for a device's name when the name is unknown. It sits inside a sentence, where %@ is a device name: \"Your relay couldn't find %@.\", \"Waiting for %@\", \"%@ never picked it up...\". Not capitalized: it never starts a sentence. A language with cases or genders may need those sentences reworded when this phrase is used."
+        )
+    }
 
     /// One sentence saying what happened and, where there is one, what to do.
     ///
@@ -159,23 +165,37 @@ extension Feedback {
         let device = targetLabel ?? thatDevice
         switch failure {
         case .phoneOffline:
-            return "You're offline. This tab sends itself as soon as you're back."
+            return String(
+                localized: "You're offline. This tab sends itself as soon as you're back.",
+                bundle: .module,
+                comment: "Explanation under a failed or waiting send: this phone has no internet connection. The tab is kept and sent later."
+            )
         case .relayUnreachable(let relayUrl):
-            return "Can't reach your relay at \(relayUrl). The tab is held here and "
-                + "sends itself once the relay answers again."
+            return String(
+                localized: "Can't reach your relay at \(relayUrl). The tab is held here and sends itself once the relay answers again.",
+                bundle: .module,
+                comment: "Explanation under a waiting send: the relay (the server that passes tabs between devices) did not answer. %@ is the relay address."
+            )
         case .relayRejected(let reason, let limit):
             return rejectionLine(reason, device, limit)
         case .relayError(let code):
             return relayErrorLine(code, device)
         case .relayBusy:
-            return "Your relay is having trouble right now. The tab is held here and sends "
-                + "itself once the relay is answering properly again."
+            return String(
+                localized: "Your relay is having trouble right now. The tab is held here and sends itself once the relay is answering properly again.",
+                bundle: .module,
+                comment: "Explanation under a waiting send: the relay answered with a server error. The relay is the server that passes tabs between devices."
+            )
         case .relayUnauthorized:
             return unauthorizedLine
         case .gaveUp(let reason):
             return givenUpLine(reason)
         case .nothingToSend:
-            return "There's no link in what you shared."
+            return String(
+                localized: "There's no link in what you shared.",
+                bundle: .module,
+                comment: "Message in the share sheet when the shared item contains no web address that could be sent."
+            )
         }
     }
 
@@ -190,11 +210,19 @@ extension Feedback {
     private static func givenUpLine(_ reason: GaveUpReason) -> String {
         switch reason {
         case .tooOld:
-            return "This tab waited \(OutboundQueue.maxAgeDays) days for your relay and was never "
-                + "taken, so Tabsend has stopped holding it. Send it again once the relay is answering."
+            let days = OutboundQueue.maxAgeDays
+            return String(
+                localized: "This tab waited \(days) days for your relay and was never taken, so Tabsend has stopped holding it. Send it again once the relay is answering.",
+                bundle: .module,
+                comment: "Explanation under a failed send: the tab waited too long for the relay and was dropped. %lld is the number of days, such as 7. The relay is the server."
+            )
         case .queueFull:
-            return "Tabsend holds at most \(OutboundQueue.maxItems) tabs while your relay isn't taking "
-                + "them, and this one was the oldest. Send it again once the relay is answering."
+            let tabs = OutboundQueue.maxItems
+            return String(
+                localized: "Tabsend holds at most \(tabs) tabs while your relay isn't taking them, and this one was the oldest. Send it again once the relay is answering.",
+                bundle: .module,
+                comment: "Explanation under a failed send: too many tabs were waiting and this, the oldest, was dropped. %lld is the most tabs kept, such as 200. The relay is the server."
+            )
         }
     }
 
@@ -206,12 +234,23 @@ extension Feedback {
     ) -> String {
         switch reason {
         case "unknown_target":
-            return "Your relay doesn't know \(device) any more. Pair it again, then send this tab a second time."
+            return String(
+                localized: "Your relay doesn't know \(device) any more. Pair it again, then send this tab a second time.",
+                bundle: .module,
+                comment: "Explanation under a failed send: the relay no longer knows the receiving device. %@ is the device name, or \"that device\". The relay is the server."
+            )
         case "expired_key":
-            return "The keys on \(device) have changed since this phone last saw them. Open Tabsend "
-                + "once to pick up the new ones, then send again."
+            return String(
+                localized: "The keys on \(device) have changed since this phone last saw them. Open Tabsend once to pick up the new ones, then send again.",
+                bundle: .module,
+                comment: "Explanation under a failed send: the receiving device has new encryption keys. %@ is the device name, or \"that device\"."
+            )
         case "not_in_group":
-            return "Your relay says \(device) has left your group of devices."
+            return String(
+                localized: "Your relay says \(device) has left your group of devices.",
+                bundle: .module,
+                comment: "Explanation under a failed send: the receiving device is no longer in the group. %@ is the device name, or \"that device\". The relay is the server."
+            )
         case "limit_reached":
             return capHeldLine(limit)
         default:
@@ -238,14 +277,23 @@ extension Feedback {
     private static func capHeldLine(_ limit: String?) -> String {
         switch limit {
         case "sends_per_window":
-            return "Your relay is pacing sends for your group right now. This tab is queued and "
-                + "will send itself shortly."
+            return String(
+                localized: "Your relay is pacing sends for your group right now. This tab is queued and will send itself shortly.",
+                bundle: .module,
+                comment: "Explanation under a waiting send: the relay limits how fast this group may send. The wait clears within about a minute. The relay is the server."
+            )
         case "queued_messages", "queued_bytes":
-            return "Your relay is holding as much as your group's limit allows. This tab is queued "
-                + "and will send once the receiving device catches up."
+            return String(
+                localized: "Your relay is holding as much as your group's limit allows. This tab is queued and will send once the receiving device catches up.",
+                bundle: .module,
+                comment: "Explanation under a waiting send: the relay holds the most it may for this group. The tab goes when the receiving device collects what is already waiting. The relay is the server."
+            )
         default:
-            return "Your relay has reached a limit for your group. This tab is queued and will send "
-                + "itself once there is room."
+            return String(
+                localized: "Your relay has reached a limit for your group. This tab is queued and will send itself once there is room.",
+                bundle: .module,
+                comment: "Explanation under a waiting send: the relay reached some limit for this group. The relay is the server."
+            )
         }
     }
 
@@ -253,31 +301,45 @@ extension Feedback {
     private static func relayErrorLine(_ code: String, _ device: String) -> String {
         switch code {
         case "not_found":
-            return "Your relay couldn't find \(device)."
+            return String(
+                localized: "Your relay couldn't find \(device).",
+                bundle: .module,
+                comment: "Explanation under a failed send: the relay has no such device. %@ is the device name, or \"that device\". The relay is the server."
+            )
         case "forbidden":
-            return "Your relay wouldn't let this phone send to \(device)."
+            return String(
+                localized: "Your relay wouldn't let this phone send to \(device).",
+                bundle: .module,
+                comment: "Explanation under a failed send: the relay refused permission. %@ is the device name, or \"that device\". The relay is the server."
+            )
         case "invalid_request":
-            return "Your relay didn't understand this send. It's most likely running an older "
-                + "version than this phone. Updating it should fix this."
+            return String(
+                localized: "Your relay didn't understand this send. It's most likely running an older version than this phone. Updating it should fix this.",
+                bundle: .module,
+                comment: "Explanation under a failed send: the relay could not read the request. The relay is the server, probably out of date."
+            )
         // classify() routes a 429 to .relayBusy, which DOES retry itself, so this
         // is belt-and-braces for a relay that sends the code with another status.
         case "rate_limited":
-            return "Your relay is busy right now. Give it a moment and send again."
+            return String(
+                localized: "Your relay is busy right now. Give it a moment and send again.",
+                bundle: .module,
+                comment: "Explanation under a failed send: the relay is rate limiting requests. The relay is the server."
+            )
         // Both mean "your token is no good"; classify() routes them to
         // .relayUnauthorized before they get here, so this is belt-and-braces.
         case "unauthorized", "endpoint_removed":
             return unauthorizedLine
         case "invalid_pairing_code":
-            return "That pairing code is no longer valid."
+            return pairingCodeGoneLine
         // Only ever answered to a register/create call [ADR-0022], never to a send;
         // it has a line so the wire set stays fully covered as it grows.
         case "group_exists":
-            return "Your relay already hosts a group of devices."
+            return groupExistsLine
         // Not reachable on a send either: of the per-group caps, only the endpoint
         // one can refuse a whole call, and it does that to a join [0030]. A pairing
-        // mint can also answer `limit_reached` [0031 amended], and does not come
-        // through here: the mint's own error path shows the relay's message, which is
-        // the one that names that limit.
+        // mint can also answer `limit_reached` [0031 amended]; `RelayErrorText` words
+        // that one.
         case "limit_reached":
             return deviceLimitLine
         default:
@@ -285,10 +347,36 @@ extension Feedback {
         }
     }
 
-    private static let unauthorizedLine =
-        "Your relay doesn't recognise this phone any more. Set Tabsend up again here to start sending."
-    private static let internalLine =
-        "Something went wrong inside your relay. It may be worth checking that it is healthy."
+    /// Shared with `RelayErrorText`, the same words for the same code on every screen.
+    static var pairingCodeGoneLine: String {
+        String(
+            localized: "That pairing code is no longer valid.",
+            bundle: .module,
+            comment: "Explanation under a failed request: the pairing code was used, expired or unknown."
+        )
+    }
+    static var groupExistsLine: String {
+        String(
+            localized: "Your relay already hosts a group of devices.",
+            bundle: .module,
+            comment: "Explanation under a failed request: the relay already has a device group and allows only one. The relay is the server."
+        )
+    }
+
+    private static var unauthorizedLine: String {
+        String(
+            localized: "Your relay doesn't recognise this phone any more. Set Tabsend up again here to start sending.",
+            bundle: .module,
+            comment: "Explanation under a failed send: the relay does not accept this phone's credentials. Setting up again means pairing again. The relay is the server."
+        )
+    }
+    static var internalLine: String {
+        String(
+            localized: "Something went wrong inside your relay. It may be worth checking that it is healthy.",
+            bundle: .module,
+            comment: "Explanation under a failed request or send: the relay reported an unexpected internal error, or an error this app has no wording for. The relay is the server."
+        )
+    }
 
     /// The device cap turned this phone away at the door [0030]. Said in the
     /// client's own words rather than passing the relay's prose through:
@@ -301,9 +389,13 @@ extension Feedback {
     /// is queued either: pairing never got as far as an identity on the relay.
     ///
     /// Word-for-word the same sentence as `lib/strings.ts` and `SendFeedback.kt`.
-    public static let deviceLimitLine =
-        "Your relay has reached its device limit for your group. Remove a device you are not "
-        + "using, then pair this one again."
+    public static var deviceLimitLine: String {
+        String(
+            localized: "Your relay has reached its device limit for your group. Remove a device you are not using, then pair this one again.",
+            bundle: .module,
+            comment: "Banner when pairing is refused because the group already has the most devices the relay allows. The relay is the server."
+        )
+    }
 
     /// The banner for a completed send. Only `.success` may say "Sent", and it
     /// means the relay ACCEPTED the tab — not that the row was tapped. A tab
@@ -317,20 +409,48 @@ extension Feedback {
         title: String? = nil,
         failure: SendFailure? = nil
     ) -> SendBanner {
-        let label = targetLabel ?? "your device"
+        let label = targetLabel ?? String(
+            localized: "your device",
+            bundle: .module,
+            comment: "Stands in for a device's name when the name is unknown. It sits inside the headlines \"Sent to %@\", \"Waiting to send to %@\" and \"Couldn't send to %@\". A language with cases or genders may need those headlines reworded when this phrase is used."
+        )
         if let failure {
             let recoverable = failure.isRecoverable
             return SendBanner(
                 tone: recoverable ? .pending : .error,
-                headline: recoverable ? "Waiting to send to \(label)" : "Couldn't send to \(label)",
+                headline: recoverable ? waitingToSend(to: label) : couldntSend(to: label),
                 title: title,
                 detail: failureLine(failure, targetLabel: targetLabel)
             )
         }
         if !ok {
-            return SendBanner(tone: .error, headline: "Couldn't send to \(label)", title: title, detail: sendFailed)
+            return SendBanner(tone: .error, headline: couldntSend(to: label), title: title, detail: sendFailed)
         }
-        return SendBanner(tone: .success, headline: "Sent to \(label)", title: title)
+        return SendBanner(
+            tone: .success,
+            headline: String(
+                localized: "Sent to \(label)",
+                bundle: .module,
+                comment: "Share-sheet confirmation that a tab was sent. %@ is the name of the receiving device, such as \"Work laptop\". Keep it short: it is a toast."
+            ),
+            title: title
+        )
+    }
+
+    private static func waitingToSend(to label: String) -> String {
+        String(
+            localized: "Waiting to send to \(label)",
+            bundle: .module,
+            comment: "Headline of a toast or notification: the tab could not be sent yet and will go by itself. %@ is the name of the receiving device. Keep it short."
+        )
+    }
+
+    private static func couldntSend(to label: String) -> String {
+        String(
+            localized: "Couldn't send to \(label)",
+            bundle: .module,
+            comment: "Headline of a toast or notification: the tab could not be sent. %@ is the name of the receiving device. Keep it short."
+        )
     }
 
     /// Heading for the tabs still sitting on THIS phone because the relay hasn't
@@ -339,14 +459,24 @@ extension Feedback {
     /// target — a different promise, and merging them lets an outage read as a
     /// normal sleeping device.
     public static func heldTabsHeading(_ count: Int) -> String {
-        count == 1 ? "Waiting on this phone" : "\(count) tabs waiting on this phone"
+        String(
+            localized: "\(count) tabs waiting on this phone",
+            bundle: .module,
+            comment: "Heading of the list of tabs still on this phone because the relay has not taken them. %lld is how many. The singular form drops the number."
+        )
     }
 
     /// What to call a held tab in a list. The title is what the user recognises;
     /// the site is the fallback, because a bare URL path tells nobody anything.
     public static func heldTabLabel(title: String?, url: String?) -> String {
         if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return title }
-        guard let url, !url.isEmpty else { return "Untitled tab" }
+        guard let url, !url.isEmpty else {
+            return String(
+                localized: "Untitled tab",
+                bundle: .module,
+                comment: "Name of a waiting tab that has neither a title nor an address to show."
+            )
+        }
         return URL(string: url)?.host ?? url
     }
 
@@ -357,11 +487,18 @@ extension Feedback {
             // spaces rendered as Sent “   ” on one platform and not the other.
             if let firstTitle,
                !firstTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "Sent “\(firstTitle)”"
+                return String(
+                    localized: "Sent “\(firstTitle)”",
+                    bundle: .module,
+                    comment: "Notification title: the one tab that was waiting has been sent. %@ is the page title, in curly quotes."
+                )
             }
-            return "Sent the tab that was waiting"
         }
-        return "Sent \(count) tabs that were waiting"
+        return String(
+            localized: "Sent \(count) tabs that were waiting",
+            bundle: .module,
+            comment: "Notification title: tabs that were waiting have been sent. %lld is how many. The singular form is used when there is one tab and no title to show."
+        )
     }
 
     /// The standing relay-outage line, for a surface the user opens LATER. Not
@@ -375,14 +512,22 @@ extension Feedback {
     public static func relayDownLine(relayUrl: String, sinceMinutes: Int) -> String {
         let ago: String
         if sinceMinutes < 1 {
-            ago = "just now"
+            ago = L10n.justNow
         } else if sinceMinutes < 60 {
-            ago = "\(sinceMinutes)m ago"
+            ago = L10n.minutesAgo(sinceMinutes)
         } else {
-            ago = "\(Int((Double(sinceMinutes) / 60).rounded()))h ago"
+            ago = L10n.hoursAgo(Int((Double(sinceMinutes) / 60).rounded()))
         }
-        let line = "Can't reach your relay at \(relayUrl). It last answered \(ago), and sends are "
-            + "being held until it's back."
-        return HomeNetwork.isHomeNetworkRelay(relayUrl) ? "\(line) \(HomeNetwork.hint)" : line
+        let line = String(
+            localized: "Can't reach your relay at \(relayUrl). It last answered \(ago), and sends are being held until it's back.",
+            bundle: .module,
+            comment: "Standing notice on the home screen: the relay (the server that passes tabs between devices) is not answering. The first %@ is the relay address, the second is how long ago it last answered, such as \"5m ago\"."
+        )
+        return HomeNetwork.isHomeNetworkRelay(relayUrl) ? hint(after: line) : line
+    }
+
+    /// The home-network sentence is appended as a second sentence, with a space.
+    private static func hint(after line: String) -> String {
+        [line, HomeNetwork.hint].joined(separator: " ")
     }
 }

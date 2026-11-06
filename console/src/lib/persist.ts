@@ -57,6 +57,7 @@ export class IndexedDbHistoryStore implements HistoryStore {
         }
       }
       req.onsuccess = () => resolve(req.result)
+      // i18n-ignore: developer error, logged, never shown
       req.onerror = () => reject(req.error ?? new Error('indexedDB open failed'))
     })
     return this.dbPromise
@@ -71,6 +72,7 @@ export class IndexedDbHistoryStore implements HistoryStore {
       const transaction = db.transaction(STORE, mode)
       const request = fn(transaction.objectStore(STORE))
       request.onsuccess = () => resolve(request.result as T)
+      // i18n-ignore: developer error, logged, never shown
       request.onerror = () => reject(request.error ?? new Error('indexedDB request failed'))
     })
   }

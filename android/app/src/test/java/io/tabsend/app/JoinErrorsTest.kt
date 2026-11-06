@@ -20,7 +20,7 @@ class JoinErrorsTest {
 
     @Test
     fun `an untrusted certificate is never reported as unreachable`() {
-        val msg = JoinErrors.message(SSLHandshakeException("no trust anchor"), lan, hadPin = false)
+        val msg = JoinErrors.message(EN, SSLHandshakeException("no trust anchor"), lan, hadPin = false)
         assertFalse(msg.contains("Couldn't reach"))
         assertTrue(msg.contains("doesn't trust"))
         assertTrue(msg.contains("fresh link"))
@@ -28,7 +28,7 @@ class JoinErrorsTest {
 
     @Test
     fun `a pinned join that fails TLS blames the certificate changing, not the network`() {
-        val msg = JoinErrors.message(SSLPeerUnverifiedException("pin mismatch"), lan, hadPin = true)
+        val msg = JoinErrors.message(EN, SSLPeerUnverifiedException("pin mismatch"), lan, hadPin = true)
         assertFalse(msg.contains("Couldn't reach"))
         assertTrue(msg.contains("doesn't match"))
         assertTrue(msg.contains("fresh setup link"))
@@ -36,14 +36,14 @@ class JoinErrorsTest {
 
     @Test
     fun `blocked cleartext explains https rather than recommending adb`() {
-        val msg = JoinErrors.message(UnknownServiceException("cleartext blocked"), "http://192.168.1.30:8787", hadPin = false)
+        val msg = JoinErrors.message(EN, UnknownServiceException("cleartext blocked"), "http://192.168.1.30:8787", hadPin = false)
         assertTrue(msg.contains("https"))
         assertFalse(msg.contains("adb"))
     }
 
     @Test
     fun `a localhost relay explains what localhost means on a phone`() {
-        val msg = JoinErrors.message(IOException("connect failed"), "http://localhost:8787", hadPin = false)
+        val msg = JoinErrors.message(EN, IOException("connect failed"), "http://localhost:8787", hadPin = false)
         assertTrue(msg.contains("means this phone"))
         assertTrue(msg.contains("PUBLIC_RELAY_URL"))
         // The old copy sent the owner to a USB cable he does not use.
@@ -53,20 +53,20 @@ class JoinErrorsTest {
 
     @Test
     fun `a genuinely unreachable relay still says so`() {
-        val msg = JoinErrors.message(SocketTimeoutException("timeout"), lan, hadPin = true)
+        val msg = JoinErrors.message(EN, SocketTimeoutException("timeout"), lan, hadPin = true)
         assertTrue(msg.contains("Couldn't reach"))
         assertTrue(msg.contains(lan))
     }
 
     @Test
     fun `a pairing-link retry names the action that retries it`() {
-        val msg = JoinErrors.message(
+        val msg = JoinErrors.message(EN, 
             SocketTimeoutException("timeout"),
             lan,
             hadPin = true,
-            retryAction = "tap Pair another device again",
+            retryAction = JoinErrors.RetryAction.ADD_DEVICE,
         )
-        assertTrue(msg.contains("Pair another device again"))
+        assertTrue(msg.contains("Add a device again"))
         assertFalse(msg.contains("tap Try again"))
     }
 

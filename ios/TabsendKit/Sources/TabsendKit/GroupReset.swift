@@ -105,8 +105,14 @@ public enum GroupReset {
     /// knew, so a relay that cannot be reached does not take a pending reset off
     /// the screen.
     public static func fetch(api: ApiClient) async throws -> GroupResetState? {
+        try await fetchState(api: api)?.reset
+    }
+
+    /// The whole answer, for a caller that also wants the plan words (`GroupService`). Nil for
+    /// an older relay's 404, read as "nothing pending and no plan words".
+    public static func fetchState(api: ApiClient) async throws -> GroupStateResponse? {
         do {
-            return try await api.getGroup().reset
+            return try await api.getGroup()
         } catch let error as ApiError where readsAsNoReset(error) {
             return nil
         }
@@ -119,14 +125,23 @@ public enum GroupReset {
     /// nothing. Read-modify-write under the store's lock, so two fetches landing
     /// together cannot both announce the same reset.
     @discardableResult
-    public static func refresh(api: ApiClient, store: TabsendStore) async -> GroupResetState? {
+    public static func refresh(
+        api: ApiClient,
+        store: TabsendStore,
+        defaults: UserDefaults = .standard
+    ) async -> GroupResetState? {
         guard store.registration != nil else { return nil }
-        let fetched: GroupResetState?
+        let state: GroupStateResponse?
         do {
-            fetched = try await fetch(api: api)
+            state = try await fetchState(api: api)
         } catch {
             return nil
         }
+        // One question answers both: the plan words ride on the same route. A good answer
+        // replaces them, an older relay's or a self-hosted relay's silence clears them, and a
+        // failed fetch (above) leaves what the phone knew.
+        GroupService.save(state?.service, in: defaults)
+        let fetched = state?.reset
         var announce: GroupResetState?
         store.updateGroupResetWatch { prev in
             let result = observe(prev, fetched: fetched)
@@ -155,41 +170,95 @@ public enum GroupReset {
 
     // MARK: copy (PLANS.md P-18 item 12, the same words on every client)
 
-    public static let cardTitle = "Someone asked to remove all your devices"
-    public static let stopButton = "Stop the reset"
-    public static let itWasMeButton = "It was me"
-    public static let stoppedLine = "Reset stopped. Nothing was removed."
-    public static let notificationTitle = "Tabsend"
+    public static var cardTitle: String {
+        String(
+            localized: "Someone asked to remove all your devices",
+            bundle: .module,
+            comment: "Heading of the red card at the top of the home screen when a reset of the whole device group is waiting. May wrap onto two lines."
+        )
+    }
+    public static var stopButton: String {
+        String(
+            localized: "Stop the reset",
+            bundle: .module,
+            comment: "Button on the reset card. Stops the waiting reset for every device. Keep it short."
+        )
+    }
+    public static var itWasMeButton: String {
+        String(
+            localized: "It was me",
+            bundle: .module,
+            comment: "Button on the reset card for the person who asked for the reset themselves. It hides the card on this phone. Keep it short."
+        )
+    }
+    public static var stoppedLine: String {
+        String(
+            localized: "Reset stopped. Nothing was removed.",
+            bundle: .module,
+            comment: "Banner on the home screen after the reset was stopped."
+        )
+    }
+    /// The product name, which is not translated (docs/L10N.md rule 8).
+    public static let notificationTitle = "Tabsend" // l10n-ignore: product name
 
+    /// Three sentences, each translated on its own and joined with a space: where the
+    /// request came from, when it takes effect, and what to do if it was not the person.
     public static func cardBody(_ reset: GroupResetState, timeZone: TimeZone = .current) -> String {
-        let asked = day(reset.requestedAt, timeZone: timeZone).map { "From your account page on \($0)." }
-            ?? "From your account page."
+        let asked: String
+        if let day = day(reset.requestedAt, timeZone: timeZone) {
+            asked = String(
+                localized: "From your account page on \(day).",
+                bundle: .module,
+                comment: "First sentence of the reset card. %@ is the date the reset was asked for, such as \"October 27\"."
+            )
+        } else {
+            asked = String(
+                localized: "From your account page.",
+                bundle: .module,
+                comment: "First sentence of the reset card when the date of the request is not known."
+            )
+        }
         let when: String
         if let date = WireDate.date(from: reset.resetsAt) {
-            when = "On \(format(date, "MMMM d", timeZone)) at \(format(date, "h:mm a", timeZone)), every device is removed, this one too."
+            let day = L10n.monthAndDay(date, timeZone: timeZone)
+            let time = L10n.hourAndMinute(date, timeZone: timeZone)
+            when = String(
+                localized: "On \(day) at \(time), every device is removed, this one too.",
+                bundle: .module,
+                comment: "Second sentence of the reset card. The first %@ is the date, such as \"October 30\". The second %@ is the time of day, such as \"2:05 PM\"."
+            )
         } else {
-            when = "Soon, every device is removed, this one too."
+            when = String(
+                localized: "Soon, every device is removed, this one too.",
+                bundle: .module,
+                comment: "Second sentence of the reset card when the time of the reset is not known."
+            )
         }
-        return "\(asked) \(when) If it wasn't you, stop it now, then change your email password."
+        let advice = String(
+            localized: "If it wasn't you, stop it now, then change your email password.",
+            bundle: .module,
+            comment: "Last sentence of the reset card. It tells the person what to do if someone else asked for the reset. The email password is the password of the email account used for the Tabsend account."
+        )
+        return [asked, when, advice].joined(separator: " ")
     }
 
     public static func notificationBody(_ reset: GroupResetState, timeZone: TimeZone = .current) -> String {
-        let on = day(reset.requestedAt, timeZone: timeZone).map { " on \($0)" } ?? ""
-        return "Someone asked to remove all your devices\(on). Open Tabsend to stop it."
+        if let day = day(reset.requestedAt, timeZone: timeZone) {
+            return String(
+                localized: "Someone asked to remove all your devices on \(day). Open Tabsend to stop it.",
+                bundle: .module,
+                comment: "Notification body when a reset of the whole device group is waiting. %@ is the date the reset was asked for, such as \"October 27\"."
+            )
+        }
+        return String(
+            localized: "Someone asked to remove all your devices. Open Tabsend to stop it.",
+            bundle: .module,
+            comment: "Notification body when a reset of the whole device group is waiting and the date of the request is not known."
+        )
     }
 
     /// "October 27" in the given time zone, or nil for a date that cannot be read.
     private static func day(_ iso: String, timeZone: TimeZone) -> String? {
-        WireDate.date(from: iso).map { format($0, "MMMM d", timeZone) }
-    }
-
-    /// English month names and a 12-hour clock whatever the phone's region, because
-    /// the sentence around them is English.
-    private static func format(_ date: Date, _ pattern: String, _ timeZone: TimeZone) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = timeZone
-        formatter.dateFormat = pattern
-        return formatter.string(from: date)
+        WireDate.date(from: iso).map { L10n.monthAndDay($0, timeZone: timeZone) }
     }
 }

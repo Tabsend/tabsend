@@ -212,6 +212,7 @@ describe('Android devices get the same §4 treatment as iPhones', () => {
         platform: 'android',
         deviceToken: fakeFcmToken(),
         environment: 'production',
+        ringStyle: 'background',
         now: 0,
       })
       const live = await post(rig, '/v1/wake', {}, wakeToken)

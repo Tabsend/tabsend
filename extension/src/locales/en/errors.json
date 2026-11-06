@@ -1,0 +1,110 @@
+{
+  "errors.register.unreachable": {
+    "message": "Couldn't reach the relay at {relayUrl}. Check the address and that the relay is running. Setup guide: {guideUrl}",
+    "description": "Error shown when setting up fails because nothing answered at the relay's address. {relayUrl} is that address; {guideUrl} is a web address for the setup guide. Keep both unchanged."
+  },
+  "errors.protocol.clientTooOld": {
+    "message": "This version of Tabsend is too old for that relay (extension speaks v{clientProtocol}, relay needs v{relayRequires}). Update the extension, then try again.",
+    "description": "Error shown when the relay requires a newer Tabsend than the one installed. {clientProtocol} and {relayRequires} are version numbers of the protocol (small whole numbers)."
+  },
+  "errors.protocol.relayTooOld": {
+    "message": "That relay is running an older version of Tabsend than this extension (relay speaks v{relayProtocol}, extension needs v{clientRequires}). Update the relay, then try again.",
+    "description": "Error shown when the relay is older than the installed Tabsend. {relayProtocol} and {clientRequires} are version numbers of the protocol (small whole numbers)."
+  },
+  "errors.device.nameRequired": {
+    "message": "A device needs a name.",
+    "description": "Error shown when the person saves an empty device name in the rename dialog."
+  },
+  "errors.setupLink.invalid": {
+    "message": "The relay returned an invalid setup link.",
+    "description": "Error shown when the relay's reply to “make a link for a new device” could not be used. A “relay” is the server that passes tabs between devices."
+  },
+  "errors.setupLink.invalidQr": {
+    "message": "The relay returned an invalid QR setup link.",
+    "description": "Error shown when the link the relay made for the QR code could not be used."
+  },
+  "errors.setupLink.invalidQrRoute": {
+    "message": "The relay returned an invalid QR pairing route.",
+    "description": "Error shown when the address inside the link made for the QR code could not be used."
+  },
+  "errors.api.requestFailed": {
+    "message": "Request failed ({status}).",
+    "description": "Error shown when the relay answered with an error and gave no explanation of its own. {status} is the three-digit web status number (e.g. 502); keep it unchanged."
+  },
+  "errors.relayUrl.empty": {
+    "message": "Enter the relay address.",
+    "description": "Error under the relay address field when it is empty. A “relay” is the server that passes tabs between devices."
+  },
+  "errors.relayUrl.invalid": {
+    "message": "Enter a valid relay address, such as http://192.168.1.50:8787.",
+    "description": "Error under the relay address field when what was typed is not an address. The example address is only an example; keep it unchanged."
+  },
+  "errors.relayUrl.scheme": {
+    "message": "The relay address must start with http:// or https://.",
+    "description": "Error under the relay address field when it starts with something other than http:// or https://. Keep “http://” and “https://” unchanged."
+  },
+  "errors.relayUrl.credentials": {
+    "message": "The relay address cannot include a username or password.",
+    "description": "Error under the relay address field when the address contains a username or password."
+  },
+  "errors.relayUrl.query": {
+    "message": "Use the relay address itself, without a query string.",
+    "description": "Error under the relay address field when the address ends with a “?…” part. “Query string” is the technical name for that part."
+  },
+  "errors.relayUrl.selfSigned": {
+    "message": "Browser extensions cannot accept a self-signed HTTPS certificate. If this is the included LAN setup, use its browser address: http://the-same-LAN-address:8786.",
+    "description": "Hint shown when a home-network relay address starts with https:// and the browser refuses its certificate. The address at the end is a pattern to adapt: “the-same-LAN-address” stands for the numbers or name the person already typed."
+  },
+  "errors.generic": {
+    "message": "Something went wrong. Try again.",
+    "description": "Error shown in place of any failure Tabsend has no sentence of its own for (something unexpected inside the browser or Tabsend's background part). Appears next to whatever the person was doing, on any Tabsend page."
+  },
+  "errors.notRegistered": {
+    "message": "Tabsend is not registered yet.",
+    "description": "Error shown when an action needs this browser to be set up with a relay first and it is not, for example a settings page left open after the browser was unpaired somewhere else. “Registered” here means set up and paired. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "errors.relay.unreachable": {
+    "message": "Couldn't reach your relay. Check that it is running, then try again.",
+    "description": "Error shown when an action (rename or remove a device, stop a reset, open a page) could not reach the relay at all. A “relay” is the server that passes tabs between a person's devices. The sentence names no address."
+  },
+  "errors.relay.unauthorized": {
+    "message": "Your relay no longer accepts this browser. Set Tabsend up again here.",
+    "description": "Explanation after an action on the setup or settings page failed because the relay does not accept this browser's credentials (it was removed from the group, or the relay forgot it). Setting up again means pairing again. A “relay” is the server that passes tabs between a person's devices. Same words as Android and iOS, which say “phone”."
+  },
+  "errors.relay.forbidden": {
+    "message": "Your relay wouldn't allow that. If your group is suspended, whoever runs the relay can lift the suspension.",
+    "description": "Explanation after an action failed because the relay refused permission. A group can be suspended on a relay, and only the person or company running the relay can lift that. A “relay” is the server that passes tabs between a person's devices. Same words as Android and iOS."
+  },
+  "errors.relay.deviceNotFound": {
+    "message": "Your relay couldn't find that device. It may already be gone.",
+    "description": "Explanation after renaming or removing a device failed because the relay has no such device in the group. A “relay” is the server that passes tabs between a person's devices. Same words as Android and iOS."
+  },
+  "errors.relay.groupNotFound": {
+    "message": "Your relay no longer has this group. Pair this browser again if you still have access.",
+    "description": "Explanation after making a setup link, stopping a reset or another request failed because the group was deleted on the relay. Pairing again means joining with a new setup link. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "errors.relay.addressNotRelay": {
+    "message": "That address didn't answer like a Tabsend relay. Check it and try again.",
+    "description": "Explanation when the address typed or pasted does not lead to a Tabsend relay, shown while pairing this browser or checking a relay address. A “relay” is the server that passes tabs between a person's devices. Same words as Android and iOS."
+  },
+  "errors.relay.invalidRequest": {
+    "message": "Your relay didn't understand that. It's most likely running an older version than this browser. Updating it should fix this.",
+    "description": "Explanation after a request failed because the relay could not read what the browser sent. A “relay” is the server that passes tabs between a person's devices. It is probably out of date."
+  },
+  "errors.relay.linkUnusable": {
+    "message": "That setup link is unknown, expired, or already used.",
+    "description": "Error on the setup page when the relay refuses the setup link the person pasted to pair this browser. A setup link works once and expires after a few minutes. Same words as Android and iOS."
+  },
+  "errors.relay.linkLimit": {
+    "message": "This group already has the most unused setup links it allows. Try again in a few minutes, when the oldest one expires.",
+    "description": "Explanation when making a new setup link failed: too many links are waiting to be used, and each expires by itself after a few minutes. Android and iOS say “pairing links” here."
+  },
+  "errors.relay.limit": {
+    "message": "Your relay has reached a limit for your group.",
+    "description": "Explanation after a request failed: some limit for this group was reached on the relay. A “relay” is the server that passes tabs between a person's devices. Same words as Android and iOS."
+  },
+  "errors.relay.busy": {
+    "message": "Your relay is busy right now. Give it a moment and try again.",
+    "description": "Explanation after a request failed because the relay is limiting how fast requests may come. A “relay” is the server that passes tabs between a person's devices. Same words as Android and iOS."
+  }
+}

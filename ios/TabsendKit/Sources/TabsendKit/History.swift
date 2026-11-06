@@ -156,7 +156,7 @@ public enum History {
             // "never arrived".
             ackedAt: WireDate.string(from: item.receivedAt),
             payload: SendPayload(
-                url: item.url, title: item.title, sentAt: item.sentAt, batch: item.batch
+                url: item.url, title: item.title, image: item.image, sentAt: item.sentAt, batch: item.batch
             ),
             sourceLabel: item.sourceLabel,
             targetLabel: selfLabel,
@@ -197,6 +197,80 @@ public enum History {
             a.createdAt == b.createdAt ? a.id > b.id : a.createdAt > b.createdAt
         }
         return Array(sorted.prefix(max))
+    }
+
+    // MARK: Latest
+
+    /// How many cards "Latest" shows on the home screen.
+    public static let latestCount = 2
+
+    /// The newest tabs in any direction, opened or not (docs/HISTORY_PREVIEWS_PLAN.md).
+    /// A send that never arrived stays a list row, because it needs its Send again
+    /// button, and a row with no link to open has nothing a card could do.
+    public static func latest(_ items: [HistoryItem], now: Date = Date()) -> [HistoryItem] {
+        Array(
+            items.lazy
+                .filter { state($0, now: now) != .neverArrived }
+                .filter { $0.payload.flatMap { LinkURLPolicy.openableURL(from: $0.url) } != nil }
+                .prefix(latestCount)
+        )
+    }
+
+    /// True for a received tab this phone has not opened.
+    public static func isNew(_ item: HistoryItem, direction: HistoryDirection) -> Bool {
+        direction == .received && item.openedAt == nil
+    }
+
+    /// A Latest card's direction line.
+    public static func latestLine(_ item: HistoryItem, direction: HistoryDirection) -> String {
+        let source = item.sourceLabel ?? Feedback.thatDevice
+        let target = item.targetLabel ?? Feedback.thatDevice
+        switch direction {
+        case .received:
+            if item.openedAt == nil {
+                return String(
+                    localized: "New from \(source)",
+                    bundle: .module,
+                    comment: "First line of a large card on Home and History: a tab that arrived and has not been opened. %@ is the sending device's name."
+                )
+            }
+            return String(
+                localized: "From \(source)",
+                bundle: .module,
+                comment: "First line of a large card on Home and History: a tab that arrived and was opened. %@ is the sending device's name."
+            )
+        case .sent:
+            return String(
+                localized: "Sent to \(target)",
+                bundle: .module,
+                comment: "Share-sheet confirmation that a tab was sent. %@ is the name of the receiving device, such as \"Work laptop\". Keep it short: it is a toast."
+            )
+        case .between: return "\(source) → \(target)"
+        }
+    }
+
+    /// A Latest card's last line: `site · age`, plus where a send stands.
+    public static func latestDetail(
+        _ item: HistoryItem,
+        direction: HistoryDirection,
+        now: Date = Date()
+    ) -> String {
+        var parts = [
+            item.payload.map { Inbox.hostOf($0.url) } ?? "",
+            Inbox.relativeTime(item.createdAt, now: now),
+        ]
+        if direction != .received {
+            parts.append(state(item, now: now) == .arrived ? "Delivered" : "Waiting")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// The first letter of the site, for the tile shown when there is no picture.
+    public static func siteLetter(_ item: HistoryItem) -> String {
+        guard let payload = item.payload else { return "" }
+        var host = Inbox.hostOf(payload.url).lowercased()
+        if host.hasPrefix("www.") { host.removeFirst(4) }
+        return host.first.map { String($0).uppercased() } ?? ""
     }
 
     // MARK: reading a row
@@ -255,6 +329,7 @@ public enum History {
             url: payload.url,
             title: payload.title,
             favicon: payload.favicon,
+            image: payload.image,
             sentAt: WireDate.string(from: now)
         )
     }
@@ -276,7 +351,13 @@ public enum History {
     /// host is a better handle than an empty line; a row we cannot read says so
     /// rather than showing a blank.
     public static func displayTitle(_ item: HistoryItem) -> String {
-        guard let payload = item.payload else { return "A tab this phone can't read" }
+        guard let payload = item.payload else {
+            return String(
+                localized: "A tab this phone can't read",
+                bundle: .module,
+                comment: "Title of a history row for a tab that arrived sealed with a group key this phone does not have, so its title and address are unreadable."
+            )
+        }
         if let title = payload.title, !title.trimmingCharacters(in: .whitespaces).isEmpty {
             return title
         }
@@ -294,18 +375,25 @@ public enum History {
         grouped: Bool = false,
         now: Date = Date()
     ) -> String {
-        var parts: [String] = []
+        let site: String
         if let payload = item.payload {
-            parts.append(Inbox.hostOf(payload.url))
+            site = Inbox.hostOf(payload.url)
         } else {
-            parts.append("sealed with a group key this phone doesn't have")
+            site = String(
+                localized: "sealed with a group key this phone doesn't have",
+                bundle: .module,
+                comment: "Second line of a history row for a tab this phone cannot read, in place of the website. Group key: the shared key that unlocks history."
+            )
         }
         // A grouped row's route and age are already on the section header.
-        if !grouped {
-            parts.append(route(item, direction: direction))
-            parts.append(Inbox.relativeTime(item.createdAt, now: now))
-        }
-        return parts.joined(separator: " · ")
+        if grouped { return site }
+        let moved = route(item, direction: direction)
+        let age = Inbox.relativeTime(item.createdAt, now: now)
+        return String(
+            localized: "\(site) · \(moved) · \(age)",
+            bundle: .module,
+            comment: "Second line of a history row. The first %@ is the website, the second is who moved the tab (such as \"from Work laptop\"), the third is how long ago (such as \"3m ago\"). The dots separate the three."
+        )
     }
 
     /// Who moved it, phrased for the direction.
@@ -313,9 +401,24 @@ public enum History {
         let source = item.sourceLabel ?? Feedback.thatDevice
         let target = item.targetLabel ?? Feedback.thatDevice
         switch direction {
-        case .sent: return "to \(target)"
-        case .received: return "from \(source)"
-        case .between: return "\(source) → \(target)"
+        case .sent:
+            return String(
+                localized: "to \(target)",
+                bundle: .module,
+                comment: "Part of a history row: this phone sent the tab. %@ is the name of the receiving device, such as \"Work laptop\"."
+            )
+        case .received:
+            return String(
+                localized: "from \(source)",
+                bundle: .module,
+                comment: "Part of a history row: this phone received the tab. %@ is the name of the sending device, such as \"Work laptop\"."
+            )
+        case .between:
+            return String(
+                localized: "\(source) → \(target)",
+                bundle: .module,
+                comment: "Part of a history row for a tab moved between two other devices. The first %@ is the sending device, the second is the receiving device. The arrow points from sender to receiver."
+            )
         }
     }
 
@@ -324,17 +427,43 @@ public enum History {
     /// this phone's to chase.
     public static func stateLine(_ item: HistoryItem, now: Date = Date()) -> String? {
         switch state(item, now: now) {
-        case .arrived: return "Arrived"
-        case .waiting: return "Waiting for \(item.targetLabel ?? Feedback.thatDevice)"
-        case .neverArrived: return "Never arrived"
+        case .arrived:
+            return String(
+                localized: "Delivered",
+                bundle: .module,
+                comment: "State of a tab this phone sent: the receiving device confirmed it. Short: it sits beside an icon."
+            )
+        case .waiting:
+            let device = item.targetLabel ?? Feedback.thatDevice
+            return String(
+                localized: "Waiting for \(device)",
+                bundle: .module,
+                comment: "State of a tab this phone sent: the relay holds it until the receiving device picks it up. %@ is the device name, or \"that device\" when unknown. Short: it sits beside an icon."
+            )
+        case .neverArrived:
+            return String(
+                localized: "Never arrived",
+                bundle: .module,
+                comment: "State of a tab this phone sent: the relay stopped holding it and the receiving device never picked it up. Short: it sits beside an icon and a Send again button."
+            )
         }
     }
 
     /// Said once, under the list, so retention is on the screen rather than in
     /// settings nobody opens.
     public static func retentionLine(relayKeepsHistory: Bool) -> String {
-        relayKeepsHistory
-            ? "Newest first, every device in your group. The last \(maxItems) are kept on this phone."
-            : "Newest first. The last \(maxItems) are kept on this phone."
+        let kept = maxItems
+        if relayKeepsHistory {
+            return String(
+                localized: "Newest first, every device in your group. The last \(kept) are kept on this phone.",
+                bundle: .module,
+                comment: "Footnote under the history list when the relay keeps the group's history. %lld is how many tabs this phone keeps, such as 50."
+            )
+        }
+        return String(
+            localized: "Newest first. The last \(kept) are kept on this phone.",
+            bundle: .module,
+            comment: "Footnote under the history list when the relay keeps no group history, so only this phone's own tabs are listed. %lld is how many tabs this phone keeps, such as 50."
+        )
     }
 }

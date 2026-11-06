@@ -6,7 +6,7 @@ package io.tabsend.app.logic
  * "Can't reach your relay at http://192.168.1.20:8786" was true, but read as a
  * refresh bug: the device was simply away from home, where that address means
  * nothing. When the address can only work on the network it lives on, the
- * relay-down line adds [HINT], which says why and what to do.
+ * relay-down line adds a hint (`relay_down_line_home_network`), which says why and what to do.
  *
  * Home network: IPv4 10/8, 172.16/12, 192.168/16, link-local 169.254/16; IPv6
  * unique-local fc00::/7 and link-local fe80::/10; names under .local, .lan,
@@ -24,10 +24,6 @@ package io.tabsend.app.logic
  * so the JVM tests cover it.
  */
 object HomeNetwork {
-
-    /** The line added after the relay-down notice when [isHomeNetworkRelay] is true. */
-    const val HINT = "This address only works on your home network. Away from home or on " +
-        "mobile data? Connect to your home Wi-Fi or turn on your VPN."
 
     private val HOME_SUFFIXES = listOf(".local", ".lan", ".home.arpa", ".internal")
 

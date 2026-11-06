@@ -101,7 +101,10 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
 
     private func showDenied() {
         let label = UILabel()
-        label.text = "Camera unavailable.\nAllow camera access in Settings, or paste the setup link instead."
+        label.text = String(
+            localized: "Camera unavailable.\nAllow camera access in Settings, or paste the setup link instead.",
+            comment: "Centered message on the QR scanner when the camera cannot be used. Two lines: the second starts after a line break. Settings is the iOS Settings app. A setup link is the pairing link another device shows."
+        )
         label.numberOfLines = 0
         label.textAlignment = .center
         label.textColor = .white

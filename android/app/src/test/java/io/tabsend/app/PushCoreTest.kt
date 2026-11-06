@@ -347,6 +347,20 @@ class PushCoreTest {
         assertTrue(state.retirements.isEmpty())
     }
 
+    @Test
+    fun `a relay that already dropped this phone does not stop the wake token being revoked`() = runBlocking {
+        // PLANS P-28: leaving deletes the entry first, so the retirement's `none` meets a 401.
+        enrolled()
+        state.paired = null
+        state.enrolment = null
+        state.retirements = listOf(Retirement("wake-1", relayA, relayMustAccept = false))
+        relay.answer = RelayAnswer.GONE
+
+        core().sync()
+        assertTrue(calls.contains("revoke wake-1"))
+        assertTrue(state.retirements.isEmpty())
+    }
+
     // --- G11: one lock, and no enrolment saved after an unpair ---------------------------
 
     @Test

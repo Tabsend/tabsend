@@ -1,0 +1,6 @@
+{
+  "unreachable.fallbackDevice": {
+    "message": "A device",
+    "description": "Stands in for a device's name at the START of a sentence (“{device} isn't connected any more”) when the name is unknown. Written with a capital letter because it begins the sentence."
+  }
+}

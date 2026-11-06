@@ -44,17 +44,23 @@ public enum ProtocolCheck {
         case .ok:
             return nil
         case let .outdated(clientProtocol, recommended):
-            return "Linked. A newer Tabsend build is available "
-                + "(this app speaks v\(clientProtocol), the relay prefers v\(recommended)) — "
-                + "everything works, but it's worth updating."
+            return String(
+                localized: "Linked. A newer Tabsend build is available (this app speaks v\(clientProtocol), the relay prefers v\(recommended)). Everything works, but it's worth updating.",
+                bundle: .module,
+                comment: "Banner after pairing succeeded, when the relay prefers a newer app. The two numbers are protocol versions, not counts: \"v2\", \"v3\". Tabsend build means this app."
+            )
         case let .clientTooOld(clientProtocol, relayRequires):
-            return "This version of the Tabsend app is too old for that relay "
-                + "(app speaks v\(clientProtocol), relay needs v\(relayRequires)). "
-                + "Install the latest build, then pair again."
+            return String(
+                localized: "This version of the Tabsend app is too old for that relay (app speaks v\(clientProtocol), relay needs v\(relayRequires)). Install the latest build, then pair again.",
+                bundle: .module,
+                comment: "Error when pairing: the app is older than the relay allows. The two numbers are protocol versions, not counts: \"v1\", \"v2\"."
+            )
         case let .relayTooOld(relayProtocol, clientRequires):
-            return "That relay is running an older version of Tabsend than this app "
-                + "(relay speaks v\(relayProtocol), app needs v\(clientRequires)). "
-                + "Update the relay, then pair again."
+            return String(
+                localized: "That relay is running an older version of Tabsend than this app (relay speaks v\(relayProtocol), app needs v\(clientRequires)). Update the relay, then pair again.",
+                bundle: .module,
+                comment: "Error when pairing: the relay is older than this app can talk to. The two numbers are protocol versions, not counts: \"v1\", \"v2\". The relay is the server."
+            )
         }
     }
 }

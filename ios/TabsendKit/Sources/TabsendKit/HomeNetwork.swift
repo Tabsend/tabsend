@@ -24,8 +24,13 @@ import Foundation
 public enum HomeNetwork {
 
     /// The line added after the relay-down notice when `isHomeNetworkRelay` is true.
-    public static let hint = "This address only works on your home network. Away from home or on "
-        + "mobile data? Connect to your home Wi-Fi or turn on your VPN."
+    public static var hint: String {
+        String(
+            localized: "This address only works on your home network. Away from home or on mobile data? Connect to your home Wi-Fi or turn on your VPN.",
+            bundle: .module,
+            comment: "Sentence added after the \"can't reach your relay\" notice when the relay address is a home-network address. Shown on the home screen banner and in notifications."
+        )
+    }
 
     private static let homeSuffixes = [".local", ".lan", ".home.arpa", ".internal"]
 

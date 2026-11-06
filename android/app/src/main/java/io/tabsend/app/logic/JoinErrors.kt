@@ -1,5 +1,6 @@
 package io.tabsend.app.logic
 
+import io.tabsend.app.R
 import java.io.IOException
 import java.net.URI
 import java.net.UnknownServiceException
@@ -15,48 +16,42 @@ import javax.net.ssl.SSLException
  * second as the first sends the owner to check a relay that is running
  * perfectly — the exact dead end dogfooding hit on 2026-07-28.
  *
- * Kept pure (no Context, no resources) so the wording is unit-testable; the
- * strings live here rather than strings.xml for the same reason. If the app is
- * ever localised these move, and the classification stays.
+ * Kept pure (no Context) so the classification is unit-testable; the sentences come from a
+ * [TextSource], so they are catalog messages like every other (docs/L10N.md), and the
+ * classification stays here whatever the language.
  */
 object JoinErrors {
+    /** The button the unreachable sentence points the person to. */
+    enum class RetryAction {
+        /** The pairing screen's retry button ("Try again"). */
+        TRY_AGAIN,
+
+        /** The home screen's "Add a device" button. */
+        ADD_DEVICE,
+    }
+
     /**
      * Message for a failed join attempt.
      *
      * @param relay the relay URL that was tried
      * @param hadPin whether the pairing link carried a certificate fingerprint
      *   (`fp=`, P-3).
+     * @param retryAction which button the last sentence names. Each choice is its own whole
+     *   sentence, so a translation can end it its own way.
      */
     fun message(
+        text: TextSource,
         e: IOException,
         relay: String,
         hadPin: Boolean,
-        retryAction: String = "tap Try again",
+        retryAction: RetryAction = RetryAction.TRY_AGAIN,
     ): String = when {
-        e is SSLException && hadPin ->
-            "The relay answered, but its security certificate doesn't match the one in " +
-                "this setup link. If the relay was rebuilt or reinstalled it will have a " +
-                "new certificate — create a fresh setup link and scan it again."
-
-        e is SSLException ->
-            "The relay answered, but this phone doesn't trust its security certificate. " +
-                "The setup link did not include the certificate fingerprint this phone " +
-                "needs. Create a fresh link from the relay or an updated Tabsend device."
-
-        e is UnknownServiceException ->
-            "Android won't send plain http anywhere but localhost, so this address is " +
-                "blocked. The relay needs an https address — one with its own self-signed " +
-                "certificate is fine, as long as its setup link carries the fingerprint."
-
-        isLoopback(relay) ->
-            "$relay means this phone itself, so there's nothing there to reach. That " +
-                "address came from a relay that describes itself as localhost, which is a " +
-                "development-only setting. Give the relay a PUBLIC_RELAY_URL that other " +
-                "devices can reach, then create a new setup link."
-
-        else ->
-            "Couldn't reach the relay at $relay. Check that it's running and that this " +
-                "phone is on the same network, then $retryAction."
+        e is SSLException && hadPin -> text.string(R.string.join_error_cert_mismatch)
+        e is SSLException -> text.string(R.string.join_error_cert_untrusted)
+        e is UnknownServiceException -> text.string(R.string.join_error_cleartext)
+        isLoopback(relay) -> text.string(R.string.join_error_loopback, relay)
+        retryAction == RetryAction.ADD_DEVICE -> text.string(R.string.join_error_unreachable_add_device, relay)
+        else -> text.string(R.string.join_error_unreachable_retry, relay)
     }
 
     /**

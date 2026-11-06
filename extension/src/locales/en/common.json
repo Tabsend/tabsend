@@ -1,0 +1,90 @@
+{
+  "common.dismiss": {
+    "message": "Dismiss",
+    "description": "Button that closes a notice without acting on it. Short."
+  },
+  "common.untitledTab": {
+    "message": "Untitled tab",
+    "description": "Name shown for a tab that has no page title and no web address to show instead."
+  },
+  "common.aDevice": {
+    "message": "a device",
+    "description": "Stands in for a device name when the sender's name is unknown. Used in “Tab received from {device}”, so it must read as a noun phrase after “from”."
+  },
+  "common.list.two": {
+    "message": "{first} and {second}",
+    "description": "Joins exactly two names in a list of devices, e.g. “Pixel 9 and iPad”. Part of a three-message list pattern (two, start, middle, end) like CLDR's list patterns."
+  },
+  "common.list.start": {
+    "message": "{first}, {second}",
+    "description": "First join in a list of three or more names. {first} is the first name; {second} is the rest of the list, already joined. e.g. “Pixel 9, iPad and Home PC”."
+  },
+  "common.list.middle": {
+    "message": "{first}, {second}",
+    "description": "Join inside a list of four or more names. {first} is one name; {second} is the rest of the list, already joined."
+  },
+  "common.list.end": {
+    "message": "{first} and {second}",
+    "description": "Last join in a list of three or more names: the final two names. e.g. “iPad and Home PC”."
+  },
+  "common.time.ago.now": {
+    "message": "just now",
+    "description": "How long ago something happened when it was under a minute ago. Lowercase, used mid-sentence and in short device rows. Short."
+  },
+  "common.time.ago.recently": {
+    "message": "recently",
+    "description": "Used when a time cannot be read. Lowercase, short."
+  },
+  "common.time.ago.minutes": {
+    "message": "{count, plural, other {#m ago}}",
+    "description": "Short relative time: minutes ago. {count} is 1 to 59. Keep it very short (device rows are narrow); the English “m” is an abbreviation for minutes."
+  },
+  "common.time.ago.hours": {
+    "message": "{count, plural, other {#h ago}}",
+    "description": "Short relative time: hours ago. {count} is 1 to 23. Keep it very short; “h” abbreviates hours."
+  },
+  "common.time.ago.days": {
+    "message": "{count, plural, other {#d ago}}",
+    "description": "Short relative time: days ago. {count} is 1 or more. Keep it very short; “d” abbreviates days."
+  },
+  "common.cancel": {
+    "message": "Cancel",
+    "description": "Button that closes a dialog without changing anything. Short."
+  },
+  "common.ok": {
+    "message": "OK",
+    "description": "Button that confirms a dialog. Short."
+  },
+  "common.rename": {
+    "message": "Rename",
+    "description": "Button that starts renaming a device. Short."
+  },
+  "common.remove": {
+    "message": "Remove",
+    "description": "Button that removes a device from the group. Short."
+  },
+  "common.setUpTabsend": {
+    "message": "Set up Tabsend",
+    "description": "Button or link that opens Tabsend's setup page. “Tabsend” is the product name."
+  },
+  "common.addDevice": {
+    "message": "Add a device",
+    "description": "Button or heading for adding another browser or phone to the group."
+  },
+  "common.settings": {
+    "message": "Settings",
+    "description": "Name of Tabsend's settings page, used as a button label and a heading. Short."
+  },
+  "common.history": {
+    "message": "History",
+    "description": "Name of Tabsend's history page (the list of sent and received tabs), used as a button label and a heading. Short."
+  },
+  "common.loading": {
+    "message": "Loading…",
+    "description": "Shown while a page waits for its data. Short."
+  },
+  "common.renameDialog.title": {
+    "message": "Rename this device",
+    "description": "Title of the dialog for renaming a device. “This device” is the device whose name the person is changing."
+  }
+}

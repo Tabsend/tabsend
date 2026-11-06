@@ -1,5 +1,7 @@
 package io.tabsend.app.logic
 
+import io.tabsend.app.R
+
 /**
  * Why a send didn't land, and the sentence to say about it.
  *
@@ -99,45 +101,43 @@ data class SendBanner(
  * Feedback copy. The §4 copy table (locked, and predating the no-em-dash rule)
  * plus the failure lines added by the 2026-07-29 amendment, which use short
  * sentences instead.
+ *
+ * None of the words are here: each sentence is a message in `strings.xml`, picked by
+ * the [TextSource] it is handed, so a translation needs no change in this file
+ * (docs/L10N.md). What this file decides is WHICH sentence, and nothing it returns
+ * is built from fragments.
  */
 object Feedback {
     // The LOCKED §4 copy table, which predates the no-em-dash rule. Kept as the
     // shared reference for what the three clients agree to say on success, so
     // don't delete these for want of a caller: the tests assert them, and the
     // banner headlines below are derived from the same wording.
-    fun sentOnline(label: String): String = "Sent to $label"
-    fun sentOffline(label: String): String = "Sent to $label — opens when it wakes"
-    fun sourceOffline(): String = "No connection — will send when you're back online"
-    fun noDevices(): String = "No devices yet — pair one to start sending"
-    fun hardError(): String = "Couldn't send — check Tabsend is still linked"
-
-    /** The no-label fallback. NOT a proper noun, hence the mid-sentence rule below. */
-    const val THAT_DEVICE = "that device"
+    fun sentOnline(text: TextSource, label: String): String = text.string(R.string.send_toast_sent, label)
+    fun sentOffline(text: TextSource, label: String): String = text.string(R.string.send_sent_offline, label)
+    fun sourceOffline(text: TextSource): String = text.string(R.string.send_source_offline)
+    fun noDevices(text: TextSource): String = text.string(R.string.send_no_devices)
+    fun hardError(text: TextSource): String = text.string(R.string.send_hard_error)
 
     /**
      * One sentence saying what happened and, where there is one, what to do.
      *
      * Nothing here may leak a wire code, and every line places the device label
-     * MID-sentence: a real label ("Arc · Mac mini") is a proper noun but
-     * [THAT_DEVICE] is not, so a line opening with it would read as a lowercase
-     * sentence. Both rules are enforced by SendFeedbackTest.
+     * MID-sentence: a real label ("Arc · Mac mini") is a proper noun but the stand-in
+     * (`stand_in_that_device`, "that device") is not, so a line opening with it would read
+     * as a lowercase sentence. Both rules are enforced by SendFeedbackTest.
      */
-    fun failureLine(failure: SendFailure, targetLabel: String? = null): String {
-        val device = targetLabel ?: THAT_DEVICE
+    fun failureLine(text: TextSource, failure: SendFailure, targetLabel: String? = null): String {
+        val device = targetLabel ?: text.string(R.string.stand_in_that_device)
         return when (failure) {
-            SendFailure.PhoneOffline ->
-                "You're offline. This tab sends itself as soon as you're back."
+            SendFailure.PhoneOffline -> text.string(R.string.send_failure_phone_offline)
             is SendFailure.RelayUnreachable ->
-                "Can't reach your relay at ${failure.relayUrl}. The tab is held here and " +
-                    "sends itself once the relay answers again."
-            is SendFailure.RelayRejected -> rejectionLine(failure.reason, device, failure.limit)
-            is SendFailure.RelayError -> relayErrorLine(failure.code, device)
-            SendFailure.RelayBusy ->
-                "Your relay is having trouble right now. The tab is held here and sends " +
-                    "itself once the relay is answering properly again."
-            SendFailure.RelayUnauthorized -> UNAUTHORIZED_LINE
-            is SendFailure.GaveUp -> givenUpLine(failure.reason)
-            SendFailure.NothingToSend -> "There's no link in what you shared."
+                text.string(R.string.send_failure_relay_unreachable, failure.relayUrl)
+            is SendFailure.RelayRejected -> rejectionLine(text, failure.reason, device, failure.limit)
+            is SendFailure.RelayError -> relayErrorLine(text, failure.code, device)
+            SendFailure.RelayBusy -> text.string(R.string.send_failure_relay_busy)
+            SendFailure.RelayUnauthorized -> text.string(R.string.send_error_unauthorized)
+            is SendFailure.GaveUp -> givenUpLine(text, failure.reason)
+            SendFailure.NothingToSend -> text.string(R.string.send_failure_nothing_to_send)
         }
     }
 
@@ -151,13 +151,17 @@ object Feedback {
      * so all three clients say them verbatim and the §4c "this phone" / "this
      * browser" rule does not bite.
      */
-    private fun givenUpLine(reason: GaveUpReason): String = when (reason) {
-        GaveUpReason.TOO_OLD ->
-            "This tab waited ${OutboundQueue.MAX_AGE_DAYS} days for your relay and was never " +
-                "taken, so Tabsend has stopped holding it. Send it again once the relay is answering."
-        GaveUpReason.QUEUE_FULL ->
-            "Tabsend holds at most ${OutboundQueue.MAX_ITEMS} tabs while your relay isn't taking " +
-                "them, and this one was the oldest. Send it again once the relay is answering."
+    private fun givenUpLine(text: TextSource, reason: GaveUpReason): String = when (reason) {
+        GaveUpReason.TOO_OLD -> text.plural(
+            R.plurals.send_failure_too_old,
+            OutboundQueue.MAX_AGE_DAYS,
+            OutboundQueue.MAX_AGE_DAYS,
+        )
+        GaveUpReason.QUEUE_FULL -> text.plural(
+            R.plurals.send_failure_queue_full,
+            OutboundQueue.MAX_ITEMS,
+            OutboundQueue.MAX_ITEMS,
+        )
     }
 
     /**
@@ -166,19 +170,16 @@ object Feedback {
      * newer than this app will send reasons we have no copy for.
      */
     private fun rejectionLine(
+        text: TextSource,
         reason: String,
         device: String,
         limit: String? = null,
     ): String = when (reason) {
-        "unknown_target" ->
-            "Your relay doesn't know $device any more. Pair it again, then send this tab a second time."
-        "expired_key" ->
-            "The keys on $device have changed since this phone last saw them. Open Tabsend " +
-                "once to pick up the new ones, then send again."
-        "not_in_group" ->
-            "Your relay says $device has left your group of devices."
-        "limit_reached" -> capHeldLine(limit)
-        else -> INTERNAL_LINE
+        "unknown_target" -> text.string(R.string.send_rejected_unknown_target, device)
+        "expired_key" -> text.string(R.string.send_rejected_expired_key, device)
+        "not_in_group" -> text.string(R.string.send_rejected_not_in_group, device)
+        "limit_reached" -> capHeldLine(text, limit)
+        else -> text.string(R.string.relay_line_internal)
     }
 
     /**
@@ -199,53 +200,34 @@ object Feedback {
      * `SendFeedback.swift`; only the extension can pluralize them, because only
      * it can send several tabs at once.
      */
-    private fun capHeldLine(limit: String?): String = when (limit) {
-        "sends_per_window" ->
-            "Your relay is pacing sends for your group right now. This tab is queued and " +
-                "will send itself shortly."
-        "queued_messages", "queued_bytes" ->
-            "Your relay is holding as much as your group's limit allows. This tab is queued " +
-                "and will send once the receiving device catches up."
-        else ->
-            "Your relay has reached a limit for your group. This tab is queued and will send " +
-                "itself once there is room."
+    private fun capHeldLine(text: TextSource, limit: String?): String = when (limit) {
+        "sends_per_window" -> text.string(R.string.send_cap_pacing)
+        "queued_messages", "queued_bytes" -> text.string(R.string.send_cap_queue_full)
+        else -> text.string(R.string.send_cap_general)
     }
 
     /** Whole-request errors [ApiError.code]. The relay answered, and said no. */
-    private fun relayErrorLine(code: String, device: String): String = when (code) {
-        "not_found" ->
-            "Your relay couldn't find $device."
-        "forbidden" ->
-            "Your relay wouldn't let this phone send to $device."
-        "invalid_request" ->
-            "Your relay didn't understand this send. It's most likely running an older " +
-                "version than this phone. Updating it should fix this."
+    private fun relayErrorLine(text: TextSource, code: String, device: String): String = when (code) {
+        "not_found" -> text.string(R.string.send_error_not_found, device)
+        "forbidden" -> text.string(R.string.send_error_forbidden, device)
+        "invalid_request" -> text.string(R.string.send_error_invalid_request)
         // classify() routes a 429 to RelayBusy, which DOES retry itself, so this
         // is belt-and-braces for a relay that sends the code with another status.
-        "rate_limited" ->
-            "Your relay is busy right now. Give it a moment and send again."
+        "rate_limited" -> text.string(R.string.send_error_rate_limited)
         // Both mean "your token is no good"; classify() routes them to
         // RelayUnauthorized before they get here, so this is belt-and-braces.
-        "unauthorized", "endpoint_removed" -> UNAUTHORIZED_LINE
-        "invalid_pairing_code" ->
-            "That setup link is no longer valid."
+        "unauthorized", "endpoint_removed" -> text.string(R.string.send_error_unauthorized)
+        "invalid_pairing_code" -> text.string(R.string.send_error_pairing_code)
         // Only ever answered to a register/create call [ADR-0022], never to a send;
         // it has a line so the wire set stays fully covered as it grows.
-        "group_exists" ->
-            "Your relay already hosts a group of devices."
+        "group_exists" -> text.string(R.string.relay_line_group_exists)
         // Not reachable on a send either: of the per-group caps, only the endpoint
         // one can refuse a whole call, and it does that to a join [0030]. A pairing
         // mint can also answer `limit_reached` [0031 amended], and does not come
-        // through here: the mint's own error path shows the relay's message, which is
-        // the one that names that limit.
-        "limit_reached" -> DEVICE_LIMIT_LINE
-        else -> INTERNAL_LINE
+        // through here: [RelayErrorText] words that one for the pairing screen.
+        "limit_reached" -> deviceLimitLine(text)
+        else -> text.string(R.string.relay_line_internal)
     }
-
-    private const val UNAUTHORIZED_LINE =
-        "Your relay doesn't recognise this phone any more. Set Tabsend up again here to start sending."
-    private const val INTERNAL_LINE =
-        "Something went wrong inside your relay. It may be worth checking that it is healthy."
 
     /**
      * The device cap turned this phone away at the door [0030]. Said in the
@@ -260,9 +242,7 @@ object Feedback {
      *
      * Word-for-word the same sentence as `lib/strings.ts` and `SendFeedback.swift`.
      */
-    const val DEVICE_LIMIT_LINE =
-        "Your relay has reached its device limit for your group. Remove a device you are not " +
-            "using, then pair this one again."
+    fun deviceLimitLine(text: TextSource): String = text.string(R.string.relay_line_device_limit)
 
     /** True when the tab is safely queued and will retry itself (no user action). */
     fun isRecoverable(failure: SendFailure): Boolean =
@@ -295,22 +275,31 @@ object Feedback {
      * [SendTone.PENDING]; claiming "Sent" there is the exact lie that made a
      * dead relay invisible.
      */
-    fun banner(outcome: SendOutcomeView): SendBanner {
-        val label = outcome.targetLabel ?: "your device"
+    fun banner(text: TextSource, outcome: SendOutcomeView): SendBanner {
+        val label = outcome.targetLabel ?: text.string(R.string.stand_in_your_device)
         val failure = outcome.failure
         if (failure != null) {
             val recoverable = isRecoverable(failure)
             return SendBanner(
                 tone = if (recoverable) SendTone.PENDING else SendTone.ERROR,
-                headline = if (recoverable) "Waiting to send to $label" else "Couldn't send to $label",
+                headline = if (recoverable) {
+                    text.string(R.string.send_notice_waiting, label)
+                } else {
+                    text.string(R.string.send_toast_failed, label)
+                },
                 title = outcome.title,
-                detail = failureLine(failure, outcome.targetLabel),
+                detail = failureLine(text, failure, outcome.targetLabel),
             )
         }
         if (!outcome.ok) {
-            return SendBanner(SendTone.ERROR, "Couldn't send to $label", outcome.title, hardError())
+            return SendBanner(
+                SendTone.ERROR,
+                text.string(R.string.send_toast_failed, label),
+                outcome.title,
+                hardError(text),
+            )
         }
-        return SendBanner(SendTone.SUCCESS, "Sent to $label", outcome.title)
+        return SendBanner(SendTone.SUCCESS, text.string(R.string.send_toast_sent, label), outcome.title)
     }
 
     /**
@@ -320,25 +309,27 @@ object Feedback {
      * target — a different promise, and merging them lets an outage read as a
      * normal sleeping device.
      */
-    fun heldTabsHeading(count: Int): String =
-        if (count == 1) "Waiting on this phone" else "$count tabs waiting on this phone"
+    fun heldTabsHeading(text: TextSource, count: Int): String =
+        text.plural(R.plurals.held_tabs_heading, count, count)
 
     /**
      * What to call a held tab in a list. The title is what the user recognises;
      * the site is the fallback, because a bare URL path tells nobody anything.
      */
-    fun heldTabLabel(title: String?, url: String?): String {
+    fun heldTabLabel(text: TextSource, title: String?, url: String?): String {
         if (!title.isNullOrBlank()) return title
-        if (url.isNullOrBlank()) return "Untitled tab"
+        if (url.isNullOrBlank()) return text.string(R.string.held_tab_untitled)
         return hostOf(url) ?: url
     }
 
     /** Confirmation that the queue drained, naming the tab when there's just one. */
-    fun recoveredLine(count: Int, firstTitle: String? = null): String = when {
-        count == 1 && !firstTitle.isNullOrBlank() -> "Sent “$firstTitle”"
-        count == 1 -> "Sent the tab that was waiting"
-        else -> "Sent $count tabs that were waiting"
-    }
+    fun recoveredLine(text: TextSource, count: Int, firstTitle: String? = null): String =
+        // l10n-ignore: names one tab or counts several, not grammar
+        if (count == 1 && !firstTitle.isNullOrBlank()) {
+            text.string(R.string.send_recovered_titled, firstTitle)
+        } else {
+            text.plural(R.plurals.send_recovered, count, count)
+        }
 
     /**
      * The standing relay-outage line, for a surface the user opens LATER. Not
@@ -350,15 +341,21 @@ object Feedback {
      * the bare outage line read as a refresh bug. Same rule and words as the
      * extension, iOS and the console.
      */
-    fun relayDownLine(relayUrl: String, sinceMinutes: Int): String {
+    fun relayDownLine(text: TextSource, relayUrl: String, sinceMinutes: Int): String {
         val ago = when {
-            sinceMinutes < 1 -> "just now"
-            sinceMinutes < 60 -> "${sinceMinutes}m ago"
-            else -> "${Math.round(sinceMinutes / 60.0)}h ago"
+            sinceMinutes < 1 -> text.string(R.string.time_just_now)
+            sinceMinutes < 60 -> text.plural(R.plurals.time_minutes_ago, sinceMinutes, sinceMinutes)
+            else -> {
+                val hours = Math.round(sinceMinutes / 60.0).toInt()
+                text.plural(R.plurals.time_hours_ago, hours, hours)
+            }
         }
-        val line = "Can't reach your relay at $relayUrl. It last answered $ago, and sends are " +
-            "being held until it's back."
-        return if (HomeNetwork.isHomeNetworkRelay(relayUrl)) "$line ${HomeNetwork.HINT}" else line
+        val line = if (HomeNetwork.isHomeNetworkRelay(relayUrl)) {
+            R.string.relay_down_line_home_network
+        } else {
+            R.string.relay_down_line
+        }
+        return text.string(line, relayUrl, ago)
     }
 
     /**

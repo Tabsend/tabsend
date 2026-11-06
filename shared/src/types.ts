@@ -228,6 +228,13 @@ export interface SendPayload {
   url: string;
   title?: string;
   favicon?: string;                 // data: URL or origin favicon URL, best-effort
+  /**
+   * The page's preview picture, as an https: address the sender found. Rides INSIDE
+   * the ciphertext. Lets a browser SHOW a picture without the host access it would
+   * need to read the page (docs/HISTORY_PREVIEWS_PLAN.md). Best-effort and optional;
+   * every receiver re-checks it, and receivers that don't know the field ignore it.
+   */
+  image?: string;
   /** Stamped by the sender; lets the target render "sent 3m ago" without server time. */
   sentAt: IsoTimestamp;
   /**
@@ -376,6 +383,7 @@ export interface HotkeyBindings {
 export interface ClientSettings {
   toolbarClickMode: ToolbarClickMode;   // 'chooser' default; 'quicksend' opt-in [0008]
   showSuccessToast: boolean;            // error toasts always show regardless
+  websiteImages: boolean;               // pictures beside history rows; off means no request to any site
   showPendingRow: boolean;              // the conditional queued row [0008]
   contextMenusVisible: boolean;         // hide page/link menu items [0001]
   searchThreshold: number;              // show chooser search when targets > N
@@ -386,6 +394,7 @@ export interface ClientSettings {
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   toolbarClickMode: 'chooser',
   showSuccessToast: true,
+  websiteImages: true,
   showPendingRow: true,
   contextMenusVisible: true,
   searchThreshold: 7,
@@ -969,15 +978,38 @@ export interface GroupResetState {
 }
 
 /**
+ * What the account site (Tabsend's own service) has told this group about its plan, in the
+ * three words a phone needs [PLANS P-19]. The relay knows no plan and decides nothing from
+ * this: it only hands the group's own devices the words the account site wrote.
+ *
+ * - `trial`: sending runs on the free trial; `trialEndsAt` is when it ends.
+ * - `trial_ended`: the trial ended and sending is paused for that reason; `trialEndsAt` is
+ *   when it ended.
+ * - `account`: an account on the service with nothing to show a phone (paid, lifetime,
+ *   free time, or paused for another reason); `trialEndsAt` is null.
+ */
+export type GroupServiceStateName = 'trial' | 'trial_ended' | 'account';
+
+export interface GroupServiceState {
+  state: GroupServiceStateName;
+  trialEndsAt: IsoTimestamp | null;
+}
+
+/**
  * GET /v1/group — the calling device's group, as far as a device needs to know it.
  *
  * `reset` is null when none is pending. An OLDER relay answers this route 404
  * (`not_found`); clients treat that exactly as `{ reset: null }`. Answered whether or
  * not the group is suspended: a paused group's devices must still be able to see and
  * stop a reset.
+ *
+ * `service` is MISSING on every relay with no account site (a self-hosted one), and on a
+ * relay older than P-19. A client shows no trial line and no Account entry for either, and
+ * never guesses one. (The type allows null so a client reads both the same way.)
  */
 export interface GroupStateResponse {
   reset: GroupResetState | null;
+  service?: GroupServiceState | null;
 }
 
 /**

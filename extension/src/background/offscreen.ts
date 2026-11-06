@@ -54,6 +54,7 @@ export async function ensureOffscreen(): Promise<void> {
     await api.createDocument({
       url: OFFSCREEN_URL,
       reasons: [ext.offscreen.Reason.BLOBS],
+      // i18n-ignore: the developer's reason for the browser's offscreen-document API, never shown
       justification:
         'Hold the Tabsend delivery WebSocket (/v1/stream) for sub-second foreground tab delivery.',
     })

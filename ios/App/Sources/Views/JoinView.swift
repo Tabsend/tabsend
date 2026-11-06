@@ -1,18 +1,25 @@
 import SwiftUI
 import TabsendKit
 
-/// Unpaired state, and the app's one signature moment (docs/APP_UI.md, "Phones:
-/// native-leaning"): the wordmark, ONE outlined card with the hard offset shadow,
-/// the browser → phone illustration, the Archivo headline, and the one outlined,
-/// shadowed button in the app. It keeps the generic brand tokens (`Palette.Brand`)
-/// so it matches the extension and the website.
+/// Unpaired state, and the app's one signature moment (docs/APP_UI.md, "Phones: native-leaning"):
+/// the wordmark, ONE outlined card with the hard offset shadow, the browser → phone illustration,
+/// the Archivo headline, and the one outlined, shadowed button in the app.
 ///
-/// Behaviour is the same as before the restyle: scan a QR (or arrive by deep
-/// link) to fill in a complete pairing link, or paste one; name the device; Join.
-/// The paste field lives behind "Paste a pairing link instead" and shows by
-/// itself as soon as there is a link to join with.
+/// It sits on the phone ground like every screen after it (one green per platform, owner's
+/// ruling 2026-11-04); the card is the phone panel. Ink, the outline and the shadow stay the
+/// brand's, so the card still matches the extension and the website.
+///
+/// Two ways in, scan a code or paste a setup link. On the US App Store there is a third door,
+/// "Set up an account", which opens the account site in a sheet (docs/PLANS.md P-19, P-25).
+/// Everywhere else the screen has no account button and no price: Apple does not allow them
+/// there, and a newcomer signs up on tabsend.org and taps the setup link.
+///
+/// Behaviour is the same as before the restyle: scan a QR (or arrive by deep link) to fill in a
+/// complete pairing link, or paste one; name the device; pair. The paste field lives behind
+/// "Paste a setup link instead" and shows by itself as soon as there is a link to pair with.
 struct JoinView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     @State private var pairingLink = ""
     @State private var deviceName = AppModel.defaultDeviceName
@@ -20,7 +27,15 @@ struct JoinView: View {
     /// The user asked to paste a link rather than scan.
     @State private var showPaste = false
     @State private var showHowItWorks = false
+    /// The sign-up sheet is open.
+    @State private var showSignup = false
     @FocusState private var linkFocused: Bool
+
+    /// Placeholder that shows the shape of an address: not a sentence, so not translated. Typed
+    /// as `String` on purpose, since a literal would be looked up as a catalog key.
+    private static let pairingLinkExample: String = "https://your-relay/pair#c=…" // l10n-ignore: example address
+    /// The example in the empty name box is the default name itself (docs/L10N.md rule 12).
+    private static var deviceNameExample: String { AppModel.phoneFallbackName }
 
     private var hasLink: Bool {
         !pairingLink.trimmingCharacters(in: .whitespaces).isEmpty
@@ -30,39 +45,28 @@ struct JoinView: View {
     /// typed), or once the user asks to paste one.
     private var showsForm: Bool { showPaste || hasLink }
 
+    /// The account door shows on the US App Store only, and only while there is no link yet
+    /// (a person who already holds a link is pairing, not signing up).
+    private var showsAccountDoor: Bool { model.accountSetupAvailable && !hasLink }
+
+    /// Everywhere else: one plain line that says where to learn about the service. Text only,
+    /// no link, no button, no price (docs/PLANS.md P-25).
+    private var showsServiceNote: Bool { !model.accountSetupAvailable && !hasLink }
+
+    /// At the largest text sizes the pinned buttons would fill the screen, so the account door
+    /// moves into the scrolling part and only the two pairing buttons stay pinned.
+    private var doorScrolls: Bool { typeSize.isAccessibilitySize }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("Tabsend")
-                    .font(.archivo(.extrabold, size: 22, relativeTo: .title2))
-                    .foregroundColor(Palette.Brand.ink)
-                    .accessibilityAddTraits(.isHeader)
-
-                signatureCard
-
-                if showsForm {
-                    linkForm
-                }
-
-                if let banner = model.banner {
-                    Text(banner)
-                        .font(.subheadline)
-                        .foregroundColor(Palette.Brand.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Text(AppModel.buildInfo)
-                    .font(.caption)
-                    .foregroundColor(Palette.Brand.muted)
+        Group {
+            // The setup link the account site handed back after a sign-up this phone began.
+            if let arrival = model.accountArrival {
+                NamePhoneView(arrival: arrival) { model.accountArrival = nil }
+            } else {
+                firstScreen
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom) { actions }
-        .background(Palette.Brand.ground.ignoresSafeArea())
+        .background(Palette.ground.ignoresSafeArea())
         // The wordmark stands in for the navigation title on this screen.
         .toolbar(.hidden, for: .navigationBar)
         .tint(Palette.Brand.accent)
@@ -73,23 +77,88 @@ struct JoinView: View {
             }
             .presentationDragIndicator(.visible)
         }
-        .alert("How pairing works", isPresented: $showHowItWorks) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Every browser and phone you link joins one private group on your relay. The code your browser shows holds your relay's address and a one-time code; it works once and expires in about 10 minutes. You can also scan the code another paired phone shows, or paste its setup link.")
+        .sheet(isPresented: $showSignup) {
+            if let url = AccountSite.url(for: .start) {
+                AccountSheet(url: url) { showSignup = false }
+                    .ignoresSafeArea()
+                    .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: $showHowItWorks) {
+            PairingHelpSheet()
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
+        // The setup link arrived (from the email): the sign-up sheet has done its work.
+        // A sign-in link has the root show its own sheet, so this one goes first.
+        .onChange(of: model.accountArrival) { arrival in
+            if arrival != nil { showSignup = false }
+        }
+        .onChange(of: model.accountSignInURL) { url in
+            if url != nil { showSignup = false }
         }
         .onAppear {
             if let pending = model.pendingDeepLink {
                 model.pendingDeepLink = nil
-                apply(parsed: pending)
+                handle(deepLink: pending)
             }
         }
         .onChange(of: model.pendingDeepLink) { pending in
             if let pending {
                 model.pendingDeepLink = nil
-                apply(parsed: pending)
+                handle(deepLink: pending)
             }
         }
+    }
+
+    private var firstScreen: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text(verbatim: "Tabsend") // l10n-ignore: product name
+                    .font(.archivo(.extrabold, size: 22, relativeTo: .title2))
+                    .foregroundColor(Palette.Brand.ink)
+                    .accessibilityAddTraits(.isHeader)
+
+                signatureCard
+
+                if showsForm {
+                    linkForm
+                }
+
+                if showsAccountDoor && doorScrolls {
+                    accountDoor
+                }
+
+                if showsServiceNote && doorScrolls {
+                    serviceNote
+                }
+
+                if let banner = model.banner {
+                    Text(banner)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button {
+                    showHowItWorks = true
+                } label: {
+                    Text("How pairing works")
+                        .font(.footnote)
+                        .frame(minHeight: 44)
+                }
+
+                Text(AppModel.buildInfo)
+                    .font(.caption)
+                    .foregroundColor(Palette.muted)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) { actions }
     }
 
     // MARK: the card
@@ -99,19 +168,19 @@ struct JoinView: View {
             PairingIllustration()
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
-            Text("Link this phone to Tabsend")
+            Text("Send links to this phone")
                 .font(.archivo(.extrabold, size: 30, relativeTo: .largeTitle))
                 .foregroundColor(Palette.Brand.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-            Text("On a device already using Tabsend, such as your browser, open Tabsend and choose \"Add a device\". Then scan the code it shows.")
+            Text("Pair it once with a browser or another phone. As soon as that's done, you can share links between these devices.")
                 .font(.body)
-                .foregroundColor(Palette.Brand.muted)
+                .foregroundColor(Palette.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .outlinedCard()
+        .outlinedCard(fill: Palette.panel)
     }
 
     // MARK: link + name
@@ -122,7 +191,7 @@ struct JoinView: View {
             // Never auto-capitalise: a pairing link's fp= fingerprint is
             // case-sensitive base64url, and uppercasing it silently breaks
             // certificate pinning. Pairing.parse uppercases only the internal secret.
-            TextField("https://your-relay/pair#c=…", text: $pairingLink)
+            TextField(Self.pairingLinkExample, text: $pairingLink)
                 .font(.body.monospaced())
                 .foregroundColor(Palette.Brand.ink)
                 .textInputAutocapitalization(.never)
@@ -133,7 +202,7 @@ struct JoinView: View {
 
             fieldLabel("Name this device")
                 .padding(.top, 8)
-            TextField("iPhone", text: $deviceName)
+            TextField(Self.deviceNameExample, text: $deviceName)
                 .font(.body)
                 .foregroundColor(Palette.Brand.ink)
                 .accessibilityLabel("Name this device")
@@ -141,18 +210,18 @@ struct JoinView: View {
         }
     }
 
-    private func fieldLabel(_ text: String) -> some View {
+    private func fieldLabel(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.footnote.weight(.semibold))
-            .foregroundColor(Palette.Brand.muted)
+            .foregroundColor(Palette.muted)
             .accessibilityHidden(true)
     }
 
     // MARK: actions
 
-    /// Bottom of the screen: the one signature button, then the quiet ways round.
-    /// Before there is a link the signature button scans; once there is one, it
-    /// joins, and scanning steps down to a plain button.
+    /// Bottom of the screen: the one signature button, then the quiet ways round, then
+    /// (US App Store only) the account door. Before there is a link the signature button
+    /// scans; once there is one, it pairs, and scanning steps down to a plain button.
     private var actions: some View {
         VStack(spacing: 6) {
             if hasLink {
@@ -169,7 +238,7 @@ struct JoinView: View {
                             .tint(Palette.Brand.onAccent)
                             .accessibilityLabel("Joining")
                     } else {
-                        Text("Join")
+                        Text("Pair this phone")
                     }
                 }
                 .buttonStyle(SignatureButtonStyle())
@@ -199,7 +268,10 @@ struct JoinView: View {
                             if let parsed = Pairing.parse(text) {
                                 apply(parsed: parsed)
                             } else {
-                                model.banner = "What you copied isn't a Tabsend setup link."
+                                model.banner = String(
+                                    localized: "What you copied isn't a Tabsend setup link.",
+                                    comment: "Banner on the first-run screen after Paste, when the text on the clipboard is not a setup link. A setup link is the pairing link another device shows."
+                                )
                             }
                         }
                     }
@@ -218,26 +290,96 @@ struct JoinView: View {
                             .frame(minHeight: 44)
                     }
                 }
-            }
 
-            Button {
-                showHowItWorks = true
-            } label: {
-                Text("How pairing works")
-                    .font(.footnote)
-                    .frame(minHeight: 44)
+                if showsAccountDoor && !doorScrolls {
+                    Rectangle()
+                        .fill(Palette.separator)
+                        .frame(height: 1.5)
+                        .padding(.top, 2)
+                        .padding(.bottom, 8)
+                        .accessibilityHidden(true)
+                    accountDoor
+                }
+
+                if showsServiceNote && !doorScrolls {
+                    Rectangle()
+                        .fill(Palette.separator)
+                        .frame(height: 1.5)
+                        .padding(.top, 2)
+                        .padding(.bottom, 8)
+                        .accessibilityHidden(true)
+                    serviceNote
+                }
             }
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
+        .padding(.bottom, 4)
         .frame(maxWidth: .infinity)
         // Opaque, so the scrolled card doesn't show through behind the buttons.
-        .background(Palette.Brand.ground.ignoresSafeArea())
+        .background(Palette.ground.ignoresSafeArea())
+    }
+
+    /// The third way in, US App Store only: make an account in a sheet inside the app. It says
+    /// what the account is and that it is paid after the trial, without a price (the sheet's
+    /// own page states that).
+    private var accountDoor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("New to Tabsend?")
+                .font(.subheadline)
+                .foregroundColor(Palette.muted)
+            Button {
+                model.accountSignupStarted()
+                showSignup = true
+            } label: {
+                Text("Set up an account")
+            }
+            .buttonStyle(OutlinedButtonStyle())
+            Text("Uses Tabsend's service: free for 14 days, no card needed, paid after that.")
+                .font(.footnote)
+                .foregroundColor(Palette.muted)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The line outside the US App Store. Plain text on purpose (no link, no button, no price),
+    /// but not hidden: body size and full contrast, so a person who wants the service sees it.
+    private var serviceNote: some View {
+        Text("Learn more about setting up Tabsend's service at tabsend.org.")
+            .font(.body)
+            .foregroundColor(.primary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A link that opened the app. When a sign-up this phone began is waiting for its link,
+    /// the link is that account's: the sheet closes and the person is asked for a name.
+    /// Otherwise it fills the link field like a scanned code.
+    private func handle(deepLink parsed: Pairing.Parsed) {
+        guard AccountSetup.isPending() else {
+            apply(parsed: parsed)
+            return
+        }
+        showSignup = false
+        model.accountArrival = AccountArrival(
+            link: Pairing.link(
+                relayUrl: parsed.relayUrl, code: parsed.code,
+                certFingerprint: parsed.certFingerprint, vouched: parsed.vouched
+            ),
+            accountCreated: false,
+            trialEndsAt: nil
+        )
     }
 
     private func apply(parsed: Pairing.Parsed?) {
         guard let parsed else {
-            model.banner = "That QR code isn't a Tabsend pairing code."
+            model.banner = String(
+                localized: "That QR code isn't a Tabsend pairing code.",
+                comment: "Banner on the first-run screen after scanning a QR code that is not a Tabsend pairing code."
+            )
             return
         }
         // The device tags stay on the link (P-23): the join reads them from this field.
@@ -248,8 +390,8 @@ struct JoinView: View {
     }
 }
 
-/// A flat field on the `card` colour, no outline (the card above is this screen's
-/// one outlined element).
+/// A flat field on the `panel` colour, no outline (the card above is this screen's one
+/// outlined element).
 private struct FieldBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
@@ -257,8 +399,27 @@ private struct FieldBackground: ViewModifier {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Palette.Brand.card)
+                    .fill(Palette.panel)
             )
+    }
+}
+
+/// The quiet button under the signature one: `panel` fill and the `ink` outline, no shadow
+/// (docs/APP_UI.md, "Secondary").
+private struct OutlinedButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        return configuration.label
+            .font(.headline)
+            .foregroundColor(Palette.Brand.ink)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .padding(.horizontal, 16)
+            .background(shape.fill(Palette.panel))
+            .overlay(shape.strokeBorder(Palette.Brand.ink, lineWidth: 1.5))
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.5)
+            .contentShape(Rectangle())
     }
 }
 
@@ -354,6 +515,56 @@ private struct DashedArrow: View {
             path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
             path.addLine(to: CGPoint(x: rect.maxX - size, y: rect.midY + size))
             return path
+        }
+    }
+}
+
+/// What pairing is, in three short lines. It replaces an alert that was long, small and could
+/// not be formatted. Strong text on the phone ground, numbered steps, nothing else.
+private struct PairingHelpSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                row(
+                    badge: Text(verbatim: "1").font(.subheadline.weight(.bold)),
+                    text: Text("In a browser, or on a phone that's already paired, open Tabsend and show a code.")
+                )
+                row(
+                    badge: Text(verbatim: "2").font(.subheadline.weight(.bold)),
+                    text: Text("Scan the code here, or paste its setup link.")
+                )
+                row(
+                    badge: Image(systemName: "clock").font(.subheadline.weight(.bold)),
+                    text: Text("The code works once and expires in 10 minutes.")
+                )
+                Spacer(minLength: 0)
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Palette.ground.ignoresSafeArea())
+            .navigationTitle("How pairing works")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                Button("Close") { dismiss() }
+            }
+        }
+        .tint(Palette.accent)
+    }
+
+    private func row<Badge: View>(badge: Badge, text: Text) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            badge
+                .foregroundColor(Palette.Brand.onAccent)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(Palette.accentFill))
+                .accessibilityHidden(true)
+            text
+                .font(.body)
+                .foregroundColor(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 3)
         }
     }
 }

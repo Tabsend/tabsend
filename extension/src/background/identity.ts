@@ -19,6 +19,8 @@ import {
   updateEndpoint,
 } from '../lib/api'
 import { generateKeyPair, keyId } from '../lib/crypto'
+import { failureText } from '../lib/failure-text'
+import { t } from '../lib/i18n'
 import type {
   Identity,
   PendingSwitch,
@@ -27,6 +29,7 @@ import type {
   RelayProbe,
   StateView,
 } from '../lib/model'
+import { type RelayAction, UserFacingError } from '../lib/relay-errors'
 import { normalizeRelayUrl } from '../lib/relay-url'
 import {
   clearAuthWarning,
@@ -50,12 +53,7 @@ import {
   setRemovedNotice,
   updateOutbound,
 } from '../lib/storage'
-import {
-  DEVICE_LIMIT_LINE,
-  NOT_REGISTERED_ERROR,
-  relayChangeCopy,
-  SETUP_DOCS_URL,
-} from '../lib/strings'
+import { NotRegisteredError, relayChangeCopy, SETUP_DOCS_URL } from '../lib/strings'
 import { relayHealth } from './health'
 import { recordRemovedEndpoint } from './newdevices'
 
@@ -78,22 +76,19 @@ const NO_PUSH: NoPushSubscription = { transport: 'none' }
 /**
  * Turn a register/join failure into human copy (dogfood pass-1 #1). A raw
  * `fetch` rejection (relay unreachable) used to surface as "Failed to fetch";
- * name the relay and say what to do. A relay error envelope carries its own
- * human message already.
+ * name the relay and say what to do.
  *
- * The one code that does not: `limit_reached`, the device cap refusing this
- * browser a place in the group [0030]. It gets the client's own sentence,
- * because the fix is a thing to DO and the copy for it is a cross-client
- * decision, not the relay's to word differently on every deployment.
+ * A relay error is worded here from its code, never from the relay's `message`:
+ * that is English, written for a log, and not the relay's to word differently on
+ * every deployment. `limit_reached`, the device cap refusing this browser a place
+ * in the group [0030], is the one where the copy is a cross-client decision, and
+ * `relayErrorLine` keeps it the same sentence as on the phones.
  */
-function humanRegisterError(err: unknown, relayUrl: string): Error {
-  if (err instanceof ApiClientError) {
-    if (err.code === 'limit_reached') return new Error(DEVICE_LIMIT_LINE)
-    return new Error(err.message)
-  }
+function humanRegisterError(err: unknown, relayUrl: string, during: RelayAction): Error {
+  if (err instanceof ApiClientError) return new UserFacingError(failureText(err, during))
   if (err instanceof ProtocolMismatchError) return err
-  return new Error(
-    `Couldn't reach the relay at ${relayUrl}. Check the address and that the relay is running. Setup guide: ${SETUP_DOCS_URL}`,
+  return new UserFacingError(
+    t('errors.register.unreachable', { relayUrl, guideUrl: SETUP_DOCS_URL }),
   )
 }
 
@@ -103,7 +98,7 @@ function humanRegisterError(err: unknown, relayUrl: string): Error {
  * definition, and describing it as unreachable sends the user to check the one
  * thing that is fine (dogfood 2026-07-26).
  */
-export class ProtocolMismatchError extends Error {}
+export class ProtocolMismatchError extends UserFacingError {}
 
 /**
  * Handshake before registering. Runs first because /v1/config is unauthenticated
@@ -118,8 +113,14 @@ async function assertProtocolCompatible(relayUrl: string): Promise<ServerConfigR
   if (check.ok) return config
   throw new ProtocolMismatchError(
     check.stale === 'client'
-      ? `This version of Tabsend is too old for that relay (extension speaks v${check.clientProtocol}, relay needs v${check.relayRequires}). Update the extension, then try again.`
-      : `That relay is running an older version of Tabsend than this extension (relay speaks v${check.relayProtocol}, extension needs v${check.clientRequires}). Update the relay, then try again.`,
+      ? t('errors.protocol.clientTooOld', {
+          clientProtocol: String(check.clientProtocol),
+          relayRequires: String(check.relayRequires),
+        })
+      : t('errors.protocol.relayTooOld', {
+          relayProtocol: String(check.relayProtocol),
+          clientRequires: String(check.clientRequires),
+        }),
   )
 }
 
@@ -283,7 +284,7 @@ export async function createGroup(
     config = await assertProtocolCompatible(relayUrl)
     res = await register(relayUrl, req)
   } catch (err) {
-    throw humanRegisterError(err, relayUrl)
+    throw humanRegisterError(err, relayUrl, 'join')
   }
   await clearAuthWarning()
   await persistRegistration(relayUrl, browserName, deviceName, req, res, config.relayId)
@@ -313,7 +314,7 @@ export async function joinGroup(
     config = await assertProtocolCompatible(relayUrl)
     res = await register(relayUrl, req)
   } catch (err) {
-    throw humanRegisterError(err, relayUrl)
+    throw humanRegisterError(err, relayUrl, 'join')
   }
   await clearAuthWarning()
   await persistRegistration(relayUrl, browserName, '', req, res, config.relayId, vouched)
@@ -334,7 +335,7 @@ export async function joinGroup(
  */
 export async function setDeviceName(deviceName: string): Promise<StateView> {
   const reg = await getRegistration()
-  if (!reg) throw new Error(NOT_REGISTERED_ERROR)
+  if (!reg) throw new NotRegisteredError()
 
   let browserName = reg.browserName
   try {
@@ -361,7 +362,7 @@ export async function setDeviceName(deviceName: string): Promise<StateView> {
       browserName = browserNameFromLabel(label)
     }
   } catch (err) {
-    throw humanRegisterError(err, reg.relayUrl)
+    throw humanRegisterError(err, reg.relayUrl, 'rename')
   }
   await setRegistration({ ...reg, browserName, label, deviceName })
   return getState()
@@ -370,9 +371,9 @@ export async function setDeviceName(deviceName: string): Promise<StateView> {
 /** Rename ANY endpoint in the group by free label (dogfood pass-2 #1). */
 export async function renameEndpoint(endpointId: string, label: string): Promise<void> {
   const reg = await getRegistration()
-  if (!reg) throw new Error(NOT_REGISTERED_ERROR)
+  if (!reg) throw new NotRegisteredError()
   const clean = label.trim()
-  if (!clean) throw new Error('A device needs a name.')
+  if (!clean) throw new UserFacingError(t('errors.device.nameRequired'))
   const stored = await updateEndpoint(reg.relayUrl, reg.deviceToken, endpointId, { label: clean })
   // Keep the local self label in step when we renamed ourselves — using the
   // relay's label, which its dedupe may have suffixed.
@@ -389,7 +390,7 @@ export async function renameEndpoint(endpointId: string, label: string): Promise
 /** Remove an endpoint from the group. */
 export async function removeEndpoint(endpointId: string): Promise<void> {
   const reg = await getRegistration()
-  if (!reg) throw new Error(NOT_REGISTERED_ERROR)
+  if (!reg) throw new NotRegisteredError()
   try {
     await deleteEndpoint(reg.relayUrl, reg.deviceToken, endpointId)
   } catch (err) {
@@ -498,7 +499,7 @@ export async function resetRegistration(): Promise<void> {
  */
 export async function probeRelay(input: string): Promise<RelayProbe> {
   const reg = await getRegistration()
-  if (!reg) throw new Error(NOT_REGISTERED_ERROR)
+  if (!reg) throw new NotRegisteredError()
   const relayUrl = normalizeRelayUrl(input)
 
   let config: ServerConfigResponse
@@ -508,7 +509,7 @@ export async function probeRelay(input: string): Promise<RelayProbe> {
     config = await assertProtocolCompatible(relayUrl)
   } catch (err) {
     if (err instanceof ProtocolMismatchError)
-      return { verdict: 'error', relayUrl, detail: err.message }
+      return { verdict: 'error', relayUrl, detail: failureText(err, 'check') }
     return { verdict: 'unreachable', relayUrl }
   }
 
@@ -522,7 +523,8 @@ export async function probeRelay(input: string): Promise<RelayProbe> {
   } catch (err) {
     if (err instanceof ApiClientError && err.status === 401)
       return { verdict: 'different', relayUrl }
-    if (err instanceof ApiClientError) return { verdict: 'error', relayUrl, detail: err.message }
+    if (err instanceof ApiClientError)
+      return { verdict: 'error', relayUrl, detail: failureText(err, 'check') }
     return { verdict: 'unreachable', relayUrl }
   }
 
@@ -597,18 +599,18 @@ async function pendingSwitch(currentRelayUrl?: string): Promise<PendingSwitch | 
  */
 export async function changeRelayUrl(input: string): Promise<RelayChangeResult> {
   const reg = await getRegistration()
-  if (!reg) throw new Error(NOT_REGISTERED_ERROR)
+  if (!reg) throw new NotRegisteredError()
   const relayUrl = normalizeRelayUrl(input)
 
   let config: ServerConfigResponse
   try {
     config = await getConfig(relayUrl)
   } catch {
-    throw new Error(relayChangeCopy.unreachable(relayUrl))
+    throw new UserFacingError(relayChangeCopy.unreachable(relayUrl))
   }
 
   if (reg.relayId && config.relayId && reg.relayId !== config.relayId) {
-    throw new Error(relayChangeCopy.differentRelay())
+    throw new UserFacingError(relayChangeCopy.differentRelay())
   }
 
   // Authenticated proof: a relay that mints different tokens can't fake this.
@@ -616,12 +618,12 @@ export async function changeRelayUrl(input: string): Promise<RelayChangeResult> 
     await probeEndpoints(relayUrl, reg.deviceToken)
   } catch (err) {
     if (err instanceof ApiClientError && err.status === 401) {
-      throw new Error(relayChangeCopy.tokenRejected())
+      throw new UserFacingError(relayChangeCopy.tokenRejected())
     }
     if (err instanceof ApiClientError) {
-      throw new Error(relayChangeCopy.probeFailed(err.message))
+      throw new UserFacingError(relayChangeCopy.probeFailed(failureText(err, 'check')))
     }
-    throw new Error(relayChangeCopy.unreachable(relayUrl))
+    throw new UserFacingError(relayChangeCopy.unreachable(relayUrl))
   }
 
   const verified = Boolean(reg.relayId && config.relayId)

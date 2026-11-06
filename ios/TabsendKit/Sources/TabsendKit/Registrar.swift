@@ -53,7 +53,11 @@ public enum Registrar {
         }
         let check = ProtocolCheck.check(config)
         if check.blocks {
-            throw JoinError.protocolBlocked(ProtocolCheck.message(check) ?? "Incompatible protocol version.")
+            throw JoinError.protocolBlocked(ProtocolCheck.message(check) ?? String(
+                localized: "Incompatible protocol version.",
+                bundle: .module,
+                comment: "Fallback error when pairing is blocked by a version mismatch and no more specific message applies. Not normally shown."
+            ))
         }
 
         // 2. Identity (lazily created, kept across failed joins).

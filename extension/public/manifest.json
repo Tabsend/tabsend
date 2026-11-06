@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Tabsend",
+  "name": "__MSG_manifest_name__",
+  "default_locale": "en",
   "version": "0.1.0",
-  "description": "Send the tab you're looking at to your phone or another computer. One click, end-to-end encrypted.",
+  "description": "__MSG_manifest_description__",
   "minimum_chrome_version": "121",
   "background": {
     "service_worker": "background.js",
@@ -16,7 +17,7 @@
   },
   "action": {
     "default_popup": "chooser.html",
-    "default_title": "Tabsend — send this tab",
+    "default_title": "__MSG_manifest_actionTitle__",
     "default_icon": {
       "16": "icons/tabsend-16.png",
       "32": "icons/tabsend-32.png",
@@ -31,10 +32,10 @@
   "commands": {
     "_execute_action": {
       "suggested_key": { "default": "Ctrl+Shift+S", "mac": "Command+Shift+S" },
-      "description": "Do what clicking the Tabsend icon does"
+      "description": "__MSG_manifest_command_execute__"
     },
     "send-to-primary": {
-      "description": "Send this tab in one click to your “Send to” device (4 seconds to undo)"
+      "description": "__MSG_manifest_command_sendToPrimary__"
     }
   },
   "permissions": [
@@ -50,6 +51,6 @@
   "host_permissions": ["https://app.tabsend.org/*"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; img-src 'self' data: https:; base-uri 'none'"
   }
 }

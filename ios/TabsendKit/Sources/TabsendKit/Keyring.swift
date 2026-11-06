@@ -148,7 +148,7 @@ public enum Keyring {
     public static func generate(now: Date = Date()) -> GroupKeyRecord {
         var bytes = [UInt8](repeating: 0, count: CryptoBox.keyBytes)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        precondition(status == errSecSuccess, "SecRandomCopyBytes failed")
+        precondition(status == errSecSuccess, "SecRandomCopyBytes failed") // l10n-ignore: crash message, never shown
         let key = Base64X.encode(bytes)
         return GroupKeyRecord(
             key: key,

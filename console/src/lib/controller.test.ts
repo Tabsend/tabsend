@@ -21,6 +21,7 @@ import { InMemoryHistoryStore } from './persist'
 import {
   loadNewDeviceWatch,
   loadPairingVouch,
+  loadSession,
   MemoryKv,
   savePairingVouch,
   saveSession,
@@ -313,7 +314,7 @@ describe('the new device joined notice (PLANS.md P-10)', () => {
     const { controller } = await boot(routes, kv)
     expect(controller.newDevices.get()).toEqual([])
     expect(controller.review.get()).toEqual([])
-    controller.unpair()
+    await controller.unpair()
     expect(kv.getItem('tabsend.console.newdevices.v1')).toBeNull()
   })
 
@@ -560,7 +561,8 @@ describe('a reset that waits (PLANS.md P-18 item 12)', () => {
     expect(controller.groupReset.get()).toEqual(RESET)
     expect(controller.status.get()).toEqual({
       kind: 'error',
-      message: "Couldn't stop the reset: internal. The reset is still waiting. Try again.",
+      message:
+        'Something went wrong inside your relay. It may be worth checking that it is healthy.',
     })
 
     routes['/v1/group/reset/stop'] = { reset: null }
@@ -588,5 +590,99 @@ describe('a reset that waits (PLANS.md P-18 item 12)', () => {
     await vi.waitFor(() => expect(controller.groupReset.get()).toEqual(RESET))
     expect(calls.filter((c) => c === '/v1/group').length).toBe(before + 1)
     controller.teardown()
+  })
+})
+
+describe('leaving the group (PLANS P-28)', () => {
+  /** A paired console whose fetch records each call and answers DELETE through [answer]. */
+  async function paired(answer: () => Promise<Response>) {
+    const deletes: { url: string; auth: string | null }[] = []
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        deletes.push({ url: String(input), auth: new Headers(init.headers).get('authorization') })
+        return answer()
+      }
+      return new Response(JSON.stringify(String(input) === '/v1/endpoints' ? endpoints() : []), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }) as FetchLike
+    const kv = new MemoryKv()
+    saveSession(session, kv)
+    const controller = new Controller({
+      kv,
+      store: new InMemoryHistoryStore(),
+      fetchImpl,
+      now: () => NOW,
+      detectPlatform: () => 'macos',
+    })
+    await controller.init()
+    controller.teardown()
+    return { controller, deletes, kv }
+  }
+
+  const ok = () =>
+    Promise.resolve(
+      new Response('{"ok":true}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+
+  it('Unpair removes this console from the group with its own token, then wipes', async () => {
+    const { controller, deletes, kv } = await paired(ok)
+    await controller.unpair()
+    expect(deletes).toEqual([{ url: '/v1/endpoints/console-1', auth: 'Bearer tok' }])
+    expect(controller.session.get()).toBeNull()
+    expect(loadSession(kv)).toBeNull()
+    expect(controller.phase.get()).toBe('onboarding')
+    expect(controller.busy.get()).toBe(false)
+  })
+
+  it('still wipes when the relay refuses or cannot be reached', async () => {
+    const refused = await paired(() =>
+      Promise.resolve(
+        new Response('{"error":{"code":"x","message":"no"}}', {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    )
+    await refused.controller.unpair()
+    expect(refused.controller.session.get()).toBeNull()
+
+    const down = await paired(() => Promise.reject(new TypeError('Failed to fetch')))
+    await down.controller.unpair()
+    expect(down.controller.session.get()).toBeNull()
+    expect(down.controller.status.get().kind).not.toBe('error')
+  })
+
+  it('a silent relay holds up the wipe for 3 seconds at most', async () => {
+    const { controller, deletes } = await paired(() => new Promise<Response>(() => {}))
+    vi.useFakeTimers()
+    try {
+      const leaving = controller.unpair()
+      await vi.advanceTimersByTimeAsync(2_999)
+      expect(controller.session.get()).not.toBeNull()
+      await vi.advanceTimersByTimeAsync(1)
+      await leaving
+      expect(controller.session.get()).toBeNull()
+      expect(deletes).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a second tap while leaving asks the relay only once', async () => {
+    const { controller, deletes } = await paired(ok)
+    await Promise.all([controller.unpair(), controller.unpair()])
+    expect(deletes).toHaveLength(1)
+  })
+
+  it('Remove on its own row asks the relay once, not again for the wipe', async () => {
+    const { controller, deletes } = await paired(ok)
+    await controller.remove('console-1' as EndpointId)
+    expect(deletes).toHaveLength(1)
+    expect(controller.session.get()).toBeNull()
   })
 })

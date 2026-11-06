@@ -15,7 +15,9 @@
       "!android",
       "!site",
       "!control/public",
-      "!ios/App/Assets.xcassets"
+      "!docs/design",
+      "!ios/App/Assets.xcassets",
+      "!i18n"
     ]
   },
   "formatter": {
@@ -48,6 +50,18 @@
         "rules": {
           "suspicious": { "noExplicitAny": "off" },
           "style": { "noNonNullAssertion": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["extension/*.html", "console/index.html"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useHeadingContent": "off",
+            "useAnchorContent": "off",
+            "noLabelWithoutControl": "off"
+          }
         }
       }
     }

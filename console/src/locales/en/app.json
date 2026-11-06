@@ -1,0 +1,50 @@
+{
+  "app.brand": {
+    "message": "Tabsend Console",
+    "description": "Name at the top left of every screen, beside the logo. “Tabsend” is the product name: keep it. “Console” is what this web page is called; the first screen explains it."
+  },
+  "app.loading": {
+    "message": "Loading…",
+    "description": "Shown in the middle of the page while the saved pairing is read, before anything else appears."
+  },
+  "app.header.thisConsole": {
+    "message": "This console",
+    "description": "Tooltip on this console's own name at the top right. The name beside it is what this browser is called in the group."
+  },
+  "app.header.back": {
+    "message": "Back to tabsend.org",
+    "description": "Link at the top right before this console is paired. It goes to the Tabsend website. “tabsend.org” is an address: keep it."
+  },
+  "app.tab.devices": {
+    "message": "Devices",
+    "description": "Tab label for the list of devices in the group. Short, one word if possible."
+  },
+  "app.tab.history": {
+    "message": "History",
+    "description": "Tab label for the list of tabs sent between devices. Short, one word if possible."
+  },
+  "app.tab.account": {
+    "message": "Account",
+    "description": "Tab label for details about this console's pairing and what to do after losing every device. Short, one word if possible."
+  },
+  "app.footer.label": {
+    "message": "Tabsend website",
+    "description": "Spoken name of the row of links at the bottom of every screen; a screen reader says it before the links. Not shown on the page."
+  },
+  "app.footer.site": {
+    "message": "tabsend.org",
+    "description": "Footer link to the Tabsend website. It is an address: keep it as it is."
+  },
+  "app.footer.privacy": {
+    "message": "Privacy",
+    "description": "Footer link to the privacy policy. Only shown when this console is served by Tabsend's own hosted service."
+  },
+  "app.footer.terms": {
+    "message": "Terms",
+    "description": "Footer link to the terms of service. Only shown when this console is served by Tabsend's own hosted service."
+  },
+  "app.footer.support": {
+    "message": "Support",
+    "description": "Footer link to the support page on the Tabsend website."
+  }
+}

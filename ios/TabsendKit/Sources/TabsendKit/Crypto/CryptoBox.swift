@@ -30,7 +30,7 @@ public enum CryptoBox {
     public static func randomNonce() -> [UInt8] {
         var nonce = [UInt8](repeating: 0, count: nonceBytes)
         let status = SecRandomCopyBytes(kSecRandomDefault, nonceBytes, &nonce)
-        precondition(status == errSecSuccess, "SecRandomCopyBytes failed")
+        precondition(status == errSecSuccess, "SecRandomCopyBytes failed") // l10n-ignore: crash message, never shown
         return nonce
     }
 

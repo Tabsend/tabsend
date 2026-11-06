@@ -114,4 +114,24 @@ class WireTest {
         )
         assertEquals("k1", record.keyId)
     }
+
+    @Test
+    fun `a payload's picture address parses, and is absent from an older sender`() {
+        val withImage = """{"url":"https://example.com/a","sentAt":"2026-11-03T10:00:00.000Z","image":"https://cdn.example.com/a.jpg"}"""
+        assertEquals(
+            "https://cdn.example.com/a.jpg",
+            WireJson.decodeFromString(SendPayload.serializer(), withImage).image,
+        )
+        val without = """{"url":"https://example.com/a","sentAt":"2026-11-03T10:00:00.000Z"}"""
+        assertNull(WireJson.decodeFromString(SendPayload.serializer(), without).image)
+    }
+
+    @Test
+    fun `a send with no picture says nothing about one`() {
+        val json = WireJson.encodeToString(
+            SendPayload.serializer(),
+            SendPayload(url = "https://example.com/a", sentAt = "2026-11-03T10:00:00.000Z"),
+        )
+        assertEquals(false, json.contains("image"))
+    }
 }

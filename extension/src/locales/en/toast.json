@@ -1,0 +1,22 @@
+{
+  "toast.undo": {
+    "message": "Undo",
+    "description": "Button on the banner drawn inside a web page right after a one-click send. Pressing it cancels the send during the 4 seconds before it leaves. Short."
+  },
+  "toast.undone": {
+    "message": "Send undone",
+    "description": "Headline of the in-page banner after the person pressed Undo and the send was cancelled."
+  },
+  "toast.couldntSend": {
+    "message": "Couldn't send",
+    "description": "Headline of the banner when a one-click send has nothing to send. The line below it is toast.nothingSendable."
+  },
+  "toast.nothingSendable": {
+    "message": "There's nothing sendable in this tab.",
+    "description": "Second line of the banner when the current tab has no web page that can be sent (for example a blank tab). “Tab” is a browser tab."
+  },
+  "toast.relayReachableAgain": {
+    "message": "Your relay is reachable again.",
+    "description": "Second line of the banner when tabs that were held back have been sent, after the relay (the server that passes tabs between devices) was unreachable."
+  }
+}

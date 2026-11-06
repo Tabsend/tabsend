@@ -16,6 +16,8 @@ import { ApiClientError, sendMessages } from '../lib/api'
 import { keyId, seal } from '../lib/crypto'
 import { ext } from '../lib/ext'
 import { classifySendFailure } from '../lib/health'
+import { t } from '../lib/i18n'
+import { pictureAddress } from '../lib/link-preview'
 import type { FeedbackOrigin, OutboundItem, SendResult } from '../lib/model'
 import {
   applyDrain,
@@ -53,6 +55,9 @@ import { noteSendOutcome } from './unreachable'
 /** Skip embedding a favicon that is a data: URL larger than this (keep the box small). */
 const MAX_DATA_FAVICON_BYTES = 8 * 1024
 
+/** How long a send may wait for a page to name its picture. */
+const PAGE_IMAGE_WAIT_MS = 300
+
 /**
  * Capture what the user has SELECTED — every highlighted tab of the focused
  * window, as one SendPayload each (url plus title/favicon context, per PRD §5A /
@@ -69,7 +74,7 @@ export async function captureSelectedTabs(): Promise<SendPayload[]> {
     const fallback = await mostRecentSendableTab()
     tabs = fallback ? [fallback] : []
   }
-  return payloadsFromTabs(tabs)
+  return withPageImages(payloadsFromTabs(tabs), tabs)
 }
 
 /** How many tabs a send would carry right now — the chooser's variant-A banner. */
@@ -102,6 +107,46 @@ export function payloadsFromTabs(tabs: chrome.tabs.Tab[]): SendPayload[] {
     const batch = { id: crypto.randomUUID(), count: payloads.length }
     for (const payload of payloads) payload.batch = batch
   }
+  return payloads
+}
+
+/** What the page offers as its preview picture. Runs in the tab; takes nothing else. */
+function readPageImage(expectedUrl: string): string | null {
+  if (location.href !== expectedUrl) return null
+  const meta = document.querySelector<HTMLMetaElement>(
+    'meta[property="og:image"], meta[name="og:image"], meta[name="twitter:image"]',
+  )
+  // A page can put anything here: take at most a little over the longest address the phones accept.
+  return meta ? meta.content.slice(0, 2100) : null
+}
+
+/**
+ * Add each page's picture address to its payload (docs/HISTORY_PREVIEWS_PLAN.md).
+ * Best-effort and bounded: a page we may not read (a restricted page, or a tab of a
+ * multi-tab send that `activeTab` does not cover), or one that is slow, simply goes
+ * without. It contacts nobody and can never fail or noticeably delay a send.
+ */
+export async function withPageImages(
+  payloads: SendPayload[],
+  tabs: chrome.tabs.Tab[],
+): Promise<SendPayload[]> {
+  const scripting = ext.scripting
+  if (!scripting) return payloads
+  await Promise.all(
+    tabs.map(async (tab) => {
+      const payload = payloads.find((p) => p.url === tab.url)
+      if (!payload || tab.id === undefined || !tab.url) return
+      const read = scripting
+        .executeScript({ target: { tabId: tab.id }, func: readPageImage, args: [tab.url] })
+        .then((results) => pictureAddress(results?.[0]?.result, tab.url))
+        .catch(() => undefined)
+      const timeout = new Promise<undefined>((resolve) =>
+        setTimeout(() => resolve(undefined), PAGE_IMAGE_WAIT_MS),
+      )
+      const image = await Promise.race([read, timeout])
+      if (image) payload.image = image
+    }),
+  )
   return payloads
 }
 
@@ -322,7 +367,6 @@ async function runSend(
       ok: false,
       queued: false,
       offline: false,
-      error: 'No active tab to send.',
       failure: { kind: 'no-tab' },
     }
   }
@@ -343,7 +387,6 @@ async function runSend(
           ok: false,
           queued: false,
           offline: false,
-          error: 'Target endpoint not found.',
           ...(cachedLabel ? { targetLabel: cachedLabel } : {}),
           failure: { kind: 'no-target' },
         },
@@ -480,7 +523,6 @@ async function runSend(
             ok: held,
             queued: false,
             offline: false,
-            ...(held ? {} : { error: `Relay rejected the send (${rejection.reason}).` }),
             targetLabel: target.label,
             ...(count > 1 ? { rejectedCount: count } : {}),
             failure: rejection,
@@ -533,7 +575,6 @@ async function runSend(
             ok: false,
             queued: false,
             offline: false,
-            error: err.message,
             targetLabel: target.label,
             failure,
           },
@@ -977,7 +1018,7 @@ async function announceRecovered(items: OutboundItem[]): Promise<void> {
   }
   // A tab the user moved to another device may have waited on the user, not on
   // the relay, so "reachable again" is said only when something else went too.
-  if (items.some((item) => !item.retargeted)) banner.detail = 'Your relay is reachable again.'
+  if (items.some((item) => !item.retargeted)) banner.detail = t('toast.relayReachableAgain')
   // With several, the headline counts them and the title line names the first —
   // enough to recognise the batch without turning a toast into a list.
   if (items.length > 1 && first) banner.title = heldTabLabel(first)

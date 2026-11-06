@@ -1,0 +1,46 @@
+{
+  "pairing.title": {
+    "message": "Add a device",
+    "description": "Heading of the dialog that shows a pairing link and QR code. Same words as the button that opens it (devices.add)."
+  },
+  "pairing.body": {
+    "message": "Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it. It works once and expires soon.",
+    "description": "Text under the heading of the “Add a device” dialog."
+  },
+  "pairing.qr.label": {
+    "message": "Pairing QR code",
+    "description": "Spoken description of the QR code picture in the “Add a device” dialog. Not shown on the page."
+  },
+  "pairing.localOnly": {
+    "message": "This link points at {relayUrl}, which only works for another browser on this same computer. A phone or another device cannot use it. To pair those, the relay needs to be reachable on your network, and this console connected to it at that address.",
+    "description": "Yellow note under the QR code when the link only works on this computer. {relayUrl} is the web address in the link (such as http://localhost:8787)."
+  },
+  "pairing.routeNote": {
+    "message": "The copied link pairs browser extensions through {browserUrl}. The QR pairs phones through {phoneUrl}. Each device saves its route to this same relay; it can be changed later in its connection settings.",
+    "description": "Yellow note under the QR code when the copied link and the QR code use different addresses. {browserUrl} and {phoneUrl} are web addresses."
+  },
+  "pairing.expires": {
+    "message": "Expires {when}. Make a new one if it does.",
+    "description": "Small note under the QR code. {when} is a date and time such as “11/3/2026, 12:15:00 PM”. “It” is the link."
+  },
+  "pairing.error.invalidLink": {
+    "message": "The relay returned an invalid setup link.",
+    "description": "Error at the bottom of the page when the relay's answer to “Add a device” holds a link that cannot be used."
+  },
+  "pairing.error.invalidQrLink": {
+    "message": "The relay returned an invalid QR setup link.",
+    "description": "Error at the bottom of the page when the relay's QR code link cannot be used."
+  },
+  "pairing.error.invalidQrRoute": {
+    "message": "The relay returned an invalid QR pairing route.",
+    "description": "Error at the bottom of the page when the address inside the relay's QR code link cannot be used."
+  },
+  "pairing.protocol.clientTooOld": {
+    "message": "This version of Tabsend is too old for that relay (console speaks v{clientProtocol}, relay needs v{relayRequires}). Update the console, then try again.",
+    "description": "Error shown when pairing, if the relay refuses this console as too old. {clientProtocol} and {relayRequires} are version numbers. A “relay” is the server that passes tabs between devices."
+  },
+  "pairing.protocol.relayTooOld": {
+    "message": "That relay is running an older version of Tabsend than this console (relay speaks v{relayProtocol}, console needs v{clientRequires}). Update the relay, then try again.",
+    "description": "Error shown when pairing, if the relay is older than this console can work with. {relayProtocol} and {clientRequires} are version numbers."
+  }
+}

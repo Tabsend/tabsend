@@ -865,11 +865,9 @@ describe('probeOnboarding', () => {
 })
 
 /**
- * The device cap refusing a join [0030]. A relay error envelope normally rides
- * through verbatim, which is right for `group_exists` and the pairing-code
- * refusals: those messages name a fix nobody else knows. This one does not ride
- * through, because the sentence is a cross-client decision and `error.message`
- * is explicitly allowed to change (types.ts §10b).
+ * The device cap refusing a join [0030]. The sentence is a cross-client decision
+ * and the relay's `message` is explicitly allowed to change (types.ts §10b), so
+ * the browser words it from the code.
  *
  * The failure this replaces: `limit_reached` was missing from the code table, so
  * a relay behaving exactly as configured read as an internal fault.
@@ -895,15 +893,28 @@ describe('a group that is already full', () => {
     expect(store.has('registration')).toBe(false)
   })
 
-  // Every other code keeps the relay's own words: it can name a number this
-  // build has no way to know.
-  it('still passes a relay message through for the codes that carry one', async () => {
-    vi.mocked(registerApi).mockRejectedValueOnce(
-      new ApiClientError(409, 'group_exists', 'This relay already hosts a group.'),
+  // Every other code is worded from the code too. The relay's own text is English, so it
+  // never reaches the person, whatever it says (docs/L10N.md, rule 8).
+  it('words the other codes itself, and never shows the relay message', async () => {
+    const said = async (code: string, relayMessage: string): Promise<string> => {
+      vi.mocked(registerApi).mockRejectedValueOnce(new ApiClientError(400, code, relayMessage))
+      const err = await joinGroup('http://localhost:8787', 'ABC123', 'Dia').catch((e) => e)
+      return err instanceof Error ? err.message : 'not an error'
+    }
+    expect(await said('group_exists', 'Relay wording A.')).toBe(
+      'Your relay already hosts a group of devices.',
     )
-
-    await expect(createGroup('http://localhost:8787', 'Dia', 'MacBook')).rejects.toThrow(
-      'This relay already hosts a group.',
+    expect(await said('invalid_pairing_code', 'Pairing link already used.')).toBe(
+      'That setup link is unknown, expired, or already used.',
+    )
+    expect(await said('forbidden', 'This group is suspended on this relay.')).toBe(
+      "Your relay wouldn't allow that. If your group is suspended, whoever runs the relay can lift the suspension.",
+    )
+    expect(await said('rate_limited', 'Too many requests.')).toBe(
+      'Your relay is busy right now. Give it a moment and try again.',
+    )
+    expect(await said('from_a_newer_relay', 'Relay wording B.')).toBe(
+      'Something went wrong inside your relay. It may be worth checking that it is healthy.',
     )
   })
 })

@@ -30,7 +30,7 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Tabsend"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Tabsend">
 
@@ -44,14 +44,30 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Scanning the extension's QR opens its https PAIRING_LINK (any relay
-                 host). Without App Links domain verification this offers the app in
-                 the chooser; manual paste is the guaranteed path (see chunk-5c report). -->
-            <intent-filter>
+            <!-- A setup link on the hosted relay opens the app directly: the site says the
+                 app is its own in /.well-known/assetlinks.json (deploy/hosted/Caddyfile).
+                 This has to name a host. With none, Android ignores the path, and the app
+                 offers to open every https link on the phone. A self-hosted relay's link
+                 is scanned inside the app, or copied from its /pair page and pasted. -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:pathPrefix="/pair" />
+                <data android:scheme="https" android:host="app.tabsend.org" android:pathPrefix="/pair" />
+            </intent-filter>
+
+            <!-- The two links the account site emails after "Set up an account" and after a
+                 sign-in (PLANS.md P-19): the app uses the token in the link itself. Two exact
+                 paths on the account site's host and nothing else. The site must vouch for the
+                 app in /.well-known/assetlinks.json (the private control/ package, not built
+                 yet); until it does, Android opens the link in the browser, where the web
+                 sign-in and the copied setup link still work. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="account.tabsend.org" android:path="/app-start" />
+                <data android:scheme="https" android:host="account.tabsend.org" android:path="/app-signin" />
             </intent-filter>
 
             <!-- Per-device Sharing Shortcuts (Direct Share). The declaration has
@@ -62,14 +78,6 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
-        <!-- The group's history (P-7, widened by ADR-0028). Reached from the home
-             screen; the notification remains how a tab arrives, this is where the
-             record of it stays. -->
-        <activity
-            android:name=".ui.HistoryActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.MainActivity" />
-
         <!-- The OS share-sheet target. "Send to Tabsend" when sharing a URL. After a
              pick the same window shows the send toast; configChanges keeps it (and
              the chooser) alive through a rotation instead of recreating it. -->
@@ -77,7 +85,7 @@
             android:name=".send.ShareActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:exported="true"
-            android:label="Tabsend"
+            android:label="@string/app_name"
             android:theme="@style/Theme.Tabsend.Transparent"
             android:excludeFromRecents="true">
             <intent-filter>

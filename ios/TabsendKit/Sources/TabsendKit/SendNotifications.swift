@@ -70,12 +70,21 @@ public enum SendNotifications {
     @discardableResult
     public static func postRecovered(count: Int, firstTitle: String?) async -> Bool {
         await post(
-            SendBanner(
-                tone: .success,
-                headline: Feedback.recoveredLine(count: count, firstTitle: firstTitle),
-                detail: count == 1 ? nil : "Your relay is answering again."
-            ),
+            recoveredBanner(count: count, firstTitle: firstTitle),
             identifier: recoveredIdentifier
+        )
+    }
+
+    /// The words of `postRecovered`, apart from the posting, so they can be tested.
+    static func recoveredBanner(count: Int, firstTitle: String?) -> SendBanner {
+        SendBanner(
+            tone: .success,
+            headline: Feedback.recoveredLine(count: count, firstTitle: firstTitle),
+            detail: count == 1 ? nil : String(
+                localized: "Your relay is answering again.",
+                bundle: .module,
+                comment: "Notification body after waiting tabs were sent: the relay (the server that passes tabs between devices) is working again."
+            )
         )
     }
 
@@ -90,17 +99,28 @@ public enum SendNotifications {
         failure: SendFailure?
     ) async -> Bool {
         await post(
-            SendBanner(
-                tone: .error,
-                headline: count == 1
-                    ? "Couldn't send a tab that was waiting"
-                    : "Couldn't send \(count) tabs that were waiting",
-                title: firstTitle,
-                // The label was captured when the send was made, so the sentence
-                // can name the device rather than fall back to "that device".
-                detail: failure.map { Feedback.failureLine($0, targetLabel: targetLabel) }
+            droppedBanner(
+                count: count, firstTitle: firstTitle, targetLabel: targetLabel, failure: failure
             ),
             identifier: droppedIdentifier
+        )
+    }
+
+    /// The words of `postDropped`, apart from the posting, so they can be tested.
+    static func droppedBanner(
+        count: Int, firstTitle: String?, targetLabel: String?, failure: SendFailure?
+    ) -> SendBanner {
+        SendBanner(
+            tone: .error,
+            headline: String(
+                localized: "Couldn't send \(count) tabs that were waiting",
+                bundle: .module,
+                comment: "Notification title: tabs that were waiting could not be sent and were dropped. %lld is how many. The singular form reads \"Couldn't send a tab that was waiting\"."
+            ),
+            title: firstTitle,
+            // The label was captured when the send was made, so the sentence
+            // can name the device rather than fall back to "that device".
+            detail: failure.map { Feedback.failureLine($0, targetLabel: targetLabel) }
         )
     }
 
@@ -119,15 +139,37 @@ public enum SendNotifications {
         targetLabel: String?
     ) async -> Bool {
         await post(
-            SendBanner(
-                tone: .error,
-                headline: count == 1 ? "A tab never arrived" : "\(count) tabs never arrived",
-                title: count == 1 ? firstTitle : nil,
-                detail: count == 1
-                    ? "\(targetLabel ?? Feedback.thatDevice) never picked it up, and the relay has stopped holding it. Open Tabsend to send it again."
-                    : "Nothing picked them up, and the relay has stopped holding them. Open Tabsend to see which, and to send them again."
-            ),
+            neverArrivedBanner(count: count, firstTitle: firstTitle, targetLabel: targetLabel),
             identifier: neverArrivedIdentifier
+        )
+    }
+
+    /// The words of `postNeverArrived`, apart from the posting, so they can be tested.
+    static func neverArrivedBanner(count: Int, firstTitle: String?, targetLabel: String?) -> SendBanner {
+        let detail: String
+        if count == 1 {
+            let device = targetLabel ?? Feedback.thatDevice
+            detail = String(
+                localized: "\(device) never picked it up, and the relay has stopped holding it. Open Tabsend to send it again.",
+                bundle: .module,
+                comment: "Notification body for one tab that never arrived. %@ is the receiving device's name, or \"that device\" when unknown. \"It\" is the tab. The relay is the server."
+            )
+        } else {
+            detail = String(
+                localized: "Nothing picked them up, and the relay has stopped holding them. Open Tabsend to see which, and to send them again.",
+                bundle: .module,
+                comment: "Notification body for several tabs that never arrived. \"Them\" are the tabs. The relay is the server."
+            )
+        }
+        return SendBanner(
+            tone: .error,
+            headline: String(
+                localized: "\(count) tabs never arrived",
+                bundle: .module,
+                comment: "Notification title: tabs this phone sent were never picked up by the receiving device. %lld is how many. The singular form reads \"A tab never arrived\"."
+            ),
+            title: count == 1 ? firstTitle : nil,
+            detail: detail
         )
     }
 

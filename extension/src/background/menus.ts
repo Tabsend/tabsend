@@ -1,9 +1,10 @@
 import type { Endpoint, IsoTimestamp, SendPayload } from '@tabsend/shared'
 import { ext } from '../lib/ext'
+import { t } from '../lib/i18n'
 import { IS_FIREFOX } from '../lib/platform'
 import { getCachedEndpoints, getSettings } from '../lib/storage'
 import { targetEndpoints } from './endpoints'
-import { isSendableTab, payloadsFromTabs, sendToTarget } from './send'
+import { isSendableTab, payloadsFromTabs, sendToTarget, withPageImages } from './send'
 import { currentSession } from './session'
 
 /**
@@ -58,7 +59,7 @@ export async function rebuildMenus(): Promise<void> {
   if (session && settings.toolbarClickMode === 'quicksend' && ext.action) {
     ext.contextMenus.create({
       id: OPEN_CHOOSER_ID,
-      title: 'Open Tabsend chooser…',
+      title: t('menus.openChooser'),
       contexts: ['action'],
     })
   }
@@ -69,7 +70,7 @@ export async function rebuildMenus(): Promise<void> {
   if (!session || targets.length === 0) {
     ext.contextMenus.create({
       id: PAIR_ID,
-      title: 'Tabsend: add a device…',
+      title: t('menus.addDevice'),
       contexts: [...TAB_CONTEXTS, 'link'],
     })
     return
@@ -80,19 +81,27 @@ export async function rebuildMenus(): Promise<void> {
     if (!only) return
     ext.contextMenus.create({
       id: `${TAB_PREFIX}${only.id}`,
-      title: `Send tab to ${only.label}`,
+      title: t('menus.sendTabTo', { device: only.label }),
       contexts: TAB_CONTEXTS,
     })
     ext.contextMenus.create({
       id: `${LINK_PREFIX}${only.id}`,
-      title: `Send link to ${only.label}`,
+      title: t('menus.sendLinkTo', { device: only.label }),
       contexts: ['link'],
     })
     return
   }
 
-  ext.contextMenus.create({ id: TAB_PARENT, title: 'Send tab to', contexts: TAB_CONTEXTS })
-  ext.contextMenus.create({ id: LINK_PARENT, title: 'Send link to', contexts: ['link'] })
+  ext.contextMenus.create({
+    id: TAB_PARENT,
+    title: t('menus.sendTabToParent'),
+    contexts: TAB_CONTEXTS,
+  })
+  ext.contextMenus.create({
+    id: LINK_PARENT,
+    title: t('menus.sendLinkToParent'),
+    contexts: ['link'],
+  })
   for (const target of targets) {
     ext.contextMenus.create({
       id: `${TAB_PREFIX}${target.id}`,
@@ -125,6 +134,14 @@ function payloadFromTab(tab: chrome.tabs.Tab | undefined): SendPayload | undefin
   return payload
 }
 
+async function singleTabPayload(
+  tab: chrome.tabs.Tab | undefined,
+): Promise<SendPayload | undefined> {
+  const payload = payloadFromTab(tab)
+  if (payload && tab) await withPageImages([payload], [tab])
+  return payload
+}
+
 function payloadFromLink(info: chrome.contextMenus.OnClickData): SendPayload {
   const url = info.linkUrl ?? ''
   // Chrome's OnClickData has no linkText (that's a Firefox `menus` extra) — the
@@ -151,7 +168,7 @@ async function selectionForTab(
     isSendableTab,
   )
   if (group.length < 2 || !group.some((t) => t.id === tab.id)) return undefined
-  return payloadsFromTabs(group)
+  return withPageImages(payloadsFromTabs(group), group)
 }
 
 /** Wired to ext.contextMenus.onClicked in the SW entry. */
@@ -179,7 +196,7 @@ export async function handleMenuClick(
     const targetId = id.slice(TAB_PREFIX.length)
     await sendToTarget(
       targetId,
-      (await selectionForTab(tab)) ?? payloadFromTab(tab),
+      (await selectionForTab(tab)) ?? (await singleTabPayload(tab)),
       origin ? { origin } : {},
     )
     return

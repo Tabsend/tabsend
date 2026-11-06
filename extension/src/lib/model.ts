@@ -90,6 +90,8 @@ export interface InboxItem {
   url: string
   title?: string
   favicon?: string
+  /** SendPayload.image: the page's picture, as the sender found it. */
+  image?: string
   /** The sender's label as it read WHEN THIS ARRIVED (survives a later rename). */
   sourceLabel: string
   /** ISO — when the sender hit send (SendPayload.sentAt). */
@@ -131,6 +133,8 @@ export interface HistoryRow {
   url?: string
   title?: string
   favicon?: string
+  /** SendPayload.image: the page's picture, as the sender found it. */
+  image?: string
   /** The multi-tab send this belonged to, when it was one (SendPayload.batch). */
   batch?: { id: string; count: number }
 }
@@ -273,7 +277,7 @@ export type RpcRequest =
     }
   | { type: 'setDevice'; deviceName: string }
   | { type: 'resetRegistration' }
-  | { type: 'getDevices' }
+  | { type: 'getDevices'; cached?: boolean }
   | { type: 'renameEndpoint'; endpointId: string; label: string }
   | { type: 'removeEndpoint'; endpointId: string }
   // "Yes, it's mine" on a new-device banner (PLANS.md P-10). Local only.
@@ -483,7 +487,6 @@ export interface SendResult {
   title?: string
   /** Its favicon, so the title reads as a page rather than as another sentence. */
   favicon?: string
-  error?: string
   /**
    * Why this send is not with the relay yet, when it isn't. Present on BOTH hard
    * errors and queued-locally outcomes; its absence is the only proof a surface

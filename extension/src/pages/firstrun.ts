@@ -1,10 +1,20 @@
-import { defaultDeviceName, detectPlatform, parseVouch, resolveBrowserName } from '@tabsend/shared'
+import { detectPlatform, parseVouch, resolveBrowserName } from '@tabsend/shared'
 import { ext } from '../lib/ext'
+import { failureText } from '../lib/failure-text'
+import { t } from '../lib/i18n'
+import { localizePage } from '../lib/i18n-dom'
 import type { DevicesView, PendingSwitch, StateView } from '../lib/model'
 import { parsePairingInput } from '../lib/pairing'
 import { shouldWarnSoloGroup } from '../lib/policy'
 import { requestRelayAccess } from '../lib/relay-access'
-import { relayAccessCopy, relaySwitchCopy, soloGroupCopy } from '../lib/strings'
+import { onEndpointsCacheChanged } from '../lib/storage'
+import {
+  browserNameSeed,
+  deviceNameSeed,
+  relayAccessCopy,
+  relaySwitchCopy,
+  soloGroupCopy,
+} from '../lib/strings'
 import {
   askNewDeviceName,
   removeIfConfirmed,
@@ -19,6 +29,9 @@ import {
 import { wirePairingBox } from './pairing-box'
 import { rpcOk } from './rpc-client'
 
+// The page's static text, in the visitor's language, before anything else runs.
+localizePage()
+
 /**
  * First-run onboarding for relay-owned groups:
  *  1. Pair screen — name this browser (always prefilled: its real name when a
@@ -32,6 +45,7 @@ import { rpcOk } from './rpc-client'
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id)
+  // i18n-ignore: developer error, never shown
   if (!el) throw new Error(`missing #${id}`)
   return el as T
 }
@@ -125,7 +139,7 @@ async function keepCurrentRelay(): Promise<void> {
     await rpcOk({ type: 'cancelSwitch' })
     location.reload()
   } catch (err) {
-    showError(err instanceof Error ? err.message : String(err))
+    showError(failureText(err))
     keep.disabled = false
   }
 }
@@ -155,6 +169,7 @@ function renderExistingDevices(names: string[]): void {
 // --- manage devices ---------------------------------------------------------
 /** The state this screen was entered with — needed to age the solo notice in. */
 let manageState: StateView | null = null
+let manageIsLive = false
 
 /** The relay/group settings live on the options page; send the user straight there. */
 function openConnectionSettings(): void {
@@ -165,8 +180,8 @@ function openSettings(): void {
   void ext.tabs.create({ url: ext.runtime.getURL('options.html') })
 }
 
-async function refreshManage(): Promise<DevicesView> {
-  const res = await rpcOk<{ ok: true; devices: DevicesView }>({ type: 'getDevices' })
+async function refreshManage(opts: { cached?: boolean } = {}): Promise<DevicesView> {
+  const res = await rpcOk<{ ok: true; devices: DevicesView }>({ type: 'getDevices', ...opts })
   renderDeviceList(res.devices)
   renderSoloNotice(res.devices)
   renderNewDevices(res.devices)
@@ -185,9 +200,7 @@ let noticesView: DevicesView | undefined
 function renderNewDevices(view: DevicesView): void {
   noticesView = view
   const refreshAfter = (done: Promise<unknown>): void => {
-    void done
-      .then(() => refreshManage())
-      .catch((err) => showError(err instanceof Error ? err.message : String(err)))
+    void done.then(() => refreshManage()).catch((err) => showError(failureText(err)))
   }
   renderDeviceNotices(
     $('new-devices'),
@@ -264,7 +277,7 @@ async function promptRename(endpointId: string, current: string): Promise<void> 
     await rpcOk({ type: 'renameEndpoint', endpointId, label: next.trim() })
     await refreshManage()
   } catch (err) {
-    showError(err instanceof Error ? err.message : String(err))
+    showError(failureText(err))
   }
 }
 
@@ -276,7 +289,7 @@ async function confirmRemove(endpointId: string, label: string): Promise<void> {
     await rpcOk(request)
     await refreshManage()
   } catch (err) {
-    showError(err instanceof Error ? err.message : String(err))
+    showError(failureText(err))
   }
 }
 
@@ -286,24 +299,49 @@ function noteRename(message: string): void {
   note.style.display = 'block'
 }
 
+/**
+ * The tip to pin Tabsend to the toolbar. A new install hides the icon behind the
+ * puzzle-piece menu, and the icon is the only way in, so a newcomer may think
+ * nothing happened. Hidden once the browser says the icon is already pinned; a
+ * browser that cannot say (older ones, or no answer) gets the tip.
+ */
+async function showPinTip(): Promise<void> {
+  let pinned = false
+  try {
+    const settings = await ext.action?.getUserSettings?.()
+    pinned = settings?.isOnToolbar === true
+  } catch {
+    pinned = false
+  }
+  $('pin-note').classList.toggle('visible', !pinned)
+}
+
 async function enterManage(state: StateView): Promise<void> {
   manageState = state
-  $('self-label-line').textContent = state.selfLabel ? `You are “${state.selfLabel}”.` : ''
+  void showPinTip()
+  $('self-label-line').textContent = state.selfLabel
+    ? t('firstrun.manage.youAre', { device: state.selfLabel })
+    : ''
   $('manage-relay').textContent = state.relayUrl
   showScreen('manage')
   await removeFromHash(await refreshManage())
+  // The same page-left-open rule as Settings: the list follows a device joining
+  // while it is on screen, and is read again on every return to the tab.
+  if (!manageIsLive) {
+    manageIsLive = true
+    onEndpointsCacheChanged(() => void refreshManage({ cached: true }).catch(() => undefined))
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') void refreshManage().catch(() => undefined)
+    })
+  }
 }
 
 async function joinGroup(): Promise<void> {
   clearError()
   const browserName = browserNameInput.value.trim()
   const parsed = parsePairingInput(pairingLinkInput.value)
-  if (!browserName) return showError('Give this browser a name first.')
-  if (!parsed) {
-    return showError(
-      'Paste the complete setup link. It identifies and securely connects to the relay.',
-    )
-  }
+  if (!browserName) return showError(t('firstrun.error.nameMissing'))
+  if (!parsed) return showError(t('firstrun.error.linkIncomplete'))
   // First await of the click: the browser asks only while the click lasts.
   if (!(await requestRelayAccess(parsed.relayUrl))) return showError(relayAccessCopy.denied())
   const btn = $<HTMLButtonElement>('join')
@@ -321,10 +359,10 @@ async function joinGroup(): Promise<void> {
     const dv = await rpcOk<{ ok: true; devices: DevicesView }>({ type: 'getDevices' })
     renderExistingDevices(dv.devices.existingDeviceNames)
     selectedExisting = null
-    deviceNew.value = defaultDeviceName(detectPlatform())
+    deviceNew.value = deviceNameSeed(detectPlatform())
     showScreen('device')
   } catch (err) {
-    showError(err instanceof Error ? err.message : String(err))
+    showError(failureText(err))
     btn.disabled = false
   }
 }
@@ -332,7 +370,7 @@ async function joinGroup(): Promise<void> {
 async function confirmDevice(): Promise<void> {
   clearError()
   const deviceName = deviceNew.value.trim() || selectedExisting || ''
-  if (!deviceName) return showError('Pick a device or type a new one.')
+  if (!deviceName) return showError(t('firstrun.error.devicePick'))
   const btn = $<HTMLButtonElement>('device-confirm')
   btn.disabled = true
   const wanted = browserNameInput.value.trim()
@@ -342,12 +380,16 @@ async function confirmDevice(): Promise<void> {
     // plainly rather than letting the user discover a name they didn't choose.
     if (res.state.browserName && res.state.browserName !== wanted) {
       noteRename(
-        `There was already a “${wanted}” on “${deviceName}”, so this one is “${res.state.browserName}”. Rename it below any time.`,
+        t('firstrun.rename.duplicate', {
+          wanted,
+          device: deviceName,
+          actual: res.state.browserName,
+        }),
       )
     }
     await enterManage(res.state)
   } catch (err) {
-    showError(err instanceof Error ? err.message : String(err))
+    showError(failureText(err))
     btn.disabled = false
   }
 }
@@ -387,11 +429,10 @@ async function main(): Promise<void> {
   void resolveBrowserName().then((suggestion) => {
     // The user may have started typing while the probes resolved — never clobber.
     if (browserNameInput.value.trim()) return
-    browserNameInput.value = suggestion.value
+    browserNameInput.value = browserNameSeed(suggestion)
     nameIsGuess = !suggestion.confident
     if (nameIsGuess) {
-      browserHint.textContent =
-        'Some browsers (Dia, Comet, Arc) look exactly like Chrome from in here, so this is our best guess. Keep it, or type the real name.'
+      // The sentence itself is in the page (data-i18n on #browser-hint).
       browserHint.classList.add('visible')
       if (!$('screen-name').classList.contains('hidden')) selectBrowserName()
     }
@@ -410,7 +451,7 @@ async function main(): Promise<void> {
       if (!res.state.deviceName) {
         const dv = await rpcOk<{ ok: true; devices: DevicesView }>({ type: 'getDevices' })
         renderExistingDevices(dv.devices.existingDeviceNames)
-        deviceNew.value = defaultDeviceName(detectPlatform())
+        deviceNew.value = deviceNameSeed(detectPlatform())
         showScreen('device')
       } else {
         await enterManage(res.state)
@@ -419,16 +460,14 @@ async function main(): Promise<void> {
       showScreen('name')
       $('hosted-offer').classList.add('visible')
       if (res.state.removedNotice) {
-        showError(
-          'This browser was removed from its group by another device. Set it up again below.',
-        )
+        showError(t('firstrun.error.removed'))
       }
     }
   } catch (err) {
     // Land on the pair screen rather than a blank page — pairing is the one
     // thing still worth offering when we can't read our own state.
     showScreen('name')
-    showError(err instanceof Error ? err.message : String(err))
+    showError(failureText(err))
   } finally {
     // Explicit state-applied flag for end-to-end setup assertions.
     document.body.dataset.ready = '1'

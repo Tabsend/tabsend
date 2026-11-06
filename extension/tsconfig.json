@@ -2,7 +2,7 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["chrome", "libsodium-wrappers", "node"]
+    "types": ["chrome", "libsodium-wrappers", "node", "vite/client"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "tools", "vite.config.ts", "vitest.config.ts"]
 }

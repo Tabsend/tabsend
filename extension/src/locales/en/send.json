@@ -1,0 +1,210 @@
+{
+  "send.sent": {
+    "message": "{count, plural, one {Sent to {device}} other {Sent # tabs to {device}}}",
+    "description": "Confirmation after a tab (or several) went to another device that is online. Toast, toolbar tooltip, popup banner. {count} is the number of tabs; {device} is the device's name, e.g. “Pixel 9”."
+  },
+  "send.sentQueued": {
+    "message": "{count, plural, one {Sent to {device} — opens when it wakes} other {Sent # tabs to {device}. They open when it wakes.}}",
+    "description": "Confirmation when the tab reached the relay but the target device is asleep or offline, so it opens later. {count} is the number of tabs; {device} is the device's name."
+  },
+  "send.sentQueued.detail": {
+    "message": "{count, plural, one {Opens when it wakes} other {They open when it wakes}}",
+    "description": "Second line of the send banner when the target device is asleep. Short. {count} is the number of tabs."
+  },
+  "send.multi.all": {
+    "message": "{count, plural, one {Sent to # device} other {Sent to # devices}}",
+    "description": "Sent to several devices at once and all are online. {count} is the number of devices."
+  },
+  "send.multi.some": {
+    "message": "{count, plural, one {Sent to # device} other {Sent to # devices}} — {offline, plural, other {# opens when it wakes}}",
+    "description": "Sent to several devices at once and some are asleep. {count} is the number of devices; {offline} is how many of them are asleep and will open the tab later."
+  },
+  "send.offline": {
+    "message": "No connection — will send when you're back online",
+    "description": "Toolbar tooltip when this browser has no internet: the tab is kept and sent later."
+  },
+  "send.noDevices": {
+    "message": "No devices yet — pair one to start sending",
+    "description": "Message when the person tries to send but has no other device yet."
+  },
+  "send.hardError": {
+    "message": "Couldn't send — check Tabsend is still linked",
+    "description": "Toolbar tooltip when a send failed for a reason Tabsend cannot name, usually because this browser was unlinked."
+  },
+  "send.fallback.thatDevice": {
+    "message": "that device",
+    "description": "Stands in for a device's name when it is unknown, inside a sentence such as “Your relay doesn't know {device} any more”. Must read as a noun phrase in the middle of a sentence."
+  },
+  "send.fallback.device": {
+    "message": "device",
+    "description": "Stands in for a device's name when it is unknown, in “Sent to {device}”. A bare noun."
+  },
+  "send.fallback.yourDevice": {
+    "message": "your device",
+    "description": "Stands in for a device's name when it is unknown, in banners such as “Sent to {device}”."
+  },
+  "send.failure.browserOffline": {
+    "message": "{count, plural, one {You're offline. This tab sends itself as soon as you're back.} other {You're offline. These tabs send themselves as soon as you're back.}}",
+    "description": "Shown when this browser has no internet and the tab is being kept. {count} is the number of tabs."
+  },
+  "send.failure.relayUnreachable": {
+    "message": "{count, plural, one {Can't reach your relay at {relayUrl}. The tab is held here and sends itself once the relay answers again.} other {Can't reach your relay at {relayUrl}. The tabs are held here and send themselves once the relay answers again.}}",
+    "description": "Shown when the person's relay (the server that passes tabs between devices) does not answer. {relayUrl} is its web address; keep it unchanged. {count} is the number of tabs."
+  },
+  "send.failure.relayUnreachablePage": {
+    "message": "{count, plural, one {Can't reach your relay. The tab is held here and sends itself once the relay answers again.} other {Can't reach your relay. The tabs are held here and send themselves once the relay answers again.}}",
+    "description": "Same as the relay-not-answering message, but for the banner drawn inside a web page, which must not show the relay's address. {count} is the number of tabs."
+  },
+  "send.failure.relayBusy": {
+    "message": "{count, plural, one {Your relay is having trouble right now. The tab is held here and sends itself once the relay is answering properly again.} other {Your relay is having trouble right now. The tabs are held here and send themselves once the relay is answering properly again.}}",
+    "description": "Shown when the relay answers with a temporary error. {count} is the number of tabs."
+  },
+  "send.failure.unauthorized": {
+    "message": "Your relay doesn't recognise this browser any more. Set Tabsend up again here to start sending.",
+    "description": "Shown when the relay no longer accepts this browser (it was removed or the relay was reset)."
+  },
+  "send.failure.noTarget": {
+    "message": "Tabsend can't find {device} in your list of devices any more.",
+    "description": "The chosen target device is gone from the group. {device} is the device's name, or the phrase “that device”."
+  },
+  "send.failure.noTab": {
+    "message": "There's nothing to send from this tab.",
+    "description": "The current tab has no web page that can be sent (for example a blank tab)."
+  },
+  "send.failure.givenUp.tooOld": {
+    "message": "{count, plural, one {This tab waited {days, plural, one {# day} other {# days}} for your relay and was never taken, so Tabsend has stopped holding it. Send it again once the relay is answering.} other {These tabs waited {days, plural, one {# day} other {# days}} for your relay and were never taken, so Tabsend has stopped holding them. Send them again once the relay is answering.}}",
+    "description": "Shown when tabs waited too long for the relay and were dropped. {count} is the number of tabs; {days} is how long Tabsend keeps them (currently 7)."
+  },
+  "send.failure.givenUp.queueFull": {
+    "message": "{count, plural, one {Tabsend holds at most {max, plural, one {# tab} other {# tabs}} while your relay isn't taking them, and this one was the oldest. Send it again once the relay is answering.} other {Tabsend holds at most {max, plural, one {# tab} other {# tabs}} while your relay isn't taking them, and these were the oldest. Send them again once the relay is answering.}}",
+    "description": "Shown when too many tabs piled up while the relay was unreachable, so the oldest were dropped. {count} is how many were dropped; {max} is the limit (currently 200)."
+  },
+  "send.failure.unknownTarget": {
+    "message": "{count, plural, one {Your relay doesn't know {device} any more. Pair it again, then send this tab a second time.} other {Your relay doesn't know {device} any more. Pair it again, then send these tabs a second time.}}",
+    "description": "The relay refused because it no longer knows the target device. {device} is the device's name or “that device”; {count} is the number of tabs."
+  },
+  "send.failure.expiredKey": {
+    "message": "The keys on {device} have changed since this browser last saw them. Open the Tabsend list once to pick up the new ones, then send again.",
+    "description": "The target device's encryption keys changed. {device} is the device's name or “that device”. “Tabsend list” means the popup's list of devices."
+  },
+  "send.failure.notInGroup": {
+    "message": "Your relay says {device} has left your group of devices.",
+    "description": "The relay says the target device is no longer in the person's group. {device} is the device's name or “that device”."
+  },
+  "send.cap.pacing": {
+    "message": "{count, plural, one {Your relay is pacing sends for your group right now. This tab is queued and will send itself shortly.} other {Your relay is pacing sends for your group right now. These tabs are queued and will send themselves shortly.}}",
+    "description": "The relay is limiting how fast tabs can be sent; the tab waits and goes by itself. Same sentence as on Android and iOS. {count} is the number of tabs."
+  },
+  "send.cap.holding": {
+    "message": "{count, plural, one {Your relay is holding as much as your group's limit allows. This tab is queued and will send once the receiving device catches up.} other {Your relay is holding as much as your group's limit allows. These tabs are queued and will send once the receiving device catches up.}}",
+    "description": "The relay is full for this group until the receiving device picks up what is waiting. Same sentence as on Android and iOS. {count} is the number of tabs."
+  },
+  "send.cap.general": {
+    "message": "{count, plural, one {Your relay has reached a limit for your group. This tab is queued and will send itself once there is room.} other {Your relay has reached a limit for your group. These tabs are queued and will send themselves once there is room.}}",
+    "description": "A general limit on the relay is reached; the tab waits. Same sentence as on Android and iOS. {count} is the number of tabs."
+  },
+  "send.failure.unexplained": {
+    "message": "Something went wrong inside your relay. It may be worth checking that it is healthy.",
+    "description": "Fallback when the relay gives an answer Tabsend has no sentence for."
+  },
+  "send.failure.deviceLimit": {
+    "message": "Your relay has reached its device limit for your group. Remove a device you are not using, then pair this one again.",
+    "description": "The group is full, so this browser could not join. Same sentence as on Android and iOS."
+  },
+  "send.failure.error.notFound": {
+    "message": "Your relay couldn't find {device}.",
+    "description": "The relay does not have the target device. {device} is the device's name or “that device”."
+  },
+  "send.failure.error.forbidden": {
+    "message": "Your relay wouldn't let this browser send to {device}.",
+    "description": "The relay refused this browser permission to send to the target. {device} is the device's name or “that device”."
+  },
+  "send.failure.error.invalidRequest": {
+    "message": "Your relay didn't understand this send. It's most likely running an older version than this browser. Updating it should fix this.",
+    "description": "The relay did not understand the request, usually because it is older than this extension."
+  },
+  "send.failure.error.rateLimited": {
+    "message": "Your relay is busy right now. Give it a moment and send again.",
+    "description": "The relay is asking this browser to slow down."
+  },
+  "send.failure.error.invalidPairingCode": {
+    "message": "That setup link is no longer valid.",
+    "description": "A setup link was refused as expired or already used."
+  },
+  "send.failure.error.groupExists": {
+    "message": "Your relay already hosts a group of devices.",
+    "description": "The relay already has a group and cannot create another."
+  },
+  "send.recovered": {
+    "message": "{count, plural, one {{hasTitle, select, yes {Sent “{title}”} other {Sent the tab that was waiting}}} other {Sent # tabs that were waiting}}",
+    "description": "Toast when tabs that were held back (offline or relay down) have finally been sent. {count} is the number of tabs; {hasTitle} is “yes” when {title}, the page title, is known."
+  },
+  "send.dropped": {
+    "message": "{count, plural, one {{hasTitle, select, yes {Couldn't send “{title}”} other {Couldn't send the tab that was waiting}}} other {Couldn't send # tabs that were waiting}}",
+    "description": "Toast when held-back tabs were finally refused and will not be sent. {count} is the number of tabs; {hasTitle} is “yes” when {title}, the page title, is known."
+  },
+  "send.partial.headline": {
+    "message": "Sent {sent} of {count} tabs to {device}",
+    "description": "Headline when some of several tabs were delivered and the rest refused. {sent} delivered, {count} total, {device} the target's name."
+  },
+  "send.partial.refused": {
+    "message": "The relay refused {count}.",
+    "description": "Second part of a partly-delivered send: how many tabs the relay refused. {count} is that number."
+  },
+  "send.partial.line": {
+    "message": "{headline}. {detail}",
+    "description": "Joins the headline of a partly-delivered send (“Sent 2 of 3 tabs to Pixel”) and its detail into the one-line tooltip. Both parts are sentences; the full stop after {headline} is part of this message."
+  },
+  "send.banner.waiting": {
+    "message": "{count, plural, one {Waiting to send to {device}} other {Waiting to send # tabs to {device}}}",
+    "description": "Headline of the banner when tabs are held and will be sent later. {count} is the number of tabs; {device} the target's name."
+  },
+  "send.banner.failed": {
+    "message": "{count, plural, one {Couldn't send to {device}} other {Couldn't send # tabs to {device}}}",
+    "description": "Headline of the banner when a send failed for good. {count} is the number of tabs; {device} the target's name."
+  },
+  "send.neverArrived.headline": {
+    "message": "{count, plural, one {A tab never reached {device}} other {# tabs never reached {device}}}",
+    "description": "Headline when tabs were accepted by the relay but the target never picked them up before they expired. {count} is the number of tabs; {device} the target's name."
+  },
+  "send.neverArrived.detail": {
+    "message": "{count, plural, one {It waited at your relay until it expired. Tabsend history has it, and can send it again.} other {They waited at your relay until they expired. Tabsend history has them, and can send them again.}}",
+    "description": "Second line of the “never reached” banner. “Tabsend history” is the name of the History page. {count} is the number of tabs."
+  },
+  "send.sending": {
+    "message": "{count, plural, one {Sending to {device}} other {Sending # tabs to {device}}}",
+    "description": "Banner shown during the few seconds when a quick send can still be undone. {count} is the number of tabs; {device} the target's name."
+  },
+  "send.gone.removed": {
+    "message": "{removedHere, select, yes {{device} was removed from your group.} other {{device} is no longer in your group.}}",
+    "description": "Line under a held tab whose target device left the group. {removedHere} is “yes” when this browser removed it, otherwise the device is just missing. {device} is the device's name or a phrase from send.gone.fallbackDevice."
+  },
+  "send.gone.sendTo": {
+    "message": "Send to:",
+    "description": "Label before the buttons for choosing another device for a held tab. Ends with a colon."
+  },
+  "send.gone.sendToMenu": {
+    "message": "Send to…",
+    "description": "First entry of the drop-down for choosing another device for a held tab, and its spoken label."
+  },
+  "send.gone.noOtherDevice": {
+    "message": "No other device to send it to.",
+    "description": "Shown under a held tab when there is no other device it could go to."
+  },
+  "send.gone.sendToAria": {
+    "message": "Send {tab} to {device}",
+    "description": "Spoken name (for screen readers) of a button that sends a held tab to a device. {tab} is the tab's title, {device} the device's name."
+  },
+  "send.gone.headline": {
+    "message": "{count, plural, one {{hasTitle, select, yes {“{title}” is waiting for a new device} other {A tab is waiting for a new device}}} other {# tabs are waiting for a new device}}",
+    "description": "Banner headline when held tabs lost their target device. {count} is the number of tabs; {hasTitle} is “yes” when {title}, the page title, is known."
+  },
+  "send.gone.detail": {
+    "message": "{removedHere, select, yes {{device} was removed from your group.} other {{device} is no longer in your group.}} Open Tabsend to send {count, plural, one {it} other {them}} to another device.",
+    "description": "Banner detail when held tabs lost their target device. {removedHere} is “yes” when this browser removed it. {device} is the device's name or a phrase from send.gone.fallbackDevice. {count} is the number of tabs."
+  },
+  "send.gone.fallbackDevice": {
+    "message": "{count, plural, one {The device it was for} other {The device they were for}}",
+    "description": "Stands in for the device's name at the START of a sentence when the name is unknown. {count} is the number of held tabs."
+  }
+}

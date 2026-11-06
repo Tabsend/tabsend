@@ -1,4 +1,5 @@
 import type { Endpoint, HistoryEntry, HistoryRecord, SendPayload } from '@tabsend/shared'
+import { t } from './i18n'
 import type { HistoryRow, InboxItem } from './model'
 
 /**
@@ -68,6 +69,7 @@ export function projectItem(
   }
   if (payload.title !== undefined) item.title = payload.title
   if (payload.favicon !== undefined) item.favicon = payload.favicon
+  if (payload.image !== undefined) item.image = payload.image
   if (payload.batch !== undefined) item.batch = payload.batch
   return item
 }
@@ -129,7 +131,7 @@ export function directionOf(
  * "unknown device" is the honest answer; guessing from the id would print a UUID
  * at somebody.
  */
-const UNKNOWN_DEVICE = 'Unknown device'
+const unknownDevice = (): string => t('history.unknownDevice')
 
 /**
  * Project one relay row into the timeline. `record` is the decrypted blob, or
@@ -156,8 +158,8 @@ export function projectRow(
     // Labels come from the blob first: those were snapshotted at send and stay
     // right after a rename. The live list is the fallback for a row we cannot
     // read, and the fixed string the fallback for a device that has left.
-    sourceLabel: record?.sourceLabelAtSend ?? labelOf(entry.sourceEndpointId) ?? UNKNOWN_DEVICE,
-    targetLabel: record?.targetLabelAtSend ?? labelOf(entry.targetEndpointId) ?? UNKNOWN_DEVICE,
+    sourceLabel: record?.sourceLabelAtSend ?? labelOf(entry.sourceEndpointId) ?? unknownDevice(),
+    targetLabel: record?.targetLabelAtSend ?? labelOf(entry.targetEndpointId) ?? unknownDevice(),
     // The sender's own stamp when we can read it, so a row reads the same age on
     // every device; the relay's otherwise, which is the only clock we have left.
     sentAt: record?.payload.sentAt ?? entry.createdAt,
@@ -170,6 +172,7 @@ export function projectRow(
     row.url = payload.url
     if (payload.title !== undefined) row.title = payload.title
     if (payload.favicon !== undefined) row.favicon = payload.favicon
+    if (payload.image !== undefined) row.image = payload.image
     if (payload.batch !== undefined) row.batch = payload.batch
   }
   return row
@@ -221,6 +224,7 @@ export function mergeHistory(
       url: item.url,
       ...(item.title !== undefined ? { title: item.title } : {}),
       ...(item.favicon !== undefined ? { favicon: item.favicon } : {}),
+      ...(item.image !== undefined ? { image: item.image } : {}),
       ...(item.batch !== undefined ? { batch: item.batch } : {}),
     })
   }
@@ -234,6 +238,7 @@ function fillFrom(row: HistoryRow, item: InboxItem): void {
   row.url = item.url
   if (item.title !== undefined) row.title = item.title
   if (item.favicon !== undefined) row.favicon = item.favicon
+  if (item.image !== undefined) row.image = item.image
   if (item.batch !== undefined) row.batch = item.batch
 }
 
@@ -287,7 +292,9 @@ export function groupHistory(rows: readonly HistoryRow[]): HistoryGroup[] {
 export function batchHeading(group: HistoryGroup): string {
   const here = group.rows.length
   const sent = Math.max(group.sentCount ?? here, here)
-  return here === sent ? `${sent} tabs` : `${here} of ${sent} tabs`
+  return here === sent
+    ? t('history.batch.heading', { count: sent })
+    : t('history.batch.partial', { here, count: sent })
 }
 
 /**
@@ -315,16 +322,16 @@ const DAY = 24 * HOUR
  */
 export function relativeTime(iso: string, now: number = Date.now()): string {
   const then = Date.parse(iso)
-  if (Number.isNaN(then)) return 'unknown'
+  if (Number.isNaN(then)) return t('history.time.unknown')
   const delta = now - then
-  if (delta < MIN) return 'just now'
-  if (delta < HOUR) return `${Math.floor(delta / MIN)}m ago`
-  if (delta < DAY) return `${Math.floor(delta / HOUR)}h ago`
+  if (delta < MIN) return t('common.time.ago.now')
+  if (delta < HOUR) return t('common.time.ago.minutes', { count: Math.floor(delta / MIN) })
+  if (delta < DAY) return t('common.time.ago.hours', { count: Math.floor(delta / HOUR) })
   const days = Math.floor(delta / DAY)
-  if (days < 30) return `${days}d ago`
+  if (days < 30) return t('common.time.ago.days', { count: days })
   const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  return `${Math.floor(months / 12)}y ago`
+  if (months < 12) return t('history.time.months', { count: months })
+  return t('history.time.years', { count: Math.floor(months / 12) })
 }
 
 /** A safe hostname for the row's secondary line; the raw string if it won't parse. */
@@ -340,4 +347,32 @@ export function hostOf(url: string): string {
 export function labelIndex(endpoints: readonly Endpoint[]): (id: string) => string | undefined {
   const byId = new Map(endpoints.map((e) => [e.id as string, e.label]))
   return (id) => byId.get(id)
+}
+
+/**
+ * Split the timeline into the Latest cards and the list under them. Latest is the
+ * newest two tabs in any direction. A send that never arrived stays a list row, because
+ * it needs its Send again button, and so does a multi-tab send, so its block stays whole.
+ */
+export function splitLatest(
+  groups: readonly HistoryGroup[],
+  canOpen: (row: HistoryRow) => boolean,
+): { latest: HistoryRow[]; earlier: HistoryGroup[] } {
+  const latest: HistoryRow[] = []
+  const earlier: HistoryGroup[] = []
+  for (const group of groups) {
+    const row = group.rows[0]
+    if (
+      latest.length < 2 &&
+      group.batchId === undefined &&
+      row &&
+      row.state !== 'never-arrived' &&
+      canOpen(row)
+    ) {
+      latest.push(row)
+    } else {
+      earlier.push(group)
+    }
+  }
+  return { latest, earlier }
 }

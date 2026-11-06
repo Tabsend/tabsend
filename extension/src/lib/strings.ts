@@ -1,13 +1,26 @@
-import type { ApiErrorCode, GroupLimit, SendResponse } from '@tabsend/shared'
-import { HOME_NETWORK_HINT, isHomeNetworkRelay } from '@tabsend/shared'
+import type {
+  ApiErrorCode,
+  BrowserNameSuggestion,
+  GroupLimit,
+  Platform,
+  SendResponse,
+} from '@tabsend/shared'
+import { isHomeNetworkRelay, PLACEHOLDER_BROWSER_NAME } from '@tabsend/shared'
+import { getLocale, t } from './i18n'
 import type { InboxItem } from './model'
 import { OUTBOUND_MAX_AGE_DAYS, OUTBOUND_MAX_ITEMS } from './outbound'
+import { UserFacingError } from './relay-errors'
 
 /** The relay's per-item refusal reasons [shared SendResponse.rejected]. */
 export type SendRejectionReason = SendResponse['rejected'][number]['reason']
 
 /**
- * Feedback copy — the exact strings from INTERACTION_FLOWS §4's copy table.
+ * Feedback copy — the strings from INTERACTION_FLOWS §4's copy table.
+ *
+ * Every sentence in this file lives in the message catalog (src/locales/<language>/*.json),
+ * not here. These functions only choose WHICH message and hand it the names and counts;
+ * how a count changes the wording ("this tab", "these tabs") is the message's own plural
+ * rule, so a language with other plural forms needs no change in this file.
  *
  * Chunk 4 routes these through the action badge tooltip + the popup status line
  * (in-page content-script toasts are Chunk 5, which reuses THIS module verbatim).
@@ -18,20 +31,20 @@ export type SendRejectionReason = SendResponse['rejected'][number]['reason']
  */
 export const feedbackCopy = {
   /** Sent, target online. */
-  sentOnline: (label: string): string => `Sent to ${label}`,
+  sentOnline: (label: string): string => t('send.sent', { count: 1, device: label }),
   /** Sent, target offline/asleep — the honest "queued" toast. */
-  sentOffline: (label: string): string => `Sent to ${label} — opens when it wakes`,
+  sentOffline: (label: string): string => t('send.sentQueued', { count: 1, device: label }),
   /** Multi-target, all online (P1; strings ready for Chunk 5). */
-  sentMultiAll: (n: number): string => `Sent to ${n} devices`,
+  sentMultiAll: (n: number): string => t('send.multi.all', { count: n }),
   /** Multi-target, some offline (P1). */
   sentMultiSome: (n: number, offline: number): string =>
-    `Sent to ${n} devices — ${offline} opens when it wakes`,
+    t('send.multi.some', { count: n, offline }),
   /** Source offline — held in the outbound queue, will send on reconnect. */
-  sourceOffline: (): string => "No connection — will send when you're back online",
+  sourceOffline: (): string => t('send.offline'),
   /** No devices paired yet (blind-fire/hotkey) → routes to onboarding. */
-  noDevices: (): string => 'No devices yet — pair one to start sending',
+  noDevices: (): string => t('send.noDevices'),
   /** Hard error (unlinked/rejected) → routes to console. */
-  hardError: (): string => "Couldn't send — check Tabsend is still linked",
+  hardError: (): string => t('send.hardError'),
 } as const
 
 /**
@@ -106,35 +119,28 @@ export function sendFailureLine(failure: SendFailure, targetLabel?: string, coun
   // Every line below places `device` MID-sentence. A device label is a proper
   // noun ("Arc · Mac mini") but the no-label fallback is not, so a sentence that
   // opened with it would read "that device isn't…" — lowercase and wrong.
-  const device = targetLabel ?? 'that device'
+  const device = targetLabel ?? t('send.fallback.thatDevice')
   // `count` > 1 means the send was a multi-tab batch, so the held/refused thing
-  // is "these tabs", not "this tab". Only the lines that name the tab change.
-  const several = count > 1
+  // is "these tabs", not "this tab". The message says which, in its own plural.
   switch (failure.kind) {
     case 'browser-offline':
-      return several
-        ? "You're offline. These tabs send themselves as soon as you're back."
-        : "You're offline. This tab sends itself as soon as you're back."
+      return t('send.failure.browserOffline', { count })
     case 'relay-unreachable':
-      return several
-        ? `Can't reach your relay at ${failure.relayUrl}. The tabs are held here and send themselves once the relay answers again.`
-        : `Can't reach your relay at ${failure.relayUrl}. The tab is held here and sends itself once the relay answers again.`
+      return t('send.failure.relayUnreachable', { count, relayUrl: failure.relayUrl })
     case 'relay-rejected':
-      return rejectionLine(failure.reason, device, several, failure.limit)
+      return rejectionLine(failure.reason, device, count, failure.limit)
     case 'relay-error':
       return relayErrorLine(failure.code, device)
     case 'relay-busy':
-      return several
-        ? 'Your relay is having trouble right now. The tabs are held here and send themselves once the relay is answering properly again.'
-        : 'Your relay is having trouble right now. The tab is held here and sends itself once the relay is answering properly again.'
+      return t('send.failure.relayBusy', { count })
     case 'relay-unauthorized':
-      return `Your relay doesn't recognise this browser any more. Set Tabsend up again here to start sending.`
+      return t('send.failure.unauthorized')
     case 'given-up':
-      return givenUpLine(failure.reason, several)
+      return givenUpLine(failure.reason, count)
     case 'no-target':
-      return `Tabsend can't find ${device} in your list of devices any more.`
+      return t('send.failure.noTarget', { device })
     case 'no-tab':
-      return "There's nothing to send from this tab."
+      return t('send.failure.noTab')
   }
 }
 
@@ -146,9 +152,7 @@ export function sendFailureLine(failure: SendFailure, targetLabel?: string, coun
  */
 export function pageFailureLine(failure: SendFailure, targetLabel?: string, count = 1): string {
   if (failure.kind !== 'relay-unreachable') return sendFailureLine(failure, targetLabel, count)
-  return count > 1
-    ? "Can't reach your relay. The tabs are held here and send themselves once the relay answers again."
-    : "Can't reach your relay. The tab is held here and sends itself once the relay answers again."
+  return t('send.failure.relayUnreachablePage', { count })
 }
 
 /**
@@ -161,15 +165,11 @@ export function pageFailureLine(failure: SendFailure, targetLabel?: string, coun
  * device, so all three clients say them verbatim and the §4c "this phone" /
  * "this browser" rule does not bite.
  */
-function givenUpLine(reason: 'too-old' | 'queue-full', several: boolean): string {
+function givenUpLine(reason: 'too-old' | 'queue-full', count: number): string {
   if (reason === 'too-old') {
-    return several
-      ? `These tabs waited ${OUTBOUND_MAX_AGE_DAYS} days for your relay and were never taken, so Tabsend has stopped holding them. Send them again once the relay is answering.`
-      : `This tab waited ${OUTBOUND_MAX_AGE_DAYS} days for your relay and was never taken, so Tabsend has stopped holding it. Send it again once the relay is answering.`
+    return t('send.failure.givenUp.tooOld', { count, days: OUTBOUND_MAX_AGE_DAYS })
   }
-  return several
-    ? `Tabsend holds at most ${OUTBOUND_MAX_ITEMS} tabs while your relay isn't taking them, and these were the oldest. Send them again once the relay is answering.`
-    : `Tabsend holds at most ${OUTBOUND_MAX_ITEMS} tabs while your relay isn't taking them, and this one was the oldest. Send it again once the relay is answering.`
+  return t('send.failure.givenUp.queueFull', { count, max: OUTBOUND_MAX_ITEMS })
 }
 
 /**
@@ -185,20 +185,20 @@ function givenUpLine(reason: 'too-old' | 'queue-full', several: boolean): string
 function rejectionLine(
   reason: SendRejectionReason,
   device: string,
-  several = false,
+  count = 1,
   limit?: GroupLimit,
 ): string {
   switch (reason) {
     case 'unknown_target':
-      return `Your relay doesn't know ${device} any more. Pair it again, then send ${several ? 'these tabs' : 'this tab'} a second time.`
+      return t('send.failure.unknownTarget', { count, device })
     case 'expired_key':
-      return `The keys on ${device} have changed since this browser last saw them. Open the Tabsend list once to pick up the new ones, then send again.`
+      return t('send.failure.expiredKey', { device })
     case 'not_in_group':
-      return `Your relay says ${device} has left your group of devices.`
+      return t('send.failure.notInGroup', { device })
     case 'limit_reached':
-      return capHeldLine(limit, several)
+      return capHeldLine(limit, count)
     default:
-      return UNEXPLAINED_LINE
+      return unexplainedLine()
   }
 }
 
@@ -218,27 +218,20 @@ function rejectionLine(
  * Word-for-word the same sentences as `SendFeedback.kt` and `SendFeedback.swift`,
  * bar the plural, which only this client can produce (a multi-tab send).
  */
-function capHeldLine(limit: GroupLimit | undefined, several: boolean): string {
+function capHeldLine(limit: GroupLimit | undefined, count: number): string {
   switch (limit) {
     case 'sends_per_window':
-      return several
-        ? 'Your relay is pacing sends for your group right now. These tabs are queued and will send themselves shortly.'
-        : 'Your relay is pacing sends for your group right now. This tab is queued and will send itself shortly.'
+      return t('send.cap.pacing', { count })
     case 'queued_messages':
     case 'queued_bytes':
-      return several
-        ? "Your relay is holding as much as your group's limit allows. These tabs are queued and will send once the receiving device catches up."
-        : "Your relay is holding as much as your group's limit allows. This tab is queued and will send once the receiving device catches up."
+      return t('send.cap.holding', { count })
     default:
-      return several
-        ? 'Your relay has reached a limit for your group. These tabs are queued and will send themselves once there is room.'
-        : 'Your relay has reached a limit for your group. This tab is queued and will send itself once there is room.'
+      return t('send.cap.general', { count })
   }
 }
 
 /** Said when the relay's answer is one this build has no sentence for. */
-const UNEXPLAINED_LINE =
-  'Something went wrong inside your relay. It may be worth checking that it is healthy.'
+const unexplainedLine = (): string => t('send.failure.unexplained')
 
 /**
  * The device cap turned this browser away at the door [0030]. Said in the
@@ -253,52 +246,51 @@ const UNEXPLAINED_LINE =
  *
  * Word-for-word the same sentence as `SendFeedback.kt` and `SendFeedback.swift`.
  */
-export const DEVICE_LIMIT_LINE =
-  'Your relay has reached its device limit for your group. Remove a device you are not using, then pair this one again.'
+export const deviceLimitLine = (): string => t('send.failure.deviceLimit')
 
 /** Whole-request errors [ApiError.code]. The relay answered, and said no. */
 function relayErrorLine(code: ApiErrorCode, device: string): string {
   switch (code) {
     case 'not_found':
-      return `Your relay couldn't find ${device}.`
+      return t('send.failure.error.notFound', { device })
     case 'forbidden':
-      return `Your relay wouldn't let this browser send to ${device}.`
+      return t('send.failure.error.forbidden', { device })
     case 'invalid_request':
-      return "Your relay didn't understand this send. It's most likely running an older version than this browser. Updating it should fix this."
+      return t('send.failure.error.invalidRequest')
     // classifySendFailure routes a 429 to `relay-busy`, which DOES retry itself,
     // so this is belt-and-braces for a relay that sends the code with some other
     // status. Asking for the retry is still the right instruction there: nothing
     // was queued, because nothing recognised the answer as "not now".
     case 'rate_limited':
-      return 'Your relay is busy right now. Give it a moment and send again.'
+      return t('send.failure.error.rateLimited')
     case 'internal':
-      return UNEXPLAINED_LINE
+      return unexplainedLine()
     // Both mean "your token is no good"; classifySendFailure routes them to
     // `relay-unauthorized` before they ever get here, so this is belt-and-braces.
     case 'unauthorized':
     case 'endpoint_removed':
-      return `Your relay doesn't recognise this browser any more. Set Tabsend up again here to start sending.`
+      return t('send.failure.unauthorized')
     case 'invalid_pairing_code':
-      return 'That setup link is no longer valid.'
+      return t('send.failure.error.invalidPairingCode')
     // Only ever answered to a register/create call [ADR-0022], never to a send;
     // it exists here so the switch stays exhaustive as the wire set grows.
     case 'group_exists':
-      return 'Your relay already hosts a group of devices.'
+      return t('send.failure.error.groupExists')
     // Not reachable on a send either: of the per-group caps, only the endpoint one
     // can refuse a whole call, and it does that to a join [0030]. Unlike the caps
     // that hold a send, this one does NOT clear itself — a device stays paired
     // until somebody removes it — so the line asks for the action instead of
     // promising a retry. The pairing mint can also answer `limit_reached` since
-    // [0031 amended], and does NOT come through here: `classifyMintFailure` shows
-    // the relay's own message verbatim, which is the one that names that limit.
+    // [0031 amended], and does NOT come through here: `classifyMintFailure` words it
+    // as a mint (`relayErrorLine`, `pairingLink`), which is the one that names that limit.
     case 'limit_reached':
-      return DEVICE_LIMIT_LINE
+      return deviceLimitLine()
     // Same fallback as rejectionLine, and it should never be reached: health.ts
     // folds a code this build does not know down to `internal` before a failure is
     // built. It is here because the wire set grows (`limit_reached`, [0030]) and a
     // build that cannot compile is worse than one that says something general.
     default:
-      return UNEXPLAINED_LINE
+      return unexplainedLine()
   }
 }
 
@@ -339,24 +331,25 @@ export function isCapRejection(reason: SendRejectionReason): boolean {
 export function relayDownLine(relayUrl: string, sinceMinutes: number): string {
   const ago =
     sinceMinutes < 1
-      ? 'just now'
+      ? t('common.time.ago.now')
       : sinceMinutes < 60
-        ? `${sinceMinutes}m ago`
-        : `${Math.round(sinceMinutes / 60)}h ago`
-  const line = `Can't reach your relay at ${relayUrl}. It last answered ${ago}, and sends are being held until it's back.`
-  return isHomeNetworkRelay(relayUrl) ? `${line} ${HOME_NETWORK_HINT}` : line
+        ? t('common.time.ago.minutes', { count: sinceMinutes })
+        : t('common.time.ago.hours', { count: Math.round(sinceMinutes / 60) })
+  return isHomeNetworkRelay(relayUrl)
+    ? t('relay.down.homeNetwork', { relayUrl, ago })
+    : t('relay.down', { relayUrl, ago })
 }
 
 /** "just now", "5m ago", "3h ago", "2d ago": the short relative time the device list uses. */
 export function agoLine(iso: string, now: number): string {
   // A time the relay sent that cannot be read says "recently", like the phones do.
-  if (Number.isNaN(Date.parse(iso))) return 'recently'
+  if (Number.isNaN(Date.parse(iso))) return t('common.time.ago.recently')
   const mins = Math.max(0, Math.round((now - Date.parse(iso)) / 60000))
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return t('common.time.ago.now')
+  if (mins < 60) return t('common.time.ago.minutes', { count: mins })
   const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.round(hours / 24)}d ago`
+  if (hours < 24) return t('common.time.ago.hours', { count: hours })
+  return t('common.time.ago.days', { count: Math.round(hours / 24) })
 }
 
 /**
@@ -374,38 +367,35 @@ export const newDeviceCopy = {
     message: string
   } {
     const [first] = joined
-    if (joined.length === 1 && first) {
-      return {
-        title: `${first.label} was added`,
-        message: `It joined your Tabsend devices ${agoLine(first.createdAt, now)}. If that wasn't you, remove it in Tabsend.`,
-      }
-    }
+    const labels = joined.map((j) => j.label)
     return {
-      title: `${joined.length} devices were added`,
-      message: `${listOfLabels(joined.map((j) => j.label))} joined your Tabsend devices. If any wasn't you, remove it in Tabsend.`,
+      title: t('devices.added.title', { count: joined.length, device: first?.label ?? '' }),
+      message: t('devices.added.message', {
+        count: joined.length,
+        ago: first ? agoLine(first.createdAt, now) : '',
+        devices: listOfLabels(labels),
+      }),
     }
   },
   /** A fresh pairing whose link did not vouch for every device already in the group. */
   firstListAlert(devices: readonly { label: string }[]): { title: string; message: string } {
     const [first] = devices
-    if (devices.length === 1 && first) {
-      return {
-        title: `${first.label} is in your group`,
-        message:
-          "The device you paired with didn't list it. If it isn't yours, remove it in Tabsend.",
-      }
-    }
     return {
-      title: `${devices.length} devices are in your group`,
-      message: `${listOfLabels(devices.map((d) => d.label))}. The device you paired with didn't list them. If any isn't yours, remove it in Tabsend.`,
+      title: t('devices.listed.title', { count: devices.length, device: first?.label ?? '' }),
+      message: t('devices.listed.message', {
+        count: devices.length,
+        devices: listOfLabels(devices.map((d) => d.label)),
+      }),
     }
   },
   // A device announced as new and then hidden from the list (GH7).
-  vanishedTitle: (label: string): string => `${label} joined, then disappeared`,
+  vanishedTitle: (label: string): string => t('devices.vanished.title', { device: label }),
   vanishedBody: (createdAt: string, now: number): string =>
-    `It joined ${agoLine(createdAt, now)} and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.`,
-  vanishedDismiss: 'Dismiss',
-} as const
+    t('devices.vanished.body', { ago: agoLine(createdAt, now) }),
+  get vanishedDismiss(): string {
+    return t('common.dismiss')
+  },
+}
 
 /**
  * A device a send could not reach because the relay no longer has it (PLANS.md
@@ -414,31 +404,37 @@ export const newDeviceCopy = {
  * group), and so is the fix (pair it again from here).
  */
 export const unreachableCopy = {
-  title: (label: string): string => `${label} isn't connected any more`,
-  body: "Tabs sent to it won't arrive. This happens when Tabsend is removed or reinstalled on it, or when it's removed from your devices. To keep sending to it, pair it again.",
-  pairAgain: (label: string): string => `Pair ${label} again`,
-  dismiss: 'Dismiss',
+  title: (label: string): string => t('devices.unreachable.title', { device: label }),
+  get body(): string {
+    return t('devices.unreachable.body')
+  },
+  pairAgain: (label: string): string => t('devices.unreachable.pairAgain', { device: label }),
+  get dismiss(): string {
+    return t('common.dismiss')
+  },
   /** The device's row, when the list still shows it. */
-  rowStatus: 'not connected',
+  get rowStatus(): string {
+    return t('devices.unreachable.rowStatus')
+  },
   /** The toolbar icon's tooltip while the "!" is up. */
   tooltip: (labels: readonly string[]): string =>
-    labels.length === 1
-      ? `${labels[0]} isn't connected any more. Open Tabsend to fix it.`
-      : `${labels.length} devices aren't connected any more. Open Tabsend to fix them.`,
+    t('devices.unreachable.tooltip', { count: labels.length, device: labels[0] ?? '' }),
 } as const
 
 /** "October 27", in this browser's time zone. An unreadable time is shown as sent. */
 export function monthDayLine(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  return d.toLocaleDateString(getLocale(), { month: 'long', day: 'numeric' })
 }
 
 /** "3:05 PM", in this browser's time zone. ICU's narrow space before AM/PM made plain. */
 export function clockLine(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\s/g, ' ')
+  return d
+    .toLocaleTimeString(getLocale(), { hour: 'numeric', minute: '2-digit' })
+    .replace(/\s/g, ' ')
 }
 
 /**
@@ -446,32 +442,70 @@ export function clockLine(iso: string): string {
  * iOS and the console: every paired device shows it, and any one can stop it.
  */
 export const groupResetCopy = {
-  alertTitle: 'Tabsend',
+  get alertTitle(): string {
+    return t('devices.reset.alertTitle')
+  },
   alertMessage: (requestedAt: string): string =>
-    `Someone asked to remove all your devices on ${monthDayLine(requestedAt)}. Open Tabsend to stop it.`,
-  title: 'Someone asked to remove all your devices',
+    t('devices.reset.alertMessage', { date: monthDayLine(requestedAt) }),
+  get title(): string {
+    return t('devices.reset.title')
+  },
   body: (requestedAt: string, resetsAt: string): string =>
-    `From your account page on ${monthDayLine(requestedAt)}. On ${monthDayLine(resetsAt)} at ${clockLine(resetsAt)}, every device is removed, this one too. If it wasn't you, stop it now, then change your email password.`,
-  stop: 'Stop the reset',
-  stopping: 'Stopping…',
-  dismiss: 'It was me',
-  stopped: 'Reset stopped. Nothing was removed.',
-  stopFailedOffline: "Couldn't reach your relay, so the reset is still waiting. Try again.",
-  stopFailed: (reason: string): string => {
-    const r = reason.trim().replace(/[.!]?$/, '.')
-    return `Couldn't stop the reset: ${r} The reset is still waiting. Try again.`
+    t('devices.reset.body', {
+      requestedDate: monthDayLine(requestedAt),
+      resetsDate: monthDayLine(resetsAt),
+      resetsTime: clockLine(resetsAt),
+    }),
+  get stop(): string {
+    return t('devices.reset.stop')
+  },
+  get stopping(): string {
+    return t('devices.reset.stopping')
+  },
+  get dismiss(): string {
+    return t('devices.reset.dismiss')
+  },
+  get stopped(): string {
+    return t('devices.reset.stopped')
+  },
+  get stopFailedOffline(): string {
+    return t('devices.reset.stopFailedOffline')
   },
 } as const
 
-/** "A", "A and B", "A, B and C". */
-function listOfLabels(labels: string[]): string {
-  if (labels.length <= 1) return labels.join('')
-  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
+/**
+ * "A", "A and B", "A, B and C": the parts of the list are catalog messages (two, start,
+ * middle, end), the way CLDR builds a list, so each language joins in its own way.
+ */
+export function listOfLabels(labels: readonly string[]): string {
+  const n = labels.length
+  if (n <= 1) return labels.join('')
+  const at = (i: number): string => labels[i] ?? ''
+  if (n === 2) return t('common.list.two', { first: at(0), second: at(1) })
+  let rest = t('common.list.end', { first: at(n - 2), second: at(n - 1) })
+  for (let i = n - 3; i >= 1; i--) rest = t('common.list.middle', { first: at(i), second: rest })
+  return t('common.list.start', { first: at(0), second: rest })
+}
+
+/**
+ * The name filled in the device box on the setup page. The shared module (which the relay
+ * and the other apps use too) keeps its English default; here the same words come from the
+ * catalog, so a language can change them. A test keeps the English identical to the shared one.
+ */
+export function deviceNameSeed(platform: Platform): string {
+  return t('firstrun.device.nameSeed', { platform })
+}
+
+/** The name filled in the browser box: the guess as it is, or the catalog's words when it is the blank-guess one. */
+export function browserNameSeed(suggestion: BrowserNameSuggestion): string {
+  return suggestion.value === PLACEHOLDER_BROWSER_NAME && !suggestion.confident
+    ? t('firstrun.name.unknownBrowser')
+    : suggestion.value
 }
 
 /** The chooser-only ⏳ pending row (INTERACTION_FLOWS §3.1). */
 export function pendingRow(count: number, label: string): string {
-  return `⏳ ${count} waiting for ${label}`
+  return t('chooser.pending.row', { count, device: label })
 }
 
 /**
@@ -497,7 +531,7 @@ export const SETUP_DOCS_URL = 'https://github.com/Tabsend/tabsend/blob/main/docs
  * and merging them would make an outage look like a normal sleeping device.
  */
 export function heldTabsHeading(count: number): string {
-  return count === 1 ? 'Waiting on this browser' : `${count} tabs waiting on this browser`
+  return t('chooser.held.heading', { count })
 }
 
 /**
@@ -507,7 +541,7 @@ export function heldTabsHeading(count: number): string {
  */
 export function heldTabLabel(item: { title?: string; url?: string }): string {
   if (item.title && item.title.trim() !== '') return item.title
-  if (!item.url) return 'Untitled tab'
+  if (!item.url) return t('common.untitledTab')
   try {
     return new URL(item.url).hostname
   } catch {
@@ -525,10 +559,10 @@ export function receivedNotificationLine(items: InboxItem[]): string {
   const n = items.length
   const senders = new Set(items.map((i) => i.sourceLabel))
   if (senders.size === 1) {
-    const label = items[0]?.sourceLabel ?? 'a device'
-    return n === 1 ? `Tab received from ${label}` : `${n} tabs received from ${label}`
+    const label = items[0]?.sourceLabel ?? t('common.aDevice')
+    return t('notify.received.fromOne', { count: n, device: label })
   }
-  return `${n} tabs received from ${senders.size} devices`
+  return t('notify.received.fromMany', { count: n, devices: senders.size })
 }
 
 /**
@@ -564,22 +598,28 @@ const WINDOW_TITLE_MAX = 40
 export function arrivalPlaceLine(items: InboxItem[], place: ArrivalPlace): string {
   const n = items.length
   const first = items[0]
-  const what = n === 1 && first ? shortTitle(heldTabLabel(first), ARRIVAL_TITLE_MAX) : `${n} tabs`
-  const click = n === 1 ? 'Click to show it.' : 'Click to show the first.'
+  const title = n === 1 && first ? shortTitle(heldTabLabel(first), ARRIVAL_TITLE_MAX) : ''
   switch (place.kind) {
     case 'window':
-      return `${what} — opened in the window with “${shortTitle(place.activeTitle, WINDOW_TITLE_MAX)}”. ${click}`
+      return t('notify.arrival.window', {
+        count: n,
+        title,
+        windowTitle: shortTitle(place.activeTitle, WINDOW_TITLE_MAX),
+      })
     case 'only-window':
-      return `${what} — opened in ${n === 1 ? 'a background tab' : 'background tabs'}. ${click}`
+      return t('notify.arrival.background', { count: n, title })
     case 'unknown':
-      return `${what} — opened in ${n === 1 ? 'a new tab' : 'new tabs'}. ${click}`
+      return t('notify.arrival.newTab', { count: n, title })
   }
 }
 
 /** Confirmation that the queue drained, naming the tab when there's just one. */
 export function recoveredLine(count: number, firstTitle?: string): string {
-  if (count === 1) return firstTitle ? `Sent “${firstTitle}”` : 'Sent the tab that was waiting'
-  return `Sent ${count} tabs that were waiting`
+  return t('send.recovered', {
+    count,
+    hasTitle: firstTitle ? 'yes' : 'no',
+    title: firstTitle ?? '',
+  })
 }
 
 /**
@@ -592,10 +632,7 @@ export function recoveredLine(count: number, firstTitle?: string): string {
  * said, which is the original invisible-failure bug with a longer fuse.
  */
 export function droppedLine(count: number, firstTitle?: string): string {
-  if (count === 1) {
-    return firstTitle ? `Couldn't send “${firstTitle}”` : "Couldn't send the tab that was waiting"
-  }
-  return `Couldn't send ${count} tabs that were waiting`
+  return t('send.dropped', { count, hasTitle: firstTitle ? 'yes' : 'no', title: firstTitle ?? '' })
 }
 
 /**
@@ -611,13 +648,13 @@ export function droppedLine(count: number, firstTitle?: string): string {
 export function pairingErrorLine(cause: PairingFailure): string {
   switch (cause.kind) {
     case 'unregistered':
-      return 'Set Tabsend up on this browser first, then you can pair other devices.'
+      return t('pairing.error.unregistered')
     case 'unreachable':
-      return `Couldn't reach the relay at ${cause.relayUrl} — check it's running, then try again.`
+      return t('pairing.error.unreachable', { relayUrl: cause.relayUrl })
     case 'unauthorized':
-      return 'This browser is no longer in the group — set it up again to pair other devices.'
+      return t('pairing.error.unauthorized')
     case 'relay':
-      return `The relay couldn't make a setup link: ${cause.detail}`
+      return t('pairing.error.relay', { detail: cause.detail })
   }
 }
 
@@ -629,29 +666,36 @@ export function pairingErrorLine(cause: PairingFailure): string {
  * dead end for every device that would actually scan it (dogfood 2026-07-27).
  */
 export function pairingLocalOnlyLine(relayUrl: string): string {
-  return (
-    `This code points at ${relayUrl}, which only works for another browser on this same computer — ` +
-    'a phone or another device cannot use it. To pair those, the relay needs to be reachable on your ' +
-    'network, and this browser connected to it at that address.'
-  )
+  return t('pairing.localOnly', { relayUrl })
 }
 
 /** Explain the two deliberate doors on a self-signed LAN relay. */
 export function pairingRoutesLine(browserRelayUrl: string, nativeRelayUrl: string): string {
-  return (
-    `The copied link pairs browser extensions through ${browserRelayUrl}. The QR pairs phones through ${nativeRelayUrl}. ` +
-    'Each device saves its route to this same relay; it can be changed later under Connection.'
-  )
+  return t('pairing.routes', { browserRelayUrl, nativeRelayUrl })
 }
 
 /**
  * Thrown by every background path that needs a registration and hasn't got one.
- * A constant rather than a repeated literal because the pages MATCH on it: a
- * settings tab that was registered when it loaded has to tell this apart from a
+ * A settings tab that was registered when it loaded has to tell this apart from a
  * relay-side refusal, and re-render itself instead of printing an internal
- * sentence at a user who can do nothing with it (dogfood 2026-08-05).
+ * sentence at a user who can do nothing with it (dogfood 2026-08-05). The pages
+ * match on the sentence (`isNotRegistered`), which works because the background
+ * and the pages read the same browser language.
  */
-export const NOT_REGISTERED_ERROR = 'Tabsend is not registered yet.'
+export class NotRegisteredError extends UserFacingError {
+  constructor() {
+    super(notRegisteredLine())
+    this.name = 'NotRegisteredError'
+  }
+}
+
+export const notRegisteredLine = (): string => t('errors.notRegistered')
+
+/** True for the error `NotRegisteredError` raised, once it has crossed to a page as text. */
+export function isNotRegistered(err: unknown): boolean {
+  // relay-text-ignore: compared with our own sentence, never shown
+  return err instanceof Error && err.message === notRegisteredLine()
+}
 
 /** Why a pairing mint failed, classified where the relay URL and error type are known. */
 export type PairingFailure =
@@ -677,20 +721,20 @@ export type PairingFailure =
  */
 export const relayProbeCopy = {
   /** Our relay, new URL. The reassurance IS the message. */
-  same: (): string => 'Same relay. Your devices stay paired.',
+  same: (): string => t('relay.probe.same'),
   /** Same, but one side predates relayId — say so rather than imply proof. */
-  sameUnverified: (): string =>
-    "Probably the same relay. It's too old to confirm, but it accepted this browser's login.",
+  sameUnverified: (): string => t('relay.probe.sameUnverified'),
   /** A relay that has never heard of us. Name the cost, don't moralise about it. */
-  different: (): string =>
-    "This is a different relay. It doesn't know your devices, so each one will need to pair again.",
+  different: (): string => t('relay.probe.different'),
   /** Nothing answered. */
-  unreachable: (relayUrl: string): string =>
-    `Couldn't reach a relay at ${relayUrl}. Check the address and that it's running.`,
-  /** Answered, unusable (protocol mismatch or a relay-side error). */
+  unreachable: (relayUrl: string): string => t('relay.probe.unreachable', { relayUrl }),
+  /**
+   * Answered, unusable (protocol mismatch or a relay-side error). `detail` is already a
+   * whole sentence from the catalog (`failureText`), never the relay's own text.
+   */
   error: (detail: string): string => detail,
   /** Committed the address change. */
-  updated: (relayUrl: string): string => `Now using ${relayUrl}.`,
+  updated: (relayUrl: string): string => t('relay.probe.updated', { relayUrl }),
   /**
    * The panel was asked to move an address this browser no longer has. Reachable
    * on a settings tab left open while the pairing ended somewhere else (another
@@ -698,8 +742,7 @@ export const relayProbeCopy = {
    * the raw internal "Tabsend is not registered yet.", which named no cause and
    * offered no way out (dogfood 2026-08-05), so it names both.
    */
-  notPaired: (): string =>
-    'This browser is not paired to a relay any more, so there is no address to move. Set it up again to start sending.',
+  notPaired: (): string => t('relay.probe.notPaired'),
 } as const
 
 /**
@@ -710,15 +753,17 @@ export const relayProbeCopy = {
  */
 export const relayAccessCopy = {
   /** The user said no to the browser's prompt. */
-  denied: (): string =>
-    "Tabsend can't reach this relay without your permission. Try again and choose Allow.",
+  denied: (): string => t('relay.access.denied'),
   /** Paired, but the permission is missing. */
-  missing: (relayUrl: string): string =>
-    `Tabsend needs your permission to reach your relay at ${relayUrl}. Until then, sends are held here.`,
+  missing: (relayUrl: string): string => t('relay.access.missing', { relayUrl }),
   /** Settings button that asks again. */
-  allow: 'Allow access',
+  get allow(): string {
+    return t('relay.access.allow')
+  },
   /** Popup button: the browser asks from Settings, not from a popup that closes. */
-  openSettings: 'Allow in Settings',
+  get openSettings(): string {
+    return t('relay.access.openSettings')
+  },
 } as const
 
 /**
@@ -732,23 +777,20 @@ export const relayAccessCopy = {
  */
 export const relaySwitchCopy = {
   /** Settings, with a move recorded and not finished. */
-  pending: (relayUrl: string): string => `Setup on ${relayUrl} isn't finished.`,
+  pending: (relayUrl: string): string => t('relay.switch.pending', { relayUrl }),
   /** ...and the reassurance that matters: nothing has been given up yet. */
   pendingSafe: (currentRelayUrl: string): string =>
-    `This browser still sends and receives on ${currentRelayUrl} until you finish.`,
+    t('relay.switch.pendingSafe', { relayUrl: currentRelayUrl }),
   /** ...when there is no current relay to fall back on (an older interrupted move). */
-  pendingUnpaired: (): string =>
-    'This browser is not paired to any relay, so it cannot send or receive until you finish.',
+  pendingUnpaired: (): string => t('relay.switch.pendingUnpaired'),
   /** Onboarding, arriving from settings with a relay already chosen. */
-  target: (relayUrl: string): string => `Setting up on ${relayUrl}.`,
+  target: (relayUrl: string): string => t('relay.switch.target', { relayUrl }),
   /** ...spelling out the one-way step, at the screen where it is about to happen. */
-  cost: (currentRelayUrl: string): string =>
-    `You stay paired to ${currentRelayUrl} until this browser is accepted. After that it leaves that group, and any device you want to keep pairs again here.`,
+  cost: (currentRelayUrl: string): string => t('relay.switch.cost', { relayUrl: currentRelayUrl }),
   /** ...the way out, named after what it keeps rather than what it abandons. */
-  keep: (currentRelayUrl: string): string => `Keep ${currentRelayUrl} instead`,
+  keep: (currentRelayUrl: string): string => t('relay.switch.keep', { relayUrl: currentRelayUrl }),
   /** The pre-filled link is the one they pasted, and codes are single-use. */
-  reusedLink: (): string =>
-    'This is the link you pasted in settings. Setup links work once and expire, so make a new one if the relay refuses it.',
+  reusedLink: (): string => t('relay.switch.reusedLink'),
 } as const
 
 /**
@@ -758,14 +800,10 @@ export const relaySwitchCopy = {
  * panel above them already carries the context, and nothing was changed.
  */
 export const relayChangeCopy = {
-  unreachable: (relayUrl: string): string =>
-    `Couldn't reach a relay at ${relayUrl} any more. Nothing was changed.`,
-  differentRelay: (): string =>
-    'That address answers as a different relay now. Nothing was changed. Check it again.',
-  tokenRejected: (): string =>
-    'That relay stopped recognising this browser. Nothing was changed. Check the address again.',
-  probeFailed: (detail: string): string =>
-    `The relay refused the check: ${detail} Nothing was changed.`,
+  unreachable: (relayUrl: string): string => t('relay.change.unreachable', { relayUrl }),
+  differentRelay: (): string => t('relay.change.differentRelay'),
+  tokenRejected: (): string => t('relay.change.tokenRejected'),
+  probeFailed: (detail: string): string => t('relay.change.probeFailed', { detail }),
 } as const
 
 /**
@@ -782,8 +820,7 @@ export const relayChangeCopy = {
  * of asking them to reason about it here.
  */
 export const soloGroupCopy = {
-  body: (relayUrl: string): string =>
-    `No other devices are set up on ${relayUrl}. They may be on a different relay address.`,
+  body: (relayUrl: string): string => t('relay.solo.body', { relayUrl }),
 } as const
 
 /**
@@ -800,24 +837,23 @@ export function sendFeedbackLine(result: {
   count?: number
   rejectedCount?: number
 }): string {
-  const label = result.targetLabel ?? 'device'
+  const label = result.targetLabel ?? t('send.fallback.device')
   const n = result.count ?? 1
   // A partial batch outweighs its failure line: "Sent 2 of 3" carries both the
   // delivery and the refusal, where the bare rejection line would deny the 2.
   if (partiallySent(result)) {
     const rejected = result.rejectedCount ?? 0
-    return `${partialHeadline(n, rejected, label)}. ${partialDetail(rejected, result.failure)}`
+    return t('send.partial.line', {
+      headline: partialHeadline(n, rejected, label),
+      detail: partialDetail(rejected, result.failure),
+    })
   }
   if (result.failure) return sendFailureLine(result.failure, result.targetLabel, n)
   if (!result.ok) return feedbackCopy.hardError()
   if (result.offline) return feedbackCopy.sourceOffline()
-  if (n > 1) {
-    return result.queued
-      ? `Sent ${n} tabs to ${label}. They open when it wakes.`
-      : `Sent ${n} tabs to ${label}`
-  }
-  if (result.queued) return feedbackCopy.sentOffline(label)
-  return feedbackCopy.sentOnline(label)
+  return result.queued
+    ? t('send.sentQueued', { count: n, device: label })
+    : t('send.sent', { count: n, device: label })
 }
 
 /** True when a batch send delivered some tabs and had the rest refused. */
@@ -829,7 +865,7 @@ function partiallySent(result: { ok: boolean; count?: number; rejectedCount?: nu
 
 /** "Sent 2 of 3 tabs to Arc" — the delivered half of a partial batch. */
 function partialHeadline(count: number, rejected: number, label: string): string {
-  return `Sent ${count - rejected} of ${count} tabs to ${label}`
+  return t('send.partial.headline', { count, sent: count - rejected, device: label })
 }
 
 /**
@@ -842,9 +878,9 @@ function partialHeadline(count: number, rejected: number, label: string): string
  */
 function partialDetail(rejected: number, failure?: SendFailure): string {
   if (failure?.kind === 'relay-rejected' && isCapRejection(failure.reason)) {
-    return capHeldLine(failure.limit, rejected > 1)
+    return capHeldLine(failure.limit, rejected)
   }
-  return `The relay refused ${rejected}.`
+  return t('send.partial.refused', { count: rejected })
 }
 
 /**
@@ -893,7 +929,7 @@ export function sendBanner(result: {
   count?: number
   rejectedCount?: number
 }): SendBanner {
-  const label = result.targetLabel ?? 'your device'
+  const label = result.targetLabel ?? t('send.fallback.yourDevice')
   const n = result.count ?? 1
   // On a batch the headline counts the tabs; the title line still names the
   // first one, same pattern as the recovered-queue toast.
@@ -923,8 +959,8 @@ export function sendBanner(result: {
   }
   if (result.failure) {
     const recoverable = isRecoverableFailure(result.failure)
-    const waiting = n > 1 ? `Waiting to send ${n} tabs to ${label}` : `Waiting to send to ${label}`
-    const failed = n > 1 ? `Couldn't send ${n} tabs to ${label}` : `Couldn't send to ${label}`
+    const waiting = t('send.banner.waiting', { count: n, device: label })
+    const failed = t('send.banner.failed', { count: n, device: label })
     const detail = sendFailureLine(result.failure, result.targetLabel, n)
     const pageDetail = pageFailureLine(result.failure, result.targetLabel, n)
     return withTitle({
@@ -937,16 +973,16 @@ export function sendBanner(result: {
   if (!result.ok) {
     return withTitle({
       tone: 'error',
-      headline: n > 1 ? `Couldn't send ${n} tabs to ${label}` : `Couldn't send to ${label}`,
+      headline: t('send.banner.failed', { count: n, device: label }),
       detail: feedbackCopy.hardError(),
     })
   }
-  const sent = n > 1 ? `Sent ${n} tabs to ${label}` : `Sent to ${label}`
+  const sent = t('send.sent', { count: n, device: label })
   if (result.queued) {
     return withTitle({
       tone: 'success',
       headline: sent,
-      detail: n > 1 ? 'They open when it wakes' : 'Opens when it wakes',
+      detail: t('send.sentQueued.detail', { count: n }),
     })
   }
   return withTitle({ tone: 'success', headline: sent })
@@ -967,14 +1003,8 @@ export function sendBanner(result: {
 export function neverArrivedBanner(count: number, targetLabel: string, title?: string): SendBanner {
   const banner: SendBanner = {
     tone: 'error',
-    headline:
-      count > 1
-        ? `${count} tabs never reached ${targetLabel}`
-        : `A tab never reached ${targetLabel}`,
-    detail:
-      count > 1
-        ? 'They waited at your relay until they expired. Tabsend history has them, and can send them again.'
-        : 'It waited at your relay until it expired. Tabsend history has it, and can send it again.',
+    headline: t('send.neverArrived.headline', { count, device: targetLabel }),
+    detail: t('send.neverArrived.detail', { count }),
   }
   // Only when a single tab is named. On a batch the headline counts them and a
   // lone title would read as if that one tab were the whole story.
@@ -991,7 +1021,7 @@ export function sendingBanner(
 ): SendBanner {
   const banner: SendBanner = {
     tone: 'pending',
-    headline: count > 1 ? `Sending ${count} tabs to ${targetLabel}` : `Sending to ${targetLabel}`,
+    headline: t('send.sending', { count, device: targetLabel }),
   }
   if (!title) return banner
   return { ...banner, title, ...(favicon ? { favicon } : {}) }
@@ -1003,7 +1033,7 @@ export function sendingBanner(
  * only thing that says so — so it must say it plainly.
  */
 export function multiSelectionLine(count: number): string {
-  return `${count} tabs selected. A click sends all ${count}.`
+  return t('chooser.multi', { count })
 }
 
 /**
@@ -1021,16 +1051,25 @@ export const goneTargetCopy = {
    * not in the group it accepts, which a relay can arrange (SECURITY_REVIEW L3).
    */
   removedLine(targetLabel: string | undefined, removedHere: boolean): string {
-    return `${targetLabel ?? 'The device it was for'} ${goneVerb(removedHere)} your group.`
+    return t('send.gone.removed', {
+      device: targetLabel ?? t('send.gone.fallbackDevice', { count: 1 }),
+      removedHere: removedHere ? 'yes' : 'no',
+    })
   },
   /** Before the device buttons, or as the first option of the menu. */
-  sendTo: 'Send to:',
-  sendToMenu: 'Send to…',
+  get sendTo(): string {
+    return t('send.gone.sendTo')
+  },
+  get sendToMenu(): string {
+    return t('send.gone.sendToMenu')
+  },
   /** No other device the tab can go to: this one, or devices still waiting for an answer. */
-  noOtherDevice: 'No other device to send it to.',
+  get noOtherDevice(): string {
+    return t('send.gone.noOtherDevice')
+  },
   /** Spoken name of one device button. */
   sendToAria(tabLabel: string, deviceLabel: string): string {
-    return `Send ${tabLabel} to ${deviceLabel}`
+    return t('send.gone.sendToAria', { tab: tabLabel, device: deviceLabel })
   },
   /**
    * The drain found the device gone. The tab was promised to send itself, and
@@ -1043,18 +1082,16 @@ export const goneTargetCopy = {
     targetLabel: string | undefined,
     removedHere: boolean,
   ): SendBanner {
-    const headline =
-      count > 1
-        ? `${count} tabs are waiting for a new device`
-        : firstTitle
-          ? `“${firstTitle}” is waiting for a new device`
-          : 'A tab is waiting for a new device'
-    const who = targetLabel ?? (count > 1 ? 'The device they were for' : 'The device it was for')
-    const detail = `${who} ${goneVerb(removedHere)} your group. Open Tabsend to send ${count > 1 ? 'them' : 'it'} to another device.`
+    const headline = t('send.gone.headline', {
+      count,
+      hasTitle: firstTitle ? 'yes' : 'no',
+      title: firstTitle ?? '',
+    })
+    const detail = t('send.gone.detail', {
+      count,
+      device: targetLabel ?? t('send.gone.fallbackDevice', { count }),
+      removedHere: removedHere ? 'yes' : 'no',
+    })
     return { tone: 'pending', headline, detail }
   },
-}
-
-function goneVerb(removedHere: boolean): string {
-  return removedHere ? 'was removed from' : 'is no longer in'
 }

@@ -450,6 +450,8 @@ export const http = {
     request<T>('GET', baseUrl, path, undefined, token),
   patch: <T>(baseUrl: string, path: string, body?: unknown, token?: string) =>
     request<T>('PATCH', baseUrl, path, body, token),
+  put: <T>(baseUrl: string, path: string, body?: unknown, token?: string) =>
+    request<T>('PUT', baseUrl, path, body, token),
   del: <T>(baseUrl: string, path: string, token?: string) =>
     request<T>('DELETE', baseUrl, path, undefined, token),
 }

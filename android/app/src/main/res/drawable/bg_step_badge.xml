@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The 30dp round badge behind a step's number or clock in "How pairing works": the accent fill. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/ts_accent_fill" />
+</shape>

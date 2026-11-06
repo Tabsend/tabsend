@@ -46,6 +46,8 @@ enum Palette {
     /// so these stay saturated in dark mode instead of following the text colours.
     static let tileGrey = Color(uiColor: UIPalette.tileGrey)
     static let tileDanger = Color(uiColor: UIPalette.tileDanger)
+    /// Behind a website picture while it loads, and behind the site's first letter.
+    static let slot = Color(uiColor: UIPalette.slot)
 
     /// The generic brand layer, for the pairing screen's signature moment.
     enum Brand {
@@ -68,6 +70,7 @@ enum UIPalette {
     static let petrol = UIColor.dynamic(light: 0x1F6F63, dark: 0x2A8C7D)
     static let accentFill = UIColor.dynamic(light: 0x2450A8, dark: 0x3D6AD6)
     static let muted = UIColor.dynamic(light: 0x5C6D69, dark: 0x8FA8A2)
+    static let slot = UIColor.dynamic(light: 0xE3ECE9, dark: 0x1D413C)
 
     static let accent = UIColor.dynamic(light: 0x2450A8, dark: 0xA9C4FF)
     static let success = UIColor.dynamic(light: 0x2F7A22, dark: 0x8FD27A)
@@ -233,9 +236,12 @@ enum ThemeAppearance {
             .foregroundColor: UIColor.label,
             .font: ThemeFonts.uiArchivo(.bold, size: 17, textStyle: .headline),
         ]
+        let largeTitle = ThemeFonts.uiArchivo(.extrabold, size: 34, textStyle: .largeTitle)
         appearance.largeTitleTextAttributes = [
             .foregroundColor: UIColor.label,
-            .font: ThemeFonts.uiArchivo(.extrabold, size: 34, textStyle: .largeTitle),
+            .font: largeTitle,
+            // -0.02em, as the home design sets the title.
+            .kern: largeTitle.pointSize * -0.02,
         ]
         return appearance
     }
@@ -266,13 +272,17 @@ extension View {
 
 /// A standard List section header in the `muted` token. The text style, case and
 /// spacing are the system's own.
+///
+/// A literal is looked up in the catalog of the target that uses it; a text that is
+/// already built (a count, a day) comes in through `verbatim:`.
 struct PanelSectionHeader: View {
-    let text: String
+    let text: Text
 
-    init(_ text: String) { self.text = text }
+    init(_ key: LocalizedStringKey) { text = Text(key) }
+    init(verbatim text: String) { self.text = Text(verbatim: text) }
 
     var body: some View {
-        Text(text).foregroundColor(Palette.muted)
+        text.foregroundColor(Palette.muted)
     }
 }
 
@@ -297,16 +307,39 @@ struct SymbolTile: View {
 }
 
 /// A row label with a tile in front, for rows that open or do something.
+///
+/// A literal title is looked up in the catalog of the target that uses it; a title that
+/// is already built comes in through `verbatim:`.
 struct TileLabel: View {
-    let title: String
+    let title: Text
     let systemName: String
     var tile: Color = Palette.petrol
     var titleColor: Color = .primary
 
+    init(
+        title: LocalizedStringKey, systemName: String,
+        tile: Color = Palette.petrol, titleColor: Color = .primary
+    ) {
+        self.title = Text(title)
+        self.systemName = systemName
+        self.tile = tile
+        self.titleColor = titleColor
+    }
+
+    init(
+        verbatim title: String, systemName: String,
+        tile: Color = Palette.petrol, titleColor: Color = .primary
+    ) {
+        self.title = Text(verbatim: title)
+        self.systemName = systemName
+        self.tile = tile
+        self.titleColor = titleColor
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             SymbolTile(systemName: systemName, color: tile)
-            Text(title)
+            title
                 .font(.body)
                 .foregroundColor(titleColor)
         }
@@ -403,20 +436,40 @@ extension Endpoint {
         case "mobile":
             if (deviceName ?? label).localizedCaseInsensitiveContains("ipad") { return "iPad" }
             if platform == "ios" { return "iPhone" }
-            if platform == "android" { return "Android phone" }
-            return "Phone"
+            if platform == "android" {
+                return String(
+                    localized: "Android phone",
+                    table: "Shared",
+                    comment: "Kind of a device in the device list, before its status: \"Android phone · Online\". Android is a product name."
+                )
+            }
+            return String(
+                localized: "Phone",
+                table: "Shared",
+                comment: "Kind of a device in the device list, before its status, when the phone's system is unknown: \"Phone · Online\"."
+            )
         case "console":
-            return "Console"
+            return String(
+                localized: "Console",
+                table: "Shared",
+                comment: "Kind of a device in the device list, before its status: the web console of a Tabsend relay. \"Console · Online\"."
+            )
         default:
+            // Browser names are product names and are never translated (docs/L10N.md rule 8).
             switch browser ?? "" {
-            case "chrome": return "Chrome"
-            case "firefox": return "Firefox"
-            case "edge": return "Edge"
-            case "brave": return "Brave"
-            case "opera": return "Opera"
-            case "vivaldi": return "Vivaldi"
-            case "arc": return "Arc"
-            default: return "Browser"
+            case "chrome": return "Chrome" // l10n-ignore: product name
+            case "firefox": return "Firefox" // l10n-ignore: product name
+            case "edge": return "Edge" // l10n-ignore: product name
+            case "brave": return "Brave" // l10n-ignore: product name
+            case "opera": return "Opera" // l10n-ignore: product name
+            case "vivaldi": return "Vivaldi" // l10n-ignore: product name
+            case "arc": return "Arc" // l10n-ignore: product name
+            default:
+                return String(
+                    localized: "Browser",
+                    table: "Shared",
+                    comment: "Kind of a device in the device list, before its status, when the browser is unknown: \"Browser · Online\"."
+                )
             }
         }
     }
@@ -434,9 +487,24 @@ enum PresenceWord {
 
     var text: String {
         switch self {
-        case .online: return "Online"
-        case .offline: return "Offline"
-        case .unknown: return "Status unknown"
+        case .online:
+            return String(
+                localized: "Online",
+                table: "Shared",
+                comment: "Presence of a device in the device list, after its kind: \"Chrome · Online\". Shown in green. Keep it to one or two words."
+            )
+        case .offline:
+            return String(
+                localized: "Offline",
+                table: "Shared",
+                comment: "Presence of a device in the device list, after its kind: \"Chrome · Offline\". Keep it to one or two words."
+            )
+        case .unknown:
+            return String(
+                localized: "Status unknown",
+                table: "Shared",
+                comment: "Presence of a device in the share-sheet device list when this phone could not ask the relay (offline): \"Chrome · Status unknown\". Keep it short."
+            )
         }
     }
 }
@@ -450,6 +518,9 @@ struct DeviceRow: View {
     var presence: PresenceWord?
     /// Replaces the status half, e.g. "this phone".
     var note: String?
+    /// The whole second line while sending is paused (`GroupService.pausedLine`). It replaces
+    /// the kind and the status, so a row never says "Online" next to "Paused".
+    var pausedLine: String?
     var isMain = false
     var isStale = false
 
@@ -463,7 +534,11 @@ struct DeviceRow: View {
                         .foregroundColor(.primary)
                         .lineLimit(2)
                     if isMain {
-                        Text("Main")
+                        Text(
+                            "Main",
+                            tableName: "Shared",
+                            comment: "Small label beside the device that gets the one-tap share, the main device. One word."
+                        )
                             .font(.caption.weight(.semibold))
                             .foregroundColor(Palette.accent)
                     }
@@ -479,18 +554,40 @@ struct DeviceRow: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// "Kind · status", built as whole phrases ("%@ · %@") so a translator can reorder
+    /// the two halves. Each half keeps its own colour.
     private var detail: Text {
-        var text = Text(kind).foregroundColor(Palette.muted)
-        if let note {
-            text = text + Text(" · \(note)").foregroundColor(Palette.muted)
-        } else if let presence {
-            text = text + Text(" · ").foregroundColor(Palette.muted)
-                + Text(presence.text)
-                    .foregroundColor(presence == .online ? Palette.success : Palette.muted)
+        var text: Text
+        if let pausedLine {
+            text = Text(verbatim: pausedLine).foregroundColor(Palette.muted)
+        } else {
+            text = Text(verbatim: kind).foregroundColor(Palette.muted)
+            if let note {
+                text = Self.joined(text, Text(verbatim: note).foregroundColor(Palette.muted))
+            } else if let presence {
+                text = Self.joined(
+                    text,
+                    Text(verbatim: presence.text)
+                        .foregroundColor(presence == .online ? Palette.success : Palette.muted)
+                )
+            }
         }
         if isStale {
-            text = text + Text(" · inactive").foregroundColor(Palette.muted)
+            let inactive = Text(
+                "inactive",
+                tableName: "Shared",
+                comment: "Added after a device's status when it has not been seen for a long time: \"Chrome · Offline · inactive\". One word."
+            )
+            text = Self.joined(text, inactive.foregroundColor(Palette.muted))
         }
-        return text
+        return text.foregroundColor(Palette.muted)
+    }
+
+    private static func joined(_ first: Text, _ second: Text) -> Text {
+        Text(
+            "\(first) · \(second)",
+            tableName: "Shared",
+            comment: "Two parts of a device's second line, separated by a dot: the first is the kind or a status, the second is a status. For example \"Chrome · Online\"."
+        )
     }
 }

@@ -1,0 +1,102 @@
+{
+  "status.enterLink": {
+    "message": "Enter a complete setup link.",
+    "description": "Error at the bottom of the page when the setup link box is empty or the link cannot be read."
+  },
+  "status.pairing": {
+    "message": "Pairing…",
+    "description": "Message at the bottom of the page while this console is joining the group."
+  },
+  "status.joinFailed": {
+    "message": "Pairing failed.",
+    "description": "Error at the bottom of the page when joining the group failed for no stated reason."
+  },
+  "status.unreachable": {
+    "message": "Couldn't reach {relayUrl}. Is the relay running and reachable?",
+    "description": "Error at the bottom of the page when pairing cannot reach the relay. {relayUrl} is the relay's web address."
+  },
+  "status.unreachableSameOrigin": {
+    "message": "Couldn't reach this relay. Is the relay running and reachable?",
+    "description": "Same as status.unreachable, for a relay at the same address as this page, which has no address to show."
+  },
+  "status.removedSelf": {
+    "message": "This console was removed from the group.",
+    "description": "Message at the bottom of the page after this console removed itself from the group."
+  },
+  "status.renameFailed": {
+    "message": "Rename failed.",
+    "description": "Error at the bottom of the page when renaming a device failed for no stated reason."
+  },
+  "status.removeFailed": {
+    "message": "Remove failed.",
+    "description": "Error at the bottom of the page when removing a device failed for no stated reason."
+  },
+  "status.requestFailed": {
+    "message": "Request failed.",
+    "description": "Error at the bottom of the page when a request failed for no stated reason."
+  },
+  "status.requestFailedHttp": {
+    "message": "Request failed ({status}).",
+    "description": "Error at the bottom of the page when the relay answered with an error and no explanation. {status} is a number such as 502."
+  },
+  "status.setupLinkFailed": {
+    "message": "Could not make a setup link.",
+    "description": "Error at the bottom of the page when “Add a device” failed for no stated reason."
+  },
+  "status.relay.unauthorized": {
+    "message": "Your relay no longer accepts this console. Unpair it, then pair it again.",
+    "description": "Error at the bottom of the page after an action failed because the relay does not accept this console's credentials (it was removed from the group, or the relay forgot it). “Unpair” is the button that forgets this console's pairing; pairing again uses a new setup link. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.forbidden": {
+    "message": "Your relay wouldn't allow that. If your group is suspended, whoever runs the relay can lift the suspension.",
+    "description": "Error at the bottom of the page after an action failed because the relay refused permission. A group can be suspended on a relay, and only the person or company running the relay can lift that. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.deviceNotFound": {
+    "message": "Your relay couldn't find that device. It may already be gone.",
+    "description": "Error at the bottom of the page after renaming a device failed because the relay has no such device in the group. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.groupNotFound": {
+    "message": "Your relay no longer has this group. Pair this console again if you still have access.",
+    "description": "Error at the bottom of the page after making a setup link, stopping a reset or another request failed because the group was deleted on the relay. Pairing again means joining with a new setup link. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.addressNotRelay": {
+    "message": "That address didn't answer like a Tabsend relay. Check it and try again.",
+    "description": "Error at the bottom of the page when the address inside the setup link does not lead to a Tabsend relay. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.invalidRequest": {
+    "message": "Your relay didn't understand that. It's most likely running an older version than this console. Updating it should fix this.",
+    "description": "Error at the bottom of the page after a request failed because the relay could not read what the console sent. A “relay” is the server that passes tabs between a person's devices. It is probably out of date."
+  },
+  "status.relay.linkUnusable": {
+    "message": "That setup link is unknown, expired, or already used.",
+    "description": "Error at the bottom of the page when the relay refuses the setup link pasted to pair this console. A setup link works once and expires after a few minutes."
+  },
+  "status.relay.linkInvalid": {
+    "message": "That setup link is no longer valid.",
+    "description": "Error at the bottom of the page after a request failed because a setup link was used, expired or unknown."
+  },
+  "status.relay.groupExists": {
+    "message": "Your relay already hosts a group of devices.",
+    "description": "Error at the bottom of the page after a request failed: the relay already has a device group and allows only one. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.deviceLimit": {
+    "message": "Your relay has reached its device limit for your group. Remove a device you are not using, then pair this one again.",
+    "description": "Error at the bottom of the page when pairing is refused because the group already has the most devices the relay allows. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.linkLimit": {
+    "message": "This group already has the most unused setup links it allows. Try again in a few minutes, when the oldest one expires.",
+    "description": "Error at the bottom of the page when making a new setup link failed: too many links are waiting to be used, and each expires by itself after a few minutes."
+  },
+  "status.relay.limit": {
+    "message": "Your relay has reached a limit for your group.",
+    "description": "Error at the bottom of the page after a request failed: some limit for this group was reached on the relay. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.busy": {
+    "message": "Your relay is busy right now. Give it a moment and try again.",
+    "description": "Error at the bottom of the page after a request failed because the relay is limiting how fast requests may come. A “relay” is the server that passes tabs between a person's devices."
+  },
+  "status.relay.unexplained": {
+    "message": "Something went wrong inside your relay. It may be worth checking that it is healthy.",
+    "description": "Error at the bottom of the page after a request failed: the relay reported an unexpected internal error, or an error this console has no wording for. A “relay” is the server that passes tabs between a person's devices."
+  }
+}

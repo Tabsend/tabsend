@@ -55,7 +55,9 @@ true for iOS rather than true-except-iOS.
 
 Apple and Google are a fourth party, outside this table because nothing here can change
 what they see: the device's push address, and that it was rung and when. Never what, since
-the push they deliver is empty.
+the push they deliver carries nothing about it: it is empty, or, for an iPhone rung in the
+`alert` style (§3.2), a fixed "new link" text key that is the same for every ring. Apple can
+see which style a ring is.
 
 The wake token is minted by the forwarder, given to the app, and handed by the app to its
 own relay. Not the reverse: the relay never talks to the forwarder about registration, so
@@ -73,7 +75,7 @@ Four routes. Bodies are JSON; responses are JSON except where noted.
 
 ```jsonc
 // request — an iPhone
-{ "apnsToken": "<hex device token from Apple>", "environment": "production" }
+{ "apnsToken": "<hex device token from Apple>", "environment": "production", "ringStyle": "alert" }
 // request — an Android phone
 { "fcmToken": "<registration token from FirebaseMessaging.getToken()>" }
 // response 200, identical either way
@@ -91,6 +93,16 @@ do not share device tokens). It selects between two fixed Apple hostnames and no
 there is no caller-supplied host anywhere in this service. Google has no equivalent split —
 one Firebase project serves debug and release builds alike — so an Android registration
 ignores the field.
+
+`ringStyle` [2026-11-05, `docs/PLANS.md` P-29] is optional, `background` or `alert`, and says
+how Apple is asked to ring this phone (§3.2). Absent means `background`, which is how every
+phone was rung before the field existed, so an app that never sends it is rung exactly as
+before, and a forwarder from before the field ignores it and rings `background`. Only an
+iPhone may ask for `alert` (`400` with an `fcmToken`): Google's wake already arrives at once.
+The style is stored with the row, so a phone that changes its mind registers again, which
+replaces its wake token like any other re-registration. The app asks for `alert` while its
+notifications are allowed and `background` while they are not, since iOS shows nothing and
+runs no extension for an app whose notifications are off.
 
 **A forwarder refuses the provider it cannot reach**: `501 unsupported` when an Android
 phone registers at a forwarder with no Google credentials, or an iPhone at one with no Apple
@@ -151,8 +163,8 @@ header. Empty JSON body (`{}`), or no body at all.
 { "status": "accepted" }
 ```
 
-The forwarder looks up the token hash, and if it finds a live device sends APNs a background
-push:
+The forwarder looks up the token hash, and if it finds a live device sends APNs a push in
+the style the phone registered (§3.1). A **`background`** row gets the silent wake:
 
 | APNs field | Value | Why |
 |---|---|---|
@@ -162,6 +174,26 @@ push:
 | `apns-expiration` | now + 300s | A doorbell that stops ringing after five minutes. Past that, drain-on-open is the honest answer anyway. |
 | `apns-collapse-id` | `wake` | Repeated rings collapse into one at Apple. Idempotence, belt and braces. |
 | payload | `{"aps":{"content-available":1}}` | The whole payload. There is no room in it for content, by construction. |
+
+Apple treats a silent push as optional, advises no more than two or three an hour, and holds
+it back from an app the user swiped away, so a silent wake can arrive many minutes late or not
+at all (`docs/PLANS.md` P-29, from a TestFlight iPhone on 2026-11-03). An **`alert`** row
+[2026-11-05] gets a visible notification instead, which Apple delivers at once. Before iOS
+shows it, it runs the app's notification extension, which fetches the link from the phone's
+own relay, decrypts it, and replaces the text with the link's title and address:
+
+| APNs field | Value | Why |
+|---|---|---|
+| `apns-push-type` | `alert` | A real notification. |
+| `apns-priority` | `10` | Delivered now. |
+| `apns-topic` | the app bundle id | As above. |
+| `apns-expiration` | now + 1 day | Five minutes would lose the notification for a phone in airplane mode. Apple keeps only the newest push per phone, and the extension collects everything waiting. |
+| `apns-collapse-id` | none | With `wake`, a second link would replace the first on screen. |
+| payload | `{"aps":{"alert":{"loc-key":"NEW_LINK"},"sound":"default","mutable-content":1}}` | The whole payload, fixed like the silent one. A text key rather than words, so this service holds no English and the phone shows its own language. Nothing in it is about what is waiting. |
+
+When the extension cannot fill it in (it runs out of time, the relay does not answer, or the
+phone has not been unlocked since it restarted and cannot read its keys), the phone shows
+the plain "New link" text, and the app collects the link when it next opens.
 
 For an Android row the same ring goes to FCM's HTTP v1 API instead
 (`POST /v1/projects/<project>/messages:send`):
@@ -378,6 +410,7 @@ CREATE TABLE devices (
   device_token_mac TEXT NOT NULL UNIQUE, -- HMAC of the doorbell address, under the key
   device_token_enc TEXT NOT NULL,        -- the doorbell address, AES-256-GCM, same key
   environment      TEXT NOT NULL,        -- 'production' | 'sandbox'. Apple only.
+  ring_style       TEXT NOT NULL DEFAULT 'background', -- 'background' | 'alert'. Apple only.
   created_at       INTEGER NOT NULL,     -- ms since epoch, when this token was minted
   last_wake_at     INTEGER,              -- ms since epoch, or NULL until first ring
   wake_count       INTEGER NOT NULL DEFAULT 0
@@ -385,7 +418,8 @@ CREATE TABLE devices (
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);  -- key check, tally time
 ```
 
-Schema version 3 [2026-10-02]. Version 1 was iOS-only (`apns_token`, no `platform`);
+Schema version 4 [2026-11-05]: version 4 added `ring_style`, with every existing row
+`background`, which is how it was rung before. Version 3 [2026-10-02]. Version 1 was iOS-only (`apns_token`, no `platform`);
 version 2 renamed the column and defaulted `platform` to `'ios'`, which is correct because
 every row that existed under version 1 was an iPhone. Version 3 replaced `device_token` with
 the two keyed columns, in one transaction that drops the old table with `secure_delete` on,
@@ -432,6 +466,9 @@ Field by field, with the reason each one has to exist:
   wire contract between a relay and the forwarder names no platform at all.
 - **`environment`.** Which Apple host to call. Two values, meaningless for an Android row and
   stored as the forwarder default there.
+- **`ring_style`** [2026-11-05]. Which of the two fixed Apple pushes to send (§3.2). Chosen
+  by the phone; it says whether the phone's notifications were on when it last registered,
+  and nothing else. Always `background` for an Android row.
 - **`created_at`, `last_wake_at`, `wake_count`.** Enough for an operator to answer "is this
   service being abused" and "is anything still using it" without per-request records. This
   is the deliberate *stopping point*: no per-wake row, no history, no relay identity, no IP.
@@ -449,7 +486,7 @@ here:
 | The intent | How this design keeps it |
 |---|---|
 | No accounts | There is no user, no email, no login, nothing that survives a device. |
-| No content, ever | No route accepts content. Neither provider's payload has a field for it. |
+| No content, ever | No route accepts content. Neither provider's payload has a field for it; the `alert` style's one text is a fixed key, the same for every ring. |
 | No queues | Nothing is stored for later delivery. A wake happens now or not at all. |
 | Nothing to subpoena but the doorbell | The store holds an encrypted address and three counters per device. |
 

@@ -1,0 +1,90 @@
+{
+  "devices.title": {
+    "message": "Devices",
+    "description": "Heading of the Devices tab."
+  },
+  "devices.add": {
+    "message": "Add a device",
+    "description": "Button on the Devices tab that makes a pairing link for another device. Exact words used by the apps, the browser extension and the account page."
+  },
+  "devices.intro": {
+    "message": "Everything in your group. Rename or remove any device; the console is excluded from send choosers.",
+    "description": "Paragraph under the Devices heading. A “group” is the set of devices that can send to each other. A “chooser” is the list a person picks a target device from."
+  },
+  "devices.empty": {
+    "message": "No devices yet.",
+    "description": "Shown in place of the device list when it is empty."
+  },
+  "devices.tag.self": {
+    "message": "this console",
+    "description": "Small tag on the row of the device that is this browser. Lowercase, short."
+  },
+  "devices.tag.console": {
+    "message": "console",
+    "description": "Small tag on the row of another web console in the group. Lowercase, short."
+  },
+  "devices.tag.inactive": {
+    "message": "inactive",
+    "description": "Small tag on a device that has been offline for more than 30 days. Lowercase, short."
+  },
+  "devices.kind.browser": {
+    "message": "Browser",
+    "description": "Kind of device, first word of the grey line under a device name: a computer running the browser extension. Capitalized, one word if possible."
+  },
+  "devices.kind.phone": {
+    "message": "Phone",
+    "description": "Kind of device, first word of the grey line under a device name: a phone or tablet running the app. Capitalized, one word if possible."
+  },
+  "devices.kind.console": {
+    "message": "Console",
+    "description": "Kind of device, first word of the grey line under a device name: a web console like this one. Capitalized, one word if possible."
+  },
+  "devices.kind.helper": {
+    "message": "Helper",
+    "description": "Kind of device, first word of the grey line under a device name: any other kind of device. Capitalized, one word if possible."
+  },
+  "devices.detail": {
+    "message": "{kind}{hasBrowser, select, yes { · {browser}} other {}}{hasPlatform, select, yes { · {platform}} other {}}",
+    "description": "Grey line under a device name. {kind} is the word from devices.kind.* (“Phone”). {hasBrowser} is “yes” when the browser is known; {browser} is its name (“Chrome”). {hasPlatform} is “yes” when the system is known; {platform} is its name (“macOS”). The dots are separators."
+  },
+  "devices.lastSeen.online": {
+    "message": "online now",
+    "description": "After the dot in the grey line under a device name: the device is connected right now. Lowercase, short."
+  },
+  "devices.lastSeen.ago": {
+    "message": "last seen {ago}",
+    "description": "After the dot in the grey line under a device name. {ago} is a short time such as “5m ago” or “just now”. Lowercase, short."
+  },
+  "devices.vanished.title": {
+    "message": "{device} joined, then disappeared",
+    "description": "Title of a warning card: a device was announced as new and then vanished from the list. {device} is its name. Same words as in the browser extension and the phone apps."
+  },
+  "devices.vanished.body": {
+    "message": "It joined {ago} and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.",
+    "description": "Body of that warning card. {ago} is a short time such as “5m ago”, or the word “recently” when the time is not known. A “relay” is the server that passes tabs between devices."
+  },
+  "devices.reset.title": {
+    "message": "Someone asked to remove all your devices",
+    "description": "Heading of the red card that warns about a pending reset of the whole group. Same words as in the browser extension and the phone apps."
+  },
+  "devices.reset.body": {
+    "message": "From your account page on {requestedDate}. On {resetsDate} at {resetsTime}, every device is removed, this one too. If it wasn't you, stop it now, then change your email password.",
+    "description": "Body of that card. {requestedDate} and {resetsDate} are dates such as “October 27”; {resetsTime} is a time such as “3:05 PM”. Same words as in the browser extension and the phone apps."
+  },
+  "devices.reset.stop": {
+    "message": "Stop the reset",
+    "description": "Button on that card that cancels the reset. The exact label used in the apps and the extension and named in the emails."
+  },
+  "devices.reset.dismiss": {
+    "message": "It was me",
+    "description": "Button on that card for the person who started the reset themselves: it hides the card on this console."
+  },
+  "devices.reset.stopped": {
+    "message": "Reset stopped. Nothing was removed.",
+    "description": "Message at the bottom of the page after the reset was stopped."
+  },
+  "devices.reset.stopFailedOffline": {
+    "message": "Couldn't reach your relay, so the reset is still waiting. Try again.",
+    "description": "Error at the bottom of the page when stopping the reset failed because the relay did not answer."
+  }
+}

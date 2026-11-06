@@ -1,0 +1,198 @@
+{
+  "options.page.title": {
+    "message": "Tabsend settings",
+    "description": "Title of the settings page, shown on the browser tab. “Tabsend” is the product name."
+  },
+  "options.sending.heading": {
+    "message": "Sending",
+    "description": "Section heading on the settings page for the options that control how tabs are sent. Short."
+  },
+  "options.oneClick.title": {
+    "message": "Send in one click",
+    "description": "Settings page, “Sending” section: label of the checkbox that makes a click on the toolbar icon send the tab right away. Short."
+  },
+  "options.oneClick.detail": {
+    "message": "Clicking the Tabsend icon sends the tab right away, without asking which device.",
+    "description": "Settings page: explains the “Send in one click” checkbox, under its label. “Tabsend icon” is the extension's button in the browser toolbar."
+  },
+  "options.oneClick.off": {
+    "message": "Now: clicking the icon shows your devices so you can pick one.",
+    "description": "Settings page: says what the toolbar icon does while “Send in one click” is off. “Now:” introduces the current behaviour."
+  },
+  "options.oneClick.sendTo": {
+    "message": "Send to",
+    "description": "Settings page: label of the drop-down that picks the device a one-click send goes to. Short."
+  },
+  "options.oneClick.undo": {
+    "message": "You get 4 seconds to undo. Right-click the icon to pick a different device.",
+    "description": "Settings page: under the “Send to” drop-down. After a one-click send there are 4 seconds to cancel it. “The icon” is the Tabsend button in the browser toolbar."
+  },
+  "options.oneClick.lastDevice": {
+    "message": "The device I sent to last",
+    "description": "Settings page: first choice in the “Send to” drop-down. It means: no fixed device, always use the one the previous send went to. Short, first person."
+  },
+  "options.oneClick.noDevices": {
+    "message": "No other devices yet. Pair one first.",
+    "description": "Settings page: the only (greyed out) choice in the “Send to” drop-down when this browser has no other device in its group. “Pair” means join a device to the group."
+  },
+  "options.confirmToast.title": {
+    "message": "Confirm each send",
+    "description": "Settings page: label of the switch that shows a small message on the web page after each send. Short."
+  },
+  "options.confirmToast.detail": {
+    "message": "An in-page toast naming the device. Errors always show.",
+    "description": "Settings page: explains “Confirm each send”. A “toast” is a small message that appears briefly on top of the web page and names the device the tab was sent to."
+  },
+  "options.pendingRow.title": {
+    "message": "Show the waiting row in the device list",
+    "description": "Settings page: label of the switch that shows or hides a row in the toolbar popup's device list for tabs waiting for a sleeping device."
+  },
+  "options.pendingRow.detail": {
+    "message": "“⏳ 1 waiting for …” while a send is queued to an asleep device.",
+    "description": "Settings page: shows an example of the waiting row, quoted. It starts with an hourglass symbol (keep it) and ends with an ellipsis where a device name goes. It should match the popup's waiting row text."
+  },
+  "options.contextMenus.title": {
+    "message": "Right-click menus",
+    "description": "Settings page: label of the switch that adds Tabsend to the browser's right-click menu. Short."
+  },
+  "options.contextMenus.detail": {
+    "message": "Show “Send tab / link to …” when you right-click a page or link.",
+    "description": "Settings page: explains “Right-click menus”. The quoted text is the menu entry as it appears in the right-click menu, ending with an ellipsis where a device name goes."
+  },
+  "options.shortcut.title": {
+    "message": "Keyboard shortcut",
+    "description": "Settings page: label for the keyboard shortcut setting. Short."
+  },
+  "options.shortcut.detail": {
+    "message": "<code>Ctrl/Cmd + Shift + S</code> does what the Tabsend icon does. A second shortcut, not set at first, always sends in one click to the “Send to” device.",
+    "description": "Settings page: explains the keyboard shortcuts. The <code>…</code> part is the key combination, shown in a code font; keep both tags around it. Ctrl is the Windows and Linux key, Cmd the Mac key. “Send to” is the label of the drop-down above (options.oneClick.sendTo)."
+  },
+  "options.shortcut.rebind": {
+    "message": "Rebind…",
+    "description": "Settings page: link-style button that opens the browser's page for changing keyboard shortcuts. The ellipsis shows that another page opens. Short."
+  },
+  "options.receiving.heading": {
+    "message": "Receiving",
+    "description": "Section heading on the settings page for the options that control what happens when a tab arrives. Short."
+  },
+  "options.notify.title": {
+    "message": "Notify when a tab arrives",
+    "description": "Settings page, “Receiving” section: label of the switch for a notification when a tab arrives from another device."
+  },
+  "options.notify.detail": {
+    "message": "Says which window the tab opened in; click it to go there. The toolbar badge counts new tabs either way.",
+    "description": "Settings page: explains “Notify when a tab arrives”. “It” is the notification. The “badge” is the small number on the toolbar icon."
+  },
+  "options.history.detail": {
+    "message": "Every tab your devices send each other, and whether it arrived. A tab that never arrived can be sent again from there. The newest 50 stay on this browser for offline use.",
+    "description": "Settings page: explains what the History page shows. “From there” means from the History page. 50 is the number of entries kept on this browser."
+  },
+  "options.history.open": {
+    "message": "Open history",
+    "description": "Settings page: button that opens the History page. Short."
+  },
+  "options.devices.heading": {
+    "message": "Devices",
+    "description": "Section heading on the settings page above the list of devices in the group. Short."
+  },
+  "options.pairing.detail": {
+    "message": "Connect another browser or your phone to this group with a link or QR code. Useful when “Send in one click” is on, since the icon then no longer shows your devices.",
+    "description": "Settings page, “Add a device” section: explains adding a device. “Send in one click” is the name of the checkbox in the Sending section (options.oneClick.title); keep it identical to that."
+  },
+  "options.pairing.unregistered": {
+    "message": "Finish setting up Tabsend first, then come back here to add a device.",
+    "description": "Settings page: shown instead of the pairing button when this browser is not set up yet. It is followed by a link-style button “Set up Tabsend”."
+  },
+  "options.pairing.show": {
+    "message": "Show QR code or link",
+    "description": "Settings page: button that shows a QR code and a link for adding a device. Short."
+  },
+  "options.connection.heading": {
+    "message": "Connection",
+    "description": "Section heading on the settings page for the relay (the server) this browser uses. Short. Other messages refer to this name, for example “change it later under Connection”."
+  },
+  "options.relay.label": {
+    "message": "Relay",
+    "description": "Label in front of the address of the relay (the server that passes tabs between devices). Used on the settings page and on the setup page. Short."
+  },
+  "options.relay.notSetUp": {
+    "message": "Not set up yet",
+    "description": "Settings page: shown where the relay address would be when this browser is not set up."
+  },
+  "options.relay.removed": {
+    "message": "Removed from your group by another device",
+    "description": "Settings page: shown where the relay address would be when another device removed this browser from the group."
+  },
+  "options.relay.answering": {
+    "message": "Answering",
+    "description": "Settings page: short status under the relay address when the relay is answering normally. A single word is fine."
+  },
+  "options.pending.continueSetup": {
+    "message": "Continue setup",
+    "description": "Settings page: button on the note about an unfinished move to another relay. It reopens the setup page. Short."
+  },
+  "options.pending.cancelMove": {
+    "message": "Cancel this move",
+    "description": "Settings page: button on the note about an unfinished move to another relay. It drops the move and keeps the current relay. Short."
+  },
+  "options.move.label": {
+    "message": "Where is your relay now?",
+    "description": "Settings page: label of the box where the person types or pastes a relay address or setup link."
+  },
+  "options.move.addressPlaceholder": {
+    "message": "http://192.168.1.50:8787",
+    "description": "Settings page: grey example shown inside the empty relay address box. It is a sample web address; leave it unchanged unless the example format differs in your language."
+  },
+  "options.move.check": {
+    "message": "Check",
+    "description": "Settings page: button next to the relay address box that checks the address. Short."
+  },
+  "options.move.hint": {
+    "message": "Moving to the Tabsend hosted service? Sign up at <link>tabsend.org</link>, then paste your setup link here. This browser keeps using your current relay until the new one accepts it. After that, pair your other devices again.",
+    "description": "Settings page: hint under the relay address box for someone who wants to move to Tabsend's own hosted service. <link>…</link> is a clickable link to the website tabsend.org; keep both tags around the web address."
+  },
+  "options.move.checking": {
+    "message": "Checking…",
+    "description": "Settings page: shown in the result box while the typed relay address is being checked."
+  },
+  "options.move.setUpHere": {
+    "message": "Set up on this relay",
+    "description": "Settings page: button in the result box when this browser is no longer paired. It starts setup on the relay address that was typed."
+  },
+  "options.move.switchAddress": {
+    "message": "Switch to this address",
+    "description": "Settings page: button in the result box when the typed address is the same relay as before. It saves the new address."
+  },
+  "options.move.switchRelay": {
+    "message": "Switch to this relay",
+    "description": "Settings page: button in the result box when the typed address is a different relay. It starts setting up this browser on that relay."
+  },
+  "options.advanced.summary": {
+    "message": "Advanced details",
+    "description": "Settings page: title of a collapsed section that opens to show technical details about relay addresses. Short."
+  },
+  "options.advanced.lanAddress": {
+    "message": "For a home-network relay, use its browser address. With the included self-signed LAN setup, that is <browser>http://<LAN-IP>:8786</browser>; <app>https://<LAN-IP>:8787</app> is for the Android app.",
+    "description": "Settings page, “Advanced details”: explains two addresses of a relay run at home. <browser>…</browser> and <app>…</app> mark web addresses shown in a code font; keep each tag pair around its address. <LAN-IP> inside them is literal text meaning “the computer's address on your home network”; keep it as it is. LAN means local network."
+  },
+  "options.advanced.paste": {
+    "message": "You can paste a relay address or a setup link. Tabsend checks whether it is the relay you are already on (then only the address changes and your devices stay paired) or a different one (then it opens setup, and keeps the current pairing until the new relay accepts this browser).",
+    "description": "Settings page, “Advanced details”: explains what happens after a relay address or setup link is pasted and checked."
+  },
+  "options.saved": {
+    "message": "Saved ✓",
+    "description": "Settings page: small confirmation that appears for a moment at the bottom of the page after a setting is saved. The check mark is a symbol; keep it. Short."
+  },
+  "options.error.loadFailed": {
+    "message": "Couldn't load your settings: {error}",
+    "description": "Settings page: error shown at the top when the settings could not be read. {error} is the reason, one whole sentence of its own (such as “Couldn't reach your relay. Check that it is running, then try again.”). Place it after the colon as it is."
+  },
+  "options.websiteImages.title": {
+    "message": "Don't load website images",
+    "description": "Settings page, History section: label of the checkbox that stops pictures being loaded from websites. Off by default."
+  },
+  "options.websiteImages.detail": {
+    "message": "Pictures load directly from each website, so those sites can see this browser's internet address and when it asked. Turn this on if you don't want to be tracked this way. You'll see each site's first letter instead.",
+    "description": "Settings page: explains the “Don't load website images” checkbox, under its label."
+  }
+}

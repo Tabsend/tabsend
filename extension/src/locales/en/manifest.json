@@ -1,0 +1,22 @@
+{
+  "manifest.name": {
+    "message": "Tabsend",
+    "description": "The extension's name in the browser's extension list and in the store. A product name: keep it as it is."
+  },
+  "manifest.description": {
+    "message": "Send the tab you're looking at to your phone or another computer. One click, end-to-end encrypted.",
+    "description": "One-sentence summary under the name in the browser's extension list and the store. Chrome allows at most 132 characters."
+  },
+  "manifest.actionTitle": {
+    "message": "Tabsend — send this tab",
+    "description": "Tooltip when the pointer rests on the toolbar icon. Short; it also shows next to the icon in the extensions menu."
+  },
+  "manifest.command.execute": {
+    "message": "Do what clicking the Tabsend icon does",
+    "description": "Name of the keyboard shortcut that does what the toolbar icon does, in the browser's shortcut settings. Short."
+  },
+  "manifest.command.sendToPrimary": {
+    "message": "Send this tab in one click to your “Send to” device (4 seconds to undo)",
+    "description": "Name of the second keyboard shortcut, in the browser's shortcut settings. “Send to” is the name of a setting in Tabsend's settings page (see options.sending.sendTo); 4 seconds is the undo window."
+  }
+}

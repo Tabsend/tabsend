@@ -1,0 +1,22 @@
+{
+  "notify.received.fromOne": {
+    "message": "{count, plural, one {Tab received from {device}} other {# tabs received from {device}}}",
+    "description": "Title of the system notification when tabs arrive from one device. {count} is the number of tabs; {device} the sender's name."
+  },
+  "notify.received.fromMany": {
+    "message": "{count, plural, one {# tab} other {# tabs}} received from {devices, plural, one {# device} other {# devices}}",
+    "description": "Title of the system notification when tabs arrive from several devices. {count} is the number of tabs; {devices} is the number of devices."
+  },
+  "notify.arrival.window": {
+    "message": "{count, plural, one {{title} — opened in the window with “{windowTitle}”. Click to show it.} other {# tabs — opened in the window with “{windowTitle}”. Click to show the first.}}",
+    "description": "Body of the arrival notification: where the tab opened. {title} is the page title, {windowTitle} the title of the tab showing in that window, {count} the number of tabs. Keep it short; notifications are clipped."
+  },
+  "notify.arrival.background": {
+    "message": "{count, plural, one {{title} — opened in a background tab. Click to show it.} other {# tabs — opened in background tabs. Click to show the first.}}",
+    "description": "Body of the arrival notification when the tab opened behind the current one. {title} is the page title, {count} the number of tabs. Keep it short."
+  },
+  "notify.arrival.newTab": {
+    "message": "{count, plural, one {{title} — opened in a new tab. Click to show it.} other {# tabs — opened in new tabs. Click to show the first.}}",
+    "description": "Body of the arrival notification when the browser could not say where the tab opened. {title} is the page title, {count} the number of tabs. Keep it short."
+  }
+}

@@ -6,6 +6,7 @@ packages:
   - server
   - forwarder
   - control
+  - demo
   - extension
   - console
   - e2e

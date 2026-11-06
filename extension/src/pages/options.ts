@@ -1,6 +1,9 @@
 import type { ClientSettings } from '@tabsend/shared'
 import { ext } from '../lib/ext'
+import { failureText } from '../lib/failure-text'
 import { isRelayDown } from '../lib/health'
+import { t } from '../lib/i18n'
+import { localizePage } from '../lib/i18n-dom'
 import type {
   ChooserView,
   DeviceRow,
@@ -13,8 +16,9 @@ import { parsePairingInput } from '../lib/pairing'
 import { IS_FIREFOX } from '../lib/platform'
 import { hasRelayAccess, requestRelayAccess } from '../lib/relay-access'
 import { browserTlsHint, normalizeRelayUrl } from '../lib/relay-url'
+import { onEndpointsCacheChanged } from '../lib/storage'
 import {
-  NOT_REGISTERED_ERROR,
+  isNotRegistered,
   relayAccessCopy,
   relayDownLine,
   relayProbeCopy,
@@ -23,6 +27,9 @@ import {
 import { askNewDeviceName, removeIfConfirmed, renderDeviceList } from './device-list'
 import { wirePairingBox } from './pairing-box'
 import { rpcOk } from './rpc-client'
+
+// The page's static text, in the visitor's language, before anything else runs.
+localizePage()
 
 /**
  * Settings surface (ADR-0008 §7): toolbar click mode, per-source primary target
@@ -35,13 +42,14 @@ import { rpcOk } from './rpc-client'
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id)
+  // i18n-ignore: developer error, never shown
   if (!el) throw new Error(`missing #${id}`)
   return el as T
 }
 
 const savedEl = $('saved')
 function flashSaved(): void {
-  savedEl.textContent = 'Saved ✓'
+  savedEl.textContent = t('options.saved')
   window.setTimeout(() => {
     savedEl.textContent = ''
   }, 1200)
@@ -73,6 +81,10 @@ function renderSettings(s: ClientSettings): void {
   bind('pending-row', 'showPendingRow')
   bind('context-menus', 'contextMenusVisible')
   bind('notify-receive', 'notifyOnReceive')
+  // Worded as the opt-out (owner, 2026-11-04), so the box is the opposite of the setting.
+  const noImages = $<HTMLInputElement>('no-website-images')
+  noImages.checked = !s.websiteImages
+  noImages.addEventListener('change', () => void patch({ websiteImages: !noImages.checked }))
 }
 
 function openFirstRun(): void {
@@ -101,8 +113,8 @@ function paintConnection(state: StateView): void {
   $('current-relay').textContent = state.registered
     ? state.relayUrl
     : state.removedNotice
-      ? 'Removed from your group by another device'
-      : 'Not set up yet'
+      ? t('options.relay.removed')
+      : t('options.relay.notSetUp')
   $('move-form').style.display = state.registered ? 'block' : 'none'
   $('setup-line').style.display = state.registered ? 'none' : 'block'
   paintRelayStatus(state)
@@ -132,8 +144,12 @@ async function refreshDevices(state: StateView): Promise<void> {
     return
   }
   const res = await rpcOk<{ ok: true; devices: DevicesView }>({ type: 'getDevices' })
-  block.style.display = res.devices.devices.length > 0 ? 'block' : 'none'
-  renderDeviceList($('device-list'), res.devices.devices, {
+  paintDevices(res.devices)
+}
+
+function paintDevices(view: DevicesView): void {
+  $('devices-block').style.display = view.devices.length > 0 ? 'block' : 'none'
+  renderDeviceList($('device-list'), view.devices, {
     rename: (dev) => void renameDevice(dev),
     remove: (dev) => void removeDevice(dev),
   })
@@ -141,7 +157,7 @@ async function refreshDevices(state: StateView): Promise<void> {
 
 function showDevicesError(err: unknown): void {
   const el = $('devices-error')
-  el.textContent = err instanceof Error ? err.message : String(err)
+  el.textContent = failureText(err)
   el.classList.add('visible')
 }
 
@@ -185,7 +201,7 @@ function paintRelayStatus(state: StateView): void {
     el.classList.remove('down')
     // Only claim health when a call has actually succeeded; an unknown state
     // says nothing rather than reassuring the user on no evidence.
-    el.textContent = state.registered && state.relay?.lastOkAt ? 'Answering' : ''
+    el.textContent = state.registered && state.relay?.lastOkAt ? t('options.relay.answering') : ''
     return
   }
   const minutes = Math.max(
@@ -239,8 +255,8 @@ function paintPendingSwitch(state: StateView): void {
     ? relaySwitchCopy.pendingSafe(state.relayUrl)
     : relaySwitchCopy.pendingUnpaired()
   actions.append(
-    secondaryButton('Continue setup', openFirstRun),
-    secondaryButton('Cancel this move', () => void cancelPendingSwitch()),
+    secondaryButton(t('options.pending.continueSetup'), openFirstRun),
+    secondaryButton(t('options.pending.cancelMove'), () => void cancelPendingSwitch()),
   )
 }
 
@@ -334,10 +350,10 @@ function addProbeAction(label: string, onClick: () => void): HTMLButtonElement {
  * than an internal sentence and a dead end.
  */
 async function handleUnpaired(err: unknown, relayUrl: string): Promise<boolean> {
-  if (!(err instanceof Error) || err.message !== NOT_REGISTERED_ERROR) return false
+  if (!isNotRegistered(err)) return false
   await refreshConnection()
   showProbe('bad', relayProbeCopy.notPaired())
-  addProbeAction('Set up on this relay', () => void beginSwitch(relayUrl))
+  addProbeAction(t('options.move.setUpHere'), () => void beginSwitch(relayUrl))
   return true
 }
 
@@ -388,7 +404,7 @@ function wireRelayMove(): void {
     } catch (err) {
       // Between probe and click the world moved (relay restarted empty, say).
       if (await handleUnpaired(err, relayUrl)) return
-      showProbe('bad', err instanceof Error ? err.message : String(err))
+      showProbe('bad', failureText(err))
     }
   }
 
@@ -402,7 +418,7 @@ function wireRelayMove(): void {
       pastedPairingLink = parsePairingInput(raw) ? raw.trim() : null
       input.value = relayUrl
     } catch (err) {
-      showProbe('bad', err instanceof Error ? err.message : String(err))
+      showProbe('bad', failureText(err))
       return
     }
     // The check itself calls the address, so it needs the permission too. Still
@@ -412,7 +428,7 @@ function wireRelayMove(): void {
       return
     }
     check.disabled = true
-    showProbe('', 'Checking…')
+    showProbe('', t('options.move.checking'))
     try {
       const res = await rpcOk<{ ok: true; probe: RelayProbe }>({ type: 'probeRelay', relayUrl })
       const p = res.probe
@@ -420,14 +436,14 @@ function wireRelayMove(): void {
         case 'same': {
           showProbe('same', p.verified ? relayProbeCopy.same() : relayProbeCopy.sameUnverified())
           const btn: HTMLButtonElement = addProbeAction(
-            'Switch to this address',
+            t('options.move.switchAddress'),
             () => void commitAddress(p.relayUrl, btn),
           )
           break
         }
         case 'different':
           showProbe('different', relayProbeCopy.different())
-          addProbeAction('Switch to this relay', () => void beginSwitch(p.relayUrl))
+          addProbeAction(t('options.move.switchRelay'), () => void beginSwitch(p.relayUrl))
           break
         case 'unreachable':
           showProbe(
@@ -443,7 +459,7 @@ function wireRelayMove(): void {
       }
     } catch (err) {
       if (await handleUnpaired(err, relayUrl)) return
-      showProbe('bad', err instanceof Error ? err.message : String(err))
+      showProbe('bad', failureText(err))
     } finally {
       check.disabled = false
     }
@@ -513,7 +529,7 @@ function renderPrimary(view: ChooserView): void {
 
   if (view.targets.length === 0) {
     const opt = document.createElement('option')
-    opt.textContent = 'No other devices yet. Pair one first.'
+    opt.textContent = t('options.oneClick.noDevices')
     opt.disabled = true
     opt.selected = true
     select.append(opt)
@@ -523,7 +539,7 @@ function renderPrimary(view: ChooserView): void {
 
   const last = document.createElement('option')
   last.value = LAST_USED
-  last.textContent = 'The device I sent to last'
+  last.textContent = t('options.oneClick.lastDevice')
   last.selected = !view.primaryPinned
   select.append(last)
   for (const row of view.targets) {
@@ -565,6 +581,13 @@ async function main(): Promise<void> {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void refreshConnection().catch(() => undefined)
   })
+  // A phone that scans the QR on this very page never takes the user away from
+  // it, so the tab coming back is not enough: repaint when the list changes too.
+  onEndpointsCacheChanged(() => {
+    void rpcOk<{ ok: true; devices: DevicesView }>({ type: 'getDevices', cached: true })
+      .then((res) => paintDevices(res.devices))
+      .catch(() => undefined)
+  })
 
   try {
     const [stateRes, settingsRes, chooserRes] = await Promise.all([
@@ -578,7 +601,9 @@ async function main(): Promise<void> {
     await refreshDevices(stateRes.state)
   } catch (err) {
     const pageError = $('page-error')
-    pageError.textContent = `Couldn't load your settings: ${err instanceof Error ? err.message : String(err)}`
+    pageError.textContent = t('options.error.loadFailed', {
+      error: failureText(err),
+    })
     pageError.classList.add('visible')
   }
 }

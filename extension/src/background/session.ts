@@ -1,6 +1,6 @@
 import type { Identity, Registration } from '../lib/model'
 import { getIdentity, getRegistration } from '../lib/storage'
-import { NOT_REGISTERED_ERROR } from '../lib/strings'
+import { NotRegisteredError } from '../lib/strings'
 
 export interface Session {
   registration: Registration
@@ -17,6 +17,6 @@ export async function currentSession(): Promise<Session | null> {
 /** Like currentSession but throws — for paths that require registration. */
 export async function requireSession(): Promise<Session> {
   const session = await currentSession()
-  if (!session) throw new Error(NOT_REGISTERED_ERROR)
+  if (!session) throw new NotRegisteredError()
   return session
 }

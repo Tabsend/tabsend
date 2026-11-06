@@ -1,4 +1,5 @@
 import type { Endpoint } from '@tabsend/shared'
+import { dateLocale, t } from './i18n'
 
 /**
  * Time + staleness helpers. The "inactive > 30d" horizon mirrors the extension's
@@ -31,22 +32,29 @@ const DAY = 24 * HOUR
  */
 export function relativeTime(iso: string, now: number = Date.now()): string {
   const then = Date.parse(iso)
-  if (Number.isNaN(then)) return 'unknown'
+  if (Number.isNaN(then)) return t('time.unknown')
   const delta = now - then
-  if (delta < 0) return 'just now'
-  if (delta < MIN) return 'just now'
-  if (delta < HOUR) return `${Math.floor(delta / MIN)}m ago`
-  if (delta < DAY) return `${Math.floor(delta / HOUR)}h ago`
+  if (delta < MIN) return t('time.justNow') // a time in the future counts as now
+  if (delta < HOUR) return t('time.minutes', { count: Math.floor(delta / MIN) })
+  if (delta < DAY) return t('time.hours', { count: Math.floor(delta / HOUR) })
   const days = Math.floor(delta / DAY)
-  if (days < 30) return `${days}d ago`
+  if (days < 30) return t('time.days', { count: days })
   const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  return `${Math.floor(months / 12)}y ago`
+  if (months < 12) return t('time.months', { count: months })
+  return t('time.years', { count: Math.floor(months / 12) })
 }
 
-/** Absolute, locale-formatted timestamp for the row's title/hover (full precision). */
+/** True when `iso` is a time that can be read, so a sentence can say "recently" otherwise. */
+export function isReadableTime(iso: string): boolean {
+  return !Number.isNaN(Date.parse(iso))
+}
+
+/**
+ * Absolute timestamp for the row's title/hover (full precision), formatted for the language
+ * on screen, in the browser's own regional form of it (`dateLocale`).
+ */
 export function absoluteTime(iso: string): string {
   const then = new Date(iso)
   if (Number.isNaN(then.getTime())) return iso
-  return then.toLocaleString()
+  return then.toLocaleString(dateLocale())
 }

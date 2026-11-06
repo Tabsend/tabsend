@@ -12,3 +12,5 @@ App/ShareExtension/TabsendShare.entitlements
 # Xcode user state
 xcuserdata/
 DerivedData/
+App/NotifyExtension/Info.plist
+App/NotifyExtension/TabsendNotify.entitlements

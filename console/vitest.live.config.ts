@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module'
 import { defineConfig } from 'vitest/config'
+import { catalogMessages } from './tools/i18n-vite'
 
 /**
  * The live end-to-end slice. Spawns a REAL relay (server/src/server.ts via tsx) on
@@ -15,6 +16,7 @@ const require = createRequire(import.meta.url)
 const libsodiumCjs = require.resolve('libsodium-wrappers')
 
 export default defineConfig({
+  plugins: [catalogMessages()],
   resolve: {
     alias: { 'libsodium-wrappers': libsodiumCjs },
   },

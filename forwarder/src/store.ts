@@ -1,7 +1,7 @@
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync } from 'node:fs'
 import { dirname } from 'node:path'
 import SQLite, { type Database as SQLiteDatabase, type Statement } from 'better-sqlite3'
-import type { ApnsEnvironment, DevicePlatform } from './config'
+import type { ApnsEnvironment, DevicePlatform, RingStyle } from './config'
 import { DEVICE_TOKEN_KEY_HINT, DeviceTokenBox } from './token-box'
 
 /**
@@ -34,6 +34,8 @@ export interface DeviceRecord {
    * debug and release builds of an app.
    */
   environment: ApnsEnvironment
+  /** How Apple is asked to ring it (`RingStyle`). Always `background` for Android. */
+  ringStyle: RingStyle
   createdAt: number
   lastWakeAt: number | null
   wakeCount: number
@@ -45,6 +47,7 @@ export interface RegisterParams {
   platform: DevicePlatform
   deviceToken: string
   environment: ApnsEnvironment
+  ringStyle: RingStyle
   /** ms since epoch, injected so tests and the routes share one clock. */
   now: number
 }
@@ -101,6 +104,7 @@ interface DeviceRow {
   device_token_mac: string
   device_token_enc: string
   environment: string
+  ring_style: string
   created_at: number
   last_wake_at: number | null
   wake_count: number
@@ -121,7 +125,7 @@ interface DeviceRowV2 {
  * Schema version, tracked in SQLite's own `user_version`. The migration list is
  * append-only, and a fresh file and an upgraded one end identically.
  */
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 4
 
 const DEFAULT_WAKE_FLUSH_INTERVAL_MS = 60_000
 
@@ -131,6 +135,7 @@ const DEFAULT_TRIM_INTERVAL_MS = 60 * 60 * 1000
 export const TRIM_HIGH_WATER = 0.95
 export const TRIM_LOW_WATER = 0.9
 
+/** The table as schema 3 made it. Schema 4 adds `RING_STYLE_COLUMN` to it. */
 const DEVICES_TABLE = `
   CREATE TABLE devices (
     wake_token_hash  TEXT PRIMARY KEY,
@@ -142,6 +147,11 @@ const DEVICES_TABLE = `
     last_wake_at     INTEGER,
     wake_count       INTEGER NOT NULL DEFAULT 0
   );
+`
+
+/** Schema 4 [2026-11-05, P-29]: every row that existed before is a silent wake. */
+const RING_STYLE_COLUMN = `
+  ALTER TABLE devices ADD COLUMN ring_style TEXT NOT NULL DEFAULT 'background';
 `
 
 const META_TABLE = `
@@ -225,8 +235,8 @@ export class DeviceStore {
       insert: this.db.prepare(
         `INSERT INTO devices
            (wake_token_hash, platform, device_token_mac, device_token_enc, environment,
-            created_at, last_wake_at, wake_count)
-         VALUES (?, ?, ?, ?, ?, ?, NULL, 0)`,
+            ring_style, created_at, last_wake_at, wake_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0)`,
       ),
       findByHash: this.db.prepare('SELECT * FROM devices WHERE wake_token_hash = ?'),
       addWakes: this.db.prepare(
@@ -263,6 +273,7 @@ export class DeviceStore {
         mac,
         this.box.seal(params.deviceToken, mac),
         params.environment,
+        params.ringStyle,
         params.now,
       )
       this.rows += 1 - previous.changes
@@ -334,6 +345,10 @@ export class DeviceStore {
    *   rewrites the file and empties the WAL, and it runs again at every start, and at
    *   every flush, until that has completed. A stop between the commit and the end of the
    *   clean-up therefore cannot leave clear text behind for good.
+   * - Version 4 [2026-11-05, P-29] adds `ring_style`; every existing row is `background`,
+   *   which is how it was rung before.
+   *
+   * A fresh file is made at version 3 and then takes the same version-4 step as an old one.
    */
   private migrate(): void {
     let current = this.db.pragma('user_version', { simple: true }) as number
@@ -343,9 +358,9 @@ export class DeviceStore {
         this.db.exec(DEVICES_TABLE)
         this.db.exec(META_TABLE)
         this.writeKeyCheck()
-        this.db.pragma(`user_version = ${SCHEMA_VERSION}`)
+        this.db.pragma('user_version = 3')
       })()
-      return
+      current = 3
     }
     if (current < 2) {
       this.db.exec(`
@@ -386,9 +401,16 @@ export class DeviceStore {
         this.db
           .prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('scrub_pending', 'vacuum')")
           .run()
-        this.db.pragma(`user_version = ${SCHEMA_VERSION}`)
+        this.db.pragma('user_version = 3')
       })()
       this.db.pragma('secure_delete = OFF')
+      current = 3
+    }
+    if (current < 4) {
+      this.db.transaction(() => {
+        this.db.exec(RING_STYLE_COLUMN)
+        this.db.pragma('user_version = 4')
+      })()
     }
   }
 
@@ -470,6 +492,7 @@ export class DeviceStore {
       platform: row.platform as DevicePlatform,
       deviceToken: this.box.open(row.device_token_enc, row.device_token_mac),
       environment: row.environment as ApnsEnvironment,
+      ringStyle: row.ring_style === 'alert' ? 'alert' : 'background',
       createdAt: row.created_at,
       lastWakeAt: pending ? Math.max(pending.last, row.last_wake_at ?? 0) : row.last_wake_at,
       wakeCount: row.wake_count + (pending?.count ?? 0),

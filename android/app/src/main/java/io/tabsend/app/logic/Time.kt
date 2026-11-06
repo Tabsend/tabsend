@@ -1,5 +1,6 @@
 package io.tabsend.app.logic
 
+import io.tabsend.app.R
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -10,6 +11,10 @@ import java.time.format.DateTimeParseException
 fun parseIsoMillis(iso: String): Long? = try {
     Instant.parse(iso).toEpochMilli()
 } catch (_: DateTimeParseException) {
+    null
+} catch (_: ArithmeticException) {
+    // A year so far away that it does not fit in milliseconds. A relay could send one; it must
+    // read as "no date", not crash the screen (security review v0.11.0, RS1).
     null
 }
 
@@ -41,22 +46,26 @@ private const val DAY_MS = 24 * HOUR_MS
  * Compact, calm relative time ("just now", "3m ago", "5d ago"). Wording is kept
  * identical to console/src/lib/time.ts and extension/src/lib/inbox.ts on
  * purpose: those surfaces list the same sends this one does, and two
- * vocabularies for one age would read as two different facts.
+ * vocabularies for one age would read as two different facts. The words are catalog
+ * messages (`time_*`), so each language writes its own short form.
  */
-fun relativeTime(iso: String, nowMs: Long = System.currentTimeMillis()): String {
-    val then = parseIsoMillis(iso) ?: return "unknown"
+fun relativeTime(text: TextSource, iso: String, nowMs: Long = System.currentTimeMillis()): String {
+    val then = parseIsoMillis(iso) ?: return text.string(R.string.time_unknown)
     val delta = nowMs - then
     return when {
-        delta < MINUTE_MS -> "just now"
-        delta < HOUR_MS -> "${delta / MINUTE_MS}m ago"
-        delta < DAY_MS -> "${delta / HOUR_MS}h ago"
+        delta < MINUTE_MS -> text.string(R.string.time_just_now)
+        delta < HOUR_MS -> text.plural(R.plurals.time_minutes_ago, minutes(delta), minutes(delta))
+        delta < DAY_MS -> text.plural(R.plurals.time_hours_ago, hours(delta), hours(delta))
         else -> {
-            val days = delta / DAY_MS
+            val days = (delta / DAY_MS).toInt()
             when {
-                days < 30 -> "${days}d ago"
-                days < 365 -> "${days / 30}mo ago"
-                else -> "${days / 365}y ago"
+                days < 30 -> text.plural(R.plurals.time_days_ago, days, days)
+                days < 365 -> text.plural(R.plurals.time_months_ago, days / 30, days / 30)
+                else -> text.plural(R.plurals.time_years_ago, days / 365, days / 365)
             }
         }
     }
 }
+
+private fun minutes(deltaMs: Long): Int = (deltaMs / MINUTE_MS).toInt()
+private fun hours(deltaMs: Long): Int = (deltaMs / HOUR_MS).toInt()

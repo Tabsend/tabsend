@@ -1,9 +1,13 @@
 import type { Endpoint } from '@tabsend/shared'
 import { ext } from '../lib/ext'
 import { isRelayDown } from '../lib/health'
+import { t } from '../lib/i18n'
+import { localizePage } from '../lib/i18n-dom'
 import type { ChooserRow, ChooserView, HeldTab, SendResult, StateView } from '../lib/model'
 import { hasRelayAccess } from '../lib/relay-access'
 import {
+  agoLine,
+  feedbackCopy,
   goneTargetCopy,
   heldTabLabel,
   heldTabsHeading,
@@ -33,9 +37,11 @@ import { rpcOk } from './rpc-client'
  * opens pairing over the whole popup; Back (or Escape) returns to the list.
  */
 
+localizePage()
+
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id)
-  if (!el) throw new Error(`missing #${id}`)
+  if (!el) throw new Error(`missing #${id}`) // i18n-ignore: developer error
   return el as T
 }
 
@@ -67,15 +73,6 @@ function show(el: HTMLElement, visible: boolean): void {
   el.classList.toggle('hidden', !visible)
 }
 
-function relativeLastSeen(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000))
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.round(hours / 24)}d ago`
-}
-
 type DeviceIcon = 'phone' | 'browser' | 'laptop'
 
 /** Which picture and word a target gets. Console endpoints never reach the list. */
@@ -87,7 +84,11 @@ function deviceIcon(endpoint: Endpoint): DeviceIcon {
 
 function deviceKindWord(endpoint: Endpoint): string {
   const icon = deviceIcon(endpoint)
-  return icon === 'phone' ? 'Phone' : icon === 'laptop' ? 'Computer' : 'Browser'
+  return icon === 'phone'
+    ? t('devices.kind.phone')
+    : icon === 'laptop'
+      ? t('devices.kind.computer')
+      : t('devices.kind.browser')
 }
 
 /** Stroke icon geometry (24×24, currentColor) — built as nodes, never from a string. */
@@ -131,6 +132,21 @@ function deviceTile(endpoint: Endpoint): HTMLSpanElement {
   return tile
 }
 
+/**
+ * The second line of a row ("Browser · online") as ONE message, so a language can order the
+ * kind and the status as it needs. The status stays an element of its own (it takes its
+ * colour from its class, and sendTo() swaps its text for "sending…"), so the finished line
+ * is cut around the status text instead of being built from pieces.
+ */
+function subLine(kind: string, status: HTMLElement): Array<string | Node> {
+  const word = status.textContent ?? ''
+  const line = t('chooser.row.sub', { kind, status: word })
+  const at = word === '' ? -1 : line.lastIndexOf(word)
+  // A translation that lost {status} leaves the line whole; sendTo() copes without the element.
+  if (at < 0) return [line]
+  return [line.slice(0, at), status, line.slice(at + word.length)]
+}
+
 function renderRow(row: ChooserRow): HTMLLIElement {
   const li = document.createElement('li')
   const btn = document.createElement('button')
@@ -138,15 +154,20 @@ function renderRow(row: ChooserRow): HTMLLIElement {
   // Never announce a presence we can't stand behind: with the relay unreachable
   // the list is a snapshot, and reading out "online" from it is the spoken
   // version of the green dot that started this (dogfood 2026-08-05).
+  const ago = agoLine(row.endpoint.lastSeenAt, Date.now())
   const presence = !row.presenceKnown
-    ? `status unknown, last seen ${relativeLastSeen(row.endpoint.lastSeenAt)}`
+    ? t('chooser.row.spoken.unknown', { ago })
     : row.endpoint.presence === 'online'
-      ? 'online'
-      : `offline, last seen ${relativeLastSeen(row.endpoint.lastSeenAt)}`
-  const verb = selectedCount > 1 ? `Send ${selectedCount} tabs to` : 'Send to'
+      ? t('chooser.row.spoken.online')
+      : t('chooser.row.spoken.offline', { ago })
   btn.setAttribute(
     'aria-label',
-    `${verb} ${row.endpoint.label}${row.isPrimary ? ', main' : ''}, ${presence}`,
+    t('chooser.row.aria', {
+      count: selectedCount,
+      device: row.endpoint.label,
+      isMain: row.isPrimary ? 'yes' : 'no',
+      presence,
+    }),
   )
 
   // Presence is said in WORDS on the second line ("Browser · online"), not by a
@@ -170,13 +191,12 @@ function renderRow(row: ChooserRow): HTMLLIElement {
     const main = document.createElement('span')
     main.className = 'main-tag'
     main.setAttribute('aria-hidden', 'true')
-    main.textContent = 'Main'
+    main.textContent = t('chooser.row.main')
     nameLine.append(main)
   }
 
   const sub = document.createElement('span')
   sub.className = 'row-sub'
-  sub.append(`${deviceKindWord(row.endpoint)} · `)
   // `.last-seen` is the status word: sendTo() swaps it for "sending…" and back.
   const status = document.createElement('span')
   status.className = 'last-seen'
@@ -187,20 +207,21 @@ function renderRow(row: ChooserRow): HTMLLIElement {
     status.textContent = unreachableCopy.rowStatus
   } else if (row.presenceKnown && row.endpoint.presence === 'online') {
     status.classList.add('online')
-    status.textContent = 'online'
-  } else {
+    status.textContent = t('chooser.row.status.online')
+  } else if (row.presenceKnown) {
     // A long-offline endpoint reads as "inactive" (stale policy) rather than a
     // fresh "last seen"; still selectable — presence never gates a send.
-    const age = row.stale ? 'inactive' : `seen ${relativeLastSeen(row.endpoint.lastSeenAt)}`
+    status.textContent = row.stale
+      ? t('chooser.row.status.inactive')
+      : t('chooser.row.status.offline', { ago })
+  } else {
     // Unknown is a different KIND of answer from offline, so it says so: with
     // the relay unreachable the list is a snapshot, and only the age is fact.
-    status.textContent = row.presenceKnown
-      ? row.stale
-        ? age
-        : `offline · ${age}`
-      : `status unknown · ${age}`
+    status.textContent = row.stale
+      ? t('chooser.row.status.unknownInactive')
+      : t('chooser.row.status.unknown', { ago })
   }
-  sub.append(status)
+  sub.append(...subLine(deviceKindWord(row.endpoint), status))
   text.append(nameLine, sub)
   btn.append(text)
 
@@ -221,6 +242,9 @@ function renderRow(row: ChooserRow): HTMLLIElement {
  * "Waiting to send" — it used to get the full green tick with a small grey note
  * underneath, which read as success at a glance and hid the outage entirely.
  */
+/** The glyph in front of an outcome's words: a symbol, not text. */
+const TICKS = { success: '✓', pending: '↑', error: '!' } as const
+
 function showOutcome(send: SendResult): void {
   const banner = sendBanner(send)
   confirmEl.replaceChildren()
@@ -231,7 +255,7 @@ function showOutcome(send: SendResult): void {
   const tick = document.createElement('span')
   tick.className = 'tick'
   tick.setAttribute('aria-hidden', 'true')
-  tick.textContent = banner.tone === 'success' ? '✓' : banner.tone === 'pending' ? '↑' : '!'
+  tick.textContent = TICKS[banner.tone]
   const headline = document.createElement('span')
   headline.textContent = banner.headline
   const to = document.createElement('div')
@@ -278,7 +302,7 @@ async function sendTo(targetEndpointId: string, btn: HTMLButtonElement): Promise
     note.className = 'last-seen'
     btn.append(note)
   }
-  note.textContent = 'sending…'
+  note.textContent = t('chooser.row.sending')
   // Put the row back the way it was, so a failure leaves an honest list behind
   // (the view is frozen while `sending`, so nothing else will repaint it).
   const undoSendingState = (): void => {
@@ -305,7 +329,7 @@ async function sendTo(targetEndpointId: string, btn: HTMLButtonElement): Promise
     // the reason is written down. Only the row's ✗ marker times out.
     statusEl.textContent = send.failure
       ? sendFailureLine(send.failure, send.targetLabel)
-      : (send.error ?? '')
+      : feedbackCopy.hardError()
     statusEl.classList.add('error')
     show(statusEl, true)
     setTimeout(() => check.remove(), 2000)
@@ -395,8 +419,8 @@ function renderNewDevices(view: ChooserView): void {
         const next: ChooserView = {
           ...view,
           unreachable: (view.unreachable ?? []).filter((u) => u.endpointId !== d.endpointId),
-          targets: view.targets.map((t) =>
-            t.endpoint.id === d.endpointId ? { ...t, unreachable: false } : t,
+          targets: view.targets.map((target) =>
+            target.endpoint.id === d.endpointId ? { ...target, unreachable: false } : target,
           ),
         }
         if (currentState && !sending) renderChooser(next, currentState)
@@ -420,7 +444,7 @@ function renderChooser(view: ChooserView, state: StateView): void {
     show(pendingEl, false)
     // Still list tabs held here: with the only other device removed, a tab
     // held for it would otherwise be invisible, and so impossible to discard.
-    if (view.registered) renderHeld(view, () => 'a device')
+    if (view.registered) renderHeld(view, () => t('chooser.fallback.device'))
     else show(heldEl, false)
     return
   }
@@ -435,7 +459,8 @@ function renderChooser(view: ChooserView, state: StateView): void {
   // and silently sent the current tab on a bare icon click (dogfood 2026-07-21).
 
   const labelFor = (id: string): string =>
-    view.targets.find((t) => t.endpoint.id === id)?.endpoint.label ?? 'a device'
+    view.targets.find((target) => target.endpoint.id === id)?.endpoint.label ??
+    t('chooser.fallback.device')
 
   // One ⏳ row per target the RELAY is holding for (sent-but-unacked, §3.1) —
   // "it's on its way, that device is asleep".
@@ -499,7 +524,9 @@ function renderHeld(view: ChooserView, labelFor: (id: string) => string): void {
       to.className = 'held-to'
       // The label saved at send time first: the device list only names devices
       // that are still in it.
-      to.textContent = `→ ${item.targetLabel ?? labelFor(item.targetEndpointId)}`
+      to.textContent = t('chooser.held.to', {
+        device: item.targetLabel ?? labelFor(item.targetEndpointId),
+      })
       row.append(name, to, cancelButton(item, row))
     }
     heldEl.append(row)
@@ -529,7 +556,7 @@ function goneTargetChoice(item: HeldTab, view: ChooserView): HTMLElement {
   // (`heldTabChoices`): accepted and answered for, never this browser, a
   // console, or a device it removed. The send checks the same list again.
   const allowed = new Set(item.choices)
-  const others = view.targets.map((t) => t.endpoint).filter((e) => allowed.has(e.id))
+  const others = view.targets.map((target) => target.endpoint).filter((e) => allowed.has(e.id))
   if (others.length === 0) {
     const none = document.createElement('div')
     none.textContent = goneTargetCopy.noOtherDevice
@@ -560,7 +587,7 @@ function goneTargetChoice(item: HeldTab, view: ChooserView): HTMLElement {
     }
   } else {
     const select = document.createElement('select')
-    select.setAttribute('aria-label', `${goneTargetCopy.sendToMenu} ${heldTabLabel(item)}`)
+    select.setAttribute('aria-label', t('chooser.held.sendToMenuAria', { tab: heldTabLabel(item) }))
     const placeholder = document.createElement('option')
     placeholder.value = ''
     placeholder.textContent = goneTargetCopy.sendToMenu
@@ -617,16 +644,16 @@ function cancelButton(item: HeldTab, row: HTMLElement): HTMLButtonElement {
   btn.type = 'button'
   btn.className = 'held-cancel'
   btn.textContent = '×'
-  btn.title = 'Stop waiting to send this tab'
-  btn.setAttribute('aria-label', `Stop waiting to send ${heldTabLabel(item)}`)
+  btn.title = t('chooser.held.stopTitle')
+  btn.setAttribute('aria-label', t('chooser.held.stopAria', { tab: heldTabLabel(item) }))
   btn.addEventListener('click', () => {
     btn.disabled = true
     row.remove()
-    if (heldEl.querySelectorAll('.held-row').length === 0) show(heldEl, false)
+    const remaining = heldEl.querySelectorAll('.held-row').length
+    if (remaining === 0) show(heldEl, false)
     else {
       const heading = heldEl.querySelector('.held-heading')
-      if (heading)
-        heading.textContent = heldTabsHeading(heldEl.querySelectorAll('.held-row').length)
+      if (heading) heading.textContent = heldTabsHeading(remaining)
     }
     void rpcOk({ type: 'cancelHeld', id: item.id }).catch(() => undefined)
   })
@@ -722,6 +749,15 @@ async function main(): Promise<void> {
   // Live updates while the popup is open: the SW pushes a 'refresh' over this
   // port when a WS presence/ack/endpoint event lands, so the dots and the ⏳
   // pending row stay current without polling. Socket down ⇒ no refreshes, no harm.
+  connectLiveUpdates(state)
+}
+
+/**
+ * The port dies with the SW, which sleeps after about 30 idle seconds, and a phone
+ * takes longer than that to scan the popup's QR. So connect again when it drops;
+ * this only runs while the popup is open.
+ */
+function connectLiveUpdates(state: StateView): void {
   try {
     const port = ext.runtime.connect({ name: 'chooser' })
     port.onMessage.addListener((msg: { type?: string }) => {
@@ -729,6 +765,9 @@ async function main(): Promise<void> {
       void rpcOk<{ ok: true; chooser: ChooserView }>({ type: 'getChooser' }).then((res) => {
         if (!sending) renderChooser(res.chooser, state)
       })
+    })
+    port.onDisconnect.addListener(() => {
+      setTimeout(() => connectLiveUpdates(state), 1000)
     })
   } catch {
     // connect can throw if the SW is mid-reload — the initial render still stands.

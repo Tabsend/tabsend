@@ -13,3 +13,4 @@ export * from './types';
 export * from './newdevices';
 export * from './keyrecord';
 export * from './homenetwork';
+export * from './i18n';

@@ -46,9 +46,17 @@ object DeviceRows {
         },
     )
 
-    /** "Kind · status", with only the status word coloured. */
-    fun detail(context: Context, kind: String, status: String, @ColorRes statusColor: Int): CharSequence {
-        val kindWord = kindLabel(context, kind)
+    /**
+     * "Kind · status", with only the status word coloured. [kindWord] replaces the kind's own
+     * word where the first part says something else ("This phone · Paused").
+     */
+    fun detail(
+        context: Context,
+        kind: String,
+        status: String,
+        @ColorRes statusColor: Int,
+        kindWord: String = kindLabel(context, kind),
+    ): CharSequence {
         val text = context.getString(R.string.device_detail, kindWord, status)
         val start = text.lastIndexOf(status)
         if (start < 0) return text

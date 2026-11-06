@@ -1,4 +1,5 @@
 import type { GroupResetState, NewDeviceNotice } from '@tabsend/shared'
+import { failureText } from '../lib/failure-text'
 import { groupResetCopy, newDeviceCopy, unreachableCopy } from '../lib/strings'
 import type { UnreachableDevice } from '../lib/unreachable'
 
@@ -208,7 +209,7 @@ export async function runStopReset(
     await stop()
     state.stoppedFor = reset.requestedAt
   } catch (err) {
-    state.error = err instanceof Error ? err.message : String(err)
+    state.error = failureText(err)
   } finally {
     state.busy = false
     rerender()

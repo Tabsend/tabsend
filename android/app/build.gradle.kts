@@ -7,7 +7,7 @@ plugins {
 /**
  * Marketing version. Bump by hand for a real release.
  */
-val appVersion = "0.10.0"
+val appVersion = "0.11.0"
 
 /**
  * Build identity. Builds are installed by downloading the CI artifact — there is no
@@ -124,6 +124,11 @@ android {
             if (signingStoreFile != null) {
                 signingConfig = signingConfigs.getByName("tabsend")
             }
+            // Adds the pseudo-locales en-XA (accented letters, about 40 percent longer, in
+            // brackets) and ar-XB (right to left) to debug builds only. Switch the phone to
+            // English (XA) and any sentence still shown plain is one that never moved into
+            // strings.xml (docs/L10N.md, rule 2). Never in a release build.
+            isPseudoLocalesEnabled = true
         }
         release {
             if (signingStoreFile != null) {
@@ -171,6 +176,15 @@ dependencies {
     // this library provides the one that answers from res/xml/shortcuts.xml. No
     // shortcut would reach the sheet on Android 9/10 without it (minSdk is 26).
     implementation("androidx.sharetarget:sharetarget:1.2.0")
+    // The sign-up and account pages open in a Custom Tab, a sheet over the app in the
+    // person's own browser (PLANS.md P-19). Nothing is sent to Google by this library.
+    implementation("androidx.browser:browser:1.8.0")
+    // Google Play's link-out program (PLANS.md P-19): in the Play build, a tap that leads to the
+    // account site's sign-up or account page goes through Google's own call, which shows Google's
+    // notice and hands back the token the account site reports with. Used ONLY for that: no
+    // product, no purchase, no purchases listener. A build that is not from Play, or a phone with
+    // no Play Store, gets BILLING_UNAVAILABLE and shows no account door. Debug builds never touch it.
+    implementation("com.android.billingclient:billing:8.3.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     // App-visible tracking for the WS fast path [0015] (connect while any of our
     // screens is in front; StreamService keeps it up in the background when opted in).
@@ -205,4 +219,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.24")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    // The same ICU data Android formats dates and picks plural forms with, on a desktop JVM, so a
+    // language's date style and plural categories are tested for real instead of by a stand-in
+    // (docs/L10N.md, rules 4 and 5). Tests only; the app uses the platform's own copy.
+    testImplementation("com.ibm.icu:icu4j:71.1")
 }

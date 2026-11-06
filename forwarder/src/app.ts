@@ -6,7 +6,7 @@ import Fastify, {
   LogController,
 } from 'fastify'
 import { type ApnsSender, createApnsSender, isBadDeviceToken } from './apns'
-import type { ApnsEnvironment, Config, DevicePlatform } from './config'
+import type { ApnsEnvironment, Config, DevicePlatform, RingStyle } from './config'
 import { ForwarderError, fail } from './errors'
 import { createFcmSender, type FcmSender, isWrongProject } from './fcm'
 import { addressKey, RateLimiter } from './ratelimit'
@@ -215,6 +215,30 @@ function readEnvironment(
   return raw
 }
 
+/**
+ * How the phone wants to be rung (`RingStyle`, docs/PLANS.md P-29). Absent means
+ * `background`, which is what every phone had before the field existed, so an app that
+ * never sends it is rung exactly as before. Only an iPhone can ask for `alert`: Google's
+ * wake is already a high-priority message that arrives at once.
+ */
+function readRingStyle(body: Record<string, unknown>, platform: DevicePlatform): RingStyle {
+  const raw = body.ringStyle
+  if (raw === undefined) return 'background'
+  if (raw !== 'background' && raw !== 'alert') {
+    fail(
+      'invalid_request',
+      'ringStyle must be "alert" or "background". "alert" asks Apple for a visible "new link" notification the app fills in; "background" is the silent wake. Omit the field for "background".',
+    )
+  }
+  if (raw === 'alert' && platform !== 'ios') {
+    fail(
+      'invalid_request',
+      'ringStyle "alert" is for an iPhone (apnsToken). An Android phone is always rung with the silent, high-priority wake; omit the field.',
+    )
+  }
+  return raw
+}
+
 export function buildApp(options: BuildAppOptions): FastifyInstance {
   const { config, store } = options
   const now = options.now ?? (() => Date.now())
@@ -359,6 +383,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
           : await apns.wake({
               apnsToken: device.deviceToken,
               environment: device.environment,
+              ringStyle: device.ringStyle,
             })
 
       if (result.ok) {
@@ -473,6 +498,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     }
 
     const environment = readEnvironment(body, config.apns?.defaultEnvironment ?? 'production')
+    const ringStyle = readRingStyle(body, platform)
 
     const wakeToken = newWakeToken()
     const wakeTokenHash = hashWakeToken(wakeToken)
@@ -483,6 +509,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         platform,
         deviceToken,
         environment,
+        ringStyle,
         now: now(),
       }))
     } catch (err) {
@@ -499,7 +526,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
     // `tokenRef` is the ONLY token-derived value allowed in a log line (PROTOCOL.md §8).
     request.log.info(
-      { tokenRef: tokenRef(wakeTokenHash), platform, environment, replaced },
+      { tokenRef: tokenRef(wakeTokenHash), platform, environment, ringStyle, replaced },
       replaced ? 'Replaced a wake token' : 'Registered a device',
     )
     return reply.code(200).send({ wakeToken })

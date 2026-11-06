@@ -14,6 +14,7 @@ import io.tabsend.app.push.RelayRef
 import io.tabsend.app.push.Retirement
 import io.tabsend.app.wire.Endpoint
 import io.tabsend.app.wire.GroupKeyRecord
+import io.tabsend.app.wire.GroupServiceState
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -160,6 +161,22 @@ class Store private constructor(private val prefs: SharedPreferences) {
     var avoidGoogle: Boolean
         get() = prefs.getBoolean(K_AVOID_GOOGLE, false)
         set(value) = prefs.edit().putBoolean(K_AVOID_GOOGLE, value).apply()
+
+    /**
+     * Show pictures from the sites tabs came from. On by default. Off, this phone asks
+     * no site for anything on behalf of a preview, and rows show a letter tile. Like
+     * [avoidGoogle] it is a preference about this phone, so it survives an unpair.
+     */
+    var websiteImages: Boolean
+        get() = prefs.getBoolean(K_WEBSITE_IMAGES, true)
+        set(value) = prefs.edit().putBoolean(K_WEBSITE_IMAGES, value).apply()
+
+    /**
+     * Called after the inbox or the history cache changes, on whichever thread changed
+     * it, so an open screen can redraw without being left and come back to.
+     */
+    @Volatile
+    var onTimelineChanged: (() -> Unit)? = null
 
     /**
      * The wake token this phone holds from the forwarder, or null when it has none
@@ -362,9 +379,12 @@ class Store private constructor(private val prefs: SharedPreferences) {
         get() = prefs.getString(K_INBOX, null)
             ?.let { json.decodeFromString(ListSerializer(InboxItem.serializer()), it) }
             ?: emptyList()
-        set(value) = prefs.edit()
-            .putString(K_INBOX, json.encodeToString(ListSerializer(InboxItem.serializer()), value))
-            .apply()
+        set(value) {
+            prefs.edit()
+                .putString(K_INBOX, json.encodeToString(ListSerializer(InboxItem.serializer()), value))
+                .apply()
+            onTimelineChanged?.invoke()
+        }
 
     /**
      * Read-modify-write the inbox under a lock, for the same reason as
@@ -420,9 +440,12 @@ class Store private constructor(private val prefs: SharedPreferences) {
         get() = prefs.getString(K_HISTORY, null)
             ?.let { json.decodeFromString(ListSerializer(HistoryItem.serializer()), it) }
             ?: emptyList()
-        set(value) = prefs.edit()
-            .putString(K_HISTORY, json.encodeToString(ListSerializer(HistoryItem.serializer()), value))
-            .apply()
+        set(value) {
+            prefs.edit()
+                .putString(K_HISTORY, json.encodeToString(ListSerializer(HistoryItem.serializer()), value))
+                .apply()
+            onTimelineChanged?.invoke()
+        }
 
     /** Read-modify-write the cache under a lock: a drain and an open screen both refresh it. */
     @Synchronized
@@ -546,6 +569,35 @@ class Store private constructor(private val prefs: SharedPreferences) {
         return out
     }
 
+    /**
+     * The plan words Tabsend's own service last wrote for this group [PLANS.md P-19], kept as
+     * the relay said them, or null: a self-hosted relay says nothing. Set only after a good
+     * answer ([GroupResetWatcher.check]), so a failed fetch keeps what the phone knew. Never
+     * worked out from a date or a tap. Gone with everything else on unpair ([clear]).
+     */
+    var groupService: GroupServiceState?
+        get() = prefs.getString(K_GROUP_SERVICE, null)
+            ?.let { runCatching { json.decodeFromString(GroupServiceState.serializer(), it) }.getOrNull() }
+        set(value) = prefs.edit().apply {
+            if (value == null) {
+                remove(K_GROUP_SERVICE)
+            } else {
+                putString(K_GROUP_SERVICE, json.encodeToString(GroupServiceState.serializer(), value))
+            }
+        }.apply()
+
+    /**
+     * When the person opened the sign-up sheet ("Set up an account"), in epoch milliseconds,
+     * or null. A setup link that arrives within [io.tabsend.app.logic.AccountSetup.PENDING_WINDOW_MS]
+     * is that account's own, so the app asks for a name instead of showing the raw link [P-19].
+     * Wiped with the pairing ([clear]).
+     */
+    var accountStartedAt: Long?
+        get() = if (prefs.contains(K_ACCOUNT_STARTED)) prefs.getLong(K_ACCOUNT_STARTED, 0L) else null
+        set(value) = prefs.edit().apply {
+            if (value == null) remove(K_ACCOUNT_STARTED) else putLong(K_ACCOUNT_STARTED, value)
+        }.apply()
+
     // --- source-side outbound queue (send while offline) ---
     var outbound: List<OutboundItem>
         get() = prefs.getString(K_OUTBOUND, null)
@@ -593,10 +645,12 @@ class Store private constructor(private val prefs: SharedPreferences) {
     @Synchronized
     fun clear() {
         val avoid = if (prefs.contains(K_AVOID_GOOGLE)) prefs.getBoolean(K_AVOID_GOOGLE, false) else null
+        val images = if (prefs.contains(K_WEBSITE_IMAGES)) prefs.getBoolean(K_WEBSITE_IMAGES, true) else null
         val retiring = prefs.getString(K_PUSH_RETIRING, null)
         // An editor applies clear() before its puts, whatever the order they were called in.
         prefs.edit().clear().apply {
             if (avoid != null) putBoolean(K_AVOID_GOOGLE, avoid)
+            if (images != null) putBoolean(K_WEBSITE_IMAGES, images)
             if (retiring != null) putString(K_PUSH_RETIRING, retiring)
         }.apply()
     }
@@ -634,6 +688,7 @@ class Store private constructor(private val prefs: SharedPreferences) {
         private const val K_RELAY_ID = "reg.relayId"
         private const val K_INSTANT = "delivery.instant"
         private const val K_AVOID_GOOGLE = "delivery.avoidGoogle"
+        private const val K_WEBSITE_IMAGES = "history.websiteImages"
         private const val K_WAKE_TOKEN = "push.wakeToken"
         private const val K_PUSH_TOKEN = "push.fcmToken"
         private const val K_PUSH_ANNOUNCED = "push.announcedTo"
@@ -659,6 +714,8 @@ class Store private constructor(private val prefs: SharedPreferences) {
         private const val K_OUTBOUND = "outbound.queue"
         private const val K_RELAY_HEALTH = "relay.health"
         private const val K_GROUP_RESET = "group.reset"
+        private const val K_GROUP_SERVICE = "group.service"
+        private const val K_ACCOUNT_STARTED = "account.startedAt"
 
         @Volatile
         private var instance: Store? = null

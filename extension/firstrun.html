@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Set up Tabsend</title>
+    <title data-i18n="common.setUpTabsend"></title>
     <link rel="icon" href="icons/tabsend-32.png" />
     <link rel="icon" sizes="16x16" href="icons/tabsend-16.png" />
     <link rel="icon" sizes="48x48" href="icons/tabsend-48.png" />
@@ -109,6 +109,17 @@
         font-size: 15px;
       }
       #self-label-line { margin-bottom: 20px; }
+      /* The pin tip: shown only while Tabsend is not on the toolbar (see firstrun.ts). */
+      #pin-note {
+        display: none;
+        margin: 0 0 20px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--accent-tint);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      #pin-note.visible { display: block; }
       .card-block { border-radius: 14px; padding: 4px 16px; margin-bottom: 20px; background: var(--card); }
       .relay-line {
         display: flex;
@@ -142,16 +153,20 @@
       <div class="page-header">
         <div class="page-title">
           <img src="icons/tabsend-48.png" alt="" />
-          <h1>Set up Tabsend</h1>
+          <h1 data-i18n="common.setUpTabsend"></h1>
         </div>
-        <button type="button" id="settings-gear" aria-label="Open Tabsend settings">
+        <button
+          type="button"
+          id="settings-gear"
+          data-i18n-attrs="aria-label:firstrun.settings.open"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
         </button>
       </div>
-      <p class="sub">Send this browser's tabs to your other browsers and devices.</p>
+      <p class="sub" data-i18n="firstrun.intro"></p>
 
       <div id="error" class="notice danger" role="alert"></div>
 
@@ -170,65 +185,68 @@
         <!-- Shown only to a browser that is not paired and not mid-move: someone new,
              who most likely has no relay of their own. -->
         <aside id="hosted-offer" class="notice accent" aria-labelledby="hosted-offer-title">
-          <h2 id="hosted-offer-title">New to Tabsend?</h2>
-          <p>
-            Start a free trial of our hosted service, and you get your setup link in two
-            minutes. 14 days free, no card needed, then $14.99 a year or $49.99 once.
-          </p>
+          <h2 id="hosted-offer-title" data-i18n="firstrun.hostedOffer.title"></h2>
+          <p data-i18n="firstrun.hostedOffer.body"></p>
           <a
             id="hosted-offer-link"
             class="btn-secondary"
             href="https://tabsend.org/"
             target="_blank"
             rel="noopener"
-            >Start at tabsend.org</a
-          >
+            data-i18n="firstrun.hostedOffer.link"
+          ></a>
         </aside>
-        <label for="browser-name">Name this browser</label>
+        <label for="browser-name" data-i18n="firstrun.name.label"></label>
         <input id="browser-name" type="text" autocomplete="off" />
-        <aside class="browser-name-note" id="browser-hint">
-          Some browsers (Dia, Comet, Arc) look exactly like Chrome from in here, so this is our
-          best guess. Keep it, or type the real name.
-        </aside>
+        <aside
+          class="browser-name-note"
+          id="browser-hint"
+          data-i18n="firstrun.name.guessHint"
+        ></aside>
 
-        <label for="pairing-link-input">Setup link</label>
+        <label for="pairing-link-input" data-i18n="pairing.box.linkLabel"></label>
         <input
           id="pairing-link-input"
           type="text"
           autocomplete="off"
           spellcheck="false"
-          placeholder="https://relay.example/pair#c=…"
+          data-i18n-attrs="placeholder:firstrun.link.placeholder"
         />
-        <p class="hint">
-          Paste the link from your Tabsend account page or from one of your devices. Came here
-          from the install page? It already copied the link for you. The link tells Tabsend which
-          server to use and carries one-time credentials securely.
-        </p>
+        <p class="hint" data-i18n="firstrun.link.hint"></p>
         <p class="hint" id="switch-link-note"></p>
-        <p class="hint">
-          Running your own server? Use the link it printed when it started.
-        </p>
-        <button type="button" id="join" class="btn-primary">Pair this browser</button>
+        <p class="hint" data-i18n="firstrun.link.ownServer"></p>
+        <button type="button" id="join" class="btn-primary" data-i18n="firstrun.join"></button>
       </section>
 
       <!-- Which device is this browser on? -->
       <section id="screen-device" class="screen hidden">
-        <h2>Which device is this browser on?</h2>
-        <p class="hint" id="device-existing-hint" style="display: none">
-          Pick the device this browser runs on, or add a new one.
-        </p>
+        <h2 data-i18n="firstrun.device.title"></h2>
+        <p
+          class="hint"
+          id="device-existing-hint"
+          style="display: none"
+          data-i18n="firstrun.device.existingHint"
+        ></p>
         <div id="existing-devices"></div>
-        <label for="device-new">Add a new device</label>
+        <label for="device-new" data-i18n="firstrun.device.newLabel"></label>
         <input id="device-new" type="text" autocomplete="off" />
-        <p class="hint">Examples: “MacBook Pro M1”, “Home PC”.</p>
-        <button type="button" id="device-confirm" class="btn-primary">Continue</button>
+        <p class="hint" data-i18n="firstrun.device.examples"></p>
+        <button
+          type="button"
+          id="device-confirm"
+          class="btn-primary"
+          data-i18n="firstrun.device.continue"
+        ></button>
       </section>
 
       <!-- Manage devices (the flow ends here, not on a dead page) -->
       <section id="screen-manage" class="screen hidden">
-        <h2 id="manage-title"><span class="check">✓</span> This browser is paired</h2>
+        <h2 id="manage-title">
+          <span class="check">✓</span> <span data-i18n="firstrun.manage.title"></span>
+        </h2>
         <p id="self-label-line" class="sub"></p>
         <p id="rename-note" class="hint" style="display: none; margin-bottom: 16px"></p>
+        <p id="pin-note" data-i18n="firstrun.pin.body"></p>
 
         <!-- "New device: X. Was this you?" (PLANS.md P-10), one per unanswered device. -->
         <div id="new-devices" class="hidden"></div>
@@ -238,9 +256,14 @@
              the device list it explains. -->
         <div id="device-group" class="card-block">
           <p class="relay-line">
-            <span class="rlabel">Relay</span>
+            <span class="rlabel" data-i18n="options.relay.label"></span>
             <code id="manage-relay"></code>
-            <button type="button" class="linkish small" id="open-connection">Change…</button>
+            <button
+              type="button"
+              class="linkish small"
+              id="open-connection"
+              data-i18n="firstrun.manage.change"
+            ></button>
           </p>
           <ul id="device-list" class="device-list"></ul>
         </div>
@@ -260,37 +283,62 @@
             <p id="solo-body"></p>
           </div>
           <div class="btn-row">
-            <button type="button" class="btn-secondary" id="solo-connection">Check the relay address</button>
+            <button
+              type="button"
+              class="btn-secondary"
+              id="solo-connection"
+              data-i18n="firstrun.solo.checkAddress"
+            ></button>
           </div>
         </div>
 
         <div class="pair-block">
-          <button type="button" id="pair-another" class="btn-primary">Add a device</button>
+          <button
+            type="button"
+            id="pair-another"
+            class="btn-primary"
+            data-i18n="common.addDevice"
+          ></button>
           <div id="pairing-box">
             <div id="pairing-ready">
               <div id="pairing-qr"></div>
-              <input id="pairing-link" type="text" readonly aria-label="Setup link" />
+              <input
+                id="pairing-link"
+                type="text"
+                readonly
+                data-i18n-attrs="aria-label:pairing.box.linkLabel"
+              />
               <div class="pair-actions">
-                <button type="button" class="linkish" id="copy-link">Copy link</button>
+                <button
+                  type="button"
+                  class="linkish"
+                  id="copy-link"
+                  data-i18n="pairing.box.copyLink"
+                ></button>
                 <span id="copy-note"></span>
               </div>
-              <p class="pair-hint">Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it.</p>
+              <p class="pair-hint" data-i18n="pairing.box.hint"></p>
               <div id="pairing-local-only" role="status"></div>
             </div>
             <div id="pairing-note"></div>
           </div>
         </div>
 
-        <p class="sub">You can close this page now.</p>
+        <p class="sub" data-i18n="firstrun.manage.close"></p>
       </section>
     </main>
 
     <dialog id="rename-dialog">
-      <h2>Rename this device</h2>
+      <h2 data-i18n="common.renameDialog.title"></h2>
       <input id="rename-input" type="text" autocomplete="off" />
       <div class="dialog-actions">
-        <button type="button" id="rename-cancel" class="btn-secondary">Cancel</button>
-        <button type="button" id="rename-ok" class="btn-primary">OK</button>
+        <button
+          type="button"
+          id="rename-cancel"
+          class="btn-secondary"
+          data-i18n="common.cancel"
+        ></button>
+        <button type="button" id="rename-ok" class="btn-primary" data-i18n="common.ok"></button>
       </div>
     </dialog>
     <script type="module" src="/src/pages/firstrun.ts"></script>

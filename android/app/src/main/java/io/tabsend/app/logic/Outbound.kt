@@ -42,6 +42,8 @@ data class OutboundItem(
      * on anything queued by a build that predates this field.
      */
     val history: GroupSealed? = null,
+    /** The tab's preview picture, so sending it to another device keeps it. */
+    val image: String? = null,
     /**
      * The target has left the group (PLANS.md P-15 item 3), so the flush stops
      * posting this tab and the home screen offers another device for it. Sticky

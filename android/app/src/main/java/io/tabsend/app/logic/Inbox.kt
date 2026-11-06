@@ -1,5 +1,6 @@
 package io.tabsend.app.logic
 
+import io.tabsend.app.R
 import io.tabsend.app.wire.BatchInfo
 import io.tabsend.app.wire.SendPayload
 import kotlinx.serialization.Serializable
@@ -51,6 +52,8 @@ data class InboxItem(
      * this screen exists.
      */
     val openedAt: Long? = null,
+    /** The page's preview picture, when the sender found one. */
+    val image: String? = null,
 ) : Batched
 
 /** One rendered block: a single tab, or every tab of one multi-tab send. */
@@ -96,6 +99,7 @@ object Inbox {
         sentAt = payload.sentAt,
         receivedAt = receivedAt,
         batch = payload.batch,
+        image = payload.image,
     )
 
     /**
@@ -160,10 +164,15 @@ object Inbox {
      * can still be queued at the relay, or have been pushed off the end of the
      * cap — so this names it instead of quietly showing a shorter list.
      */
-    fun batchHeading(group: InboxGroup<*>): String {
+    fun batchHeading(text: TextSource, group: InboxGroup<*>): String {
         val here = group.items.size
         val sent = maxOf(group.sentCount ?: here, here)
-        return if (here == sent) "$sent tabs" else "$here of $sent tabs"
+        // The noun agrees with the number the sender sent, whichever form the line takes.
+        return if (here == sent) {
+            text.plural(R.plurals.history_batch_heading, sent, sent)
+        } else {
+            text.plural(R.plurals.history_batch_heading_partial, sent, here, sent)
+        }
     }
 
     /**

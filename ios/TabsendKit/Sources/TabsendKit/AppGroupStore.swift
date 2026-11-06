@@ -30,6 +30,7 @@ public final class AppGroupStore: TabsendStore, @unchecked Sendable {
         static let history = "history.cache"
         static let announcedNeverArrived = "history.announced"
         static let instantDeliveryOptOut = "wake.optout"
+        static let websiteImagesOff = "previews.off"
         static let newDeviceWatch = "devices.watch"
         static let groupResetWatch = "group.reset"
         // Keychain items
@@ -260,6 +261,13 @@ public final class AppGroupStore: TabsendStore, @unchecked Sendable {
     public var instantDeliveryOptOut: Bool {
         get { lock.withLock { defaults.bool(forKey: Key.instantDeliveryOptOut) } }
         set { lock.withLock { defaults.set(newValue, forKey: Key.instantDeliveryOptOut) } }
+    }
+
+    /// Plain App Group defaults, read by the app and the share extension. Absent reads
+    /// as false, which is "Website images on". A standing choice, so unpairing keeps it.
+    public var websiteImagesOff: Bool {
+        get { lock.withLock { defaults.bool(forKey: Key.websiteImagesOff) } }
+        set { lock.withLock { defaults.set(newValue, forKey: Key.websiteImagesOff) } }
     }
 
     /// JSON in App Group defaults: device ids and labels, not a secret, and the

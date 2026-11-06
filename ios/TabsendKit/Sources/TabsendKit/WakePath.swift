@@ -61,6 +61,41 @@ public enum WakePath {
         store.registration?.wakeForwarderAdvertised ?? false
     }
 
+    // MARK: how the phone is rung (P-29)
+
+    /// The ring style to ask the forwarder for. `alert` while notifications are allowed:
+    /// it arrives at once and the extension fills it in. `background` when they are not,
+    /// because iOS then shows no notification and runs no extension, so an `alert` ring
+    /// would do nothing at all, while a silent one still lets the app collect the link.
+    public static func preferredRingStyle(notificationsAllowed: Bool) -> RingStyle {
+        notificationsAllowed ? .alert : .background
+    }
+
+    /// The phone's choice of ring style, checked when the app opens and when a device
+    /// token arrives. A change signs this device up again in the new style, which
+    /// replaces the old wake token at the forwarder in the same transaction, exactly as a
+    /// rotated device token does.
+    ///
+    /// Returns true when a new wake token was minted, i.e. when the relay needs to be told.
+    @discardableResult
+    public static func ringStyleChosen(
+        _ style: RingStyle,
+        store: TabsendStore,
+        client: ForwarderClient? = nil
+    ) async -> Bool {
+        guard var record = store.wakeRegistration else { return false }
+        if record.effectiveRingStyle != style {
+            record.ringStyle = style
+            record.wakeToken = nil
+            store.wakeRegistration = record
+        }
+        return await mintIfNeeded(
+            store: store,
+            relayAdvertisesForwarder: relayAdvertisesForwarder(store: store),
+            client: client
+        )
+    }
+
     // MARK: keeping the wake token current
 
     /// iOS handed over an APNs device token.
@@ -76,18 +111,21 @@ public enum WakePath {
     public static func deviceTokenArrived(
         _ apnsToken: String,
         environment: String = ApnsEnvironment.current,
+        ringStyle: RingStyle = .background,
         store: TabsendStore,
         client: ForwarderClient? = nil
     ) async -> Bool {
         let existing = store.wakeRegistration
         let changed = existing?.apnsToken != apnsToken || existing?.environment != environment
+            || existing?.effectiveRingStyle != ringStyle
         if changed {
             // The old wake token belongs to an address Apple no longer routes, so it
             // is dropped here rather than revoked: re-registering replaces it anyway,
             // and revoking a token whose device token is already stale would spend a
             // round trip to delete a row the next register overwrites.
             store.wakeRegistration = WakeRegistration(
-                apnsToken: apnsToken, environment: environment, wakeToken: nil
+                apnsToken: apnsToken, environment: environment, wakeToken: nil,
+                ringStyle: ringStyle
             )
         }
         return await mintIfNeeded(
@@ -114,16 +152,36 @@ public enum WakePath {
     public static func mintIfNeeded(
         store: TabsendStore, relayAdvertisesForwarder: Bool, client: ForwarderClient? = nil
     ) async -> Bool {
+        // One at a time. Each registration replaces the last at the forwarder, so two in
+        // flight could leave this phone holding the token that was just replaced, and it
+        // would never ring. The launch, the first heartbeat and a changed ring style can
+        // all arrive here together; the second finds a token and does nothing.
+        await mints.run {
+            await mintOnce(
+                store: store, relayAdvertisesForwarder: relayAdvertisesForwarder, client: client
+            )
+        }
+    }
+
+    private static let mints = MintQueue()
+
+    private static func mintOnce(
+        store: TabsendStore, relayAdvertisesForwarder: Bool, client: ForwarderClient?
+    ) async -> Bool {
         guard relayAdvertisesForwarder, isEnabled(store: store) else { return false }
         guard let record = store.wakeRegistration, record.wakeToken == nil else { return false }
         guard let client = client ?? ForwarderClient.live() else { return false }
         guard let token = try? await client.register(
-            apnsToken: record.apnsToken, environment: record.environment
+            apnsToken: record.apnsToken, environment: record.environment,
+            ringStyle: record.effectiveRingStyle
         ) else { return false }
         // Re-read rather than writing back the captured copy: the device token may have
         // rotated while this call was in flight, and a stale write would pair a fresh
-        // APNs address with a wake token minted for the old one.
-        guard var current = store.wakeRegistration, current.apnsToken == record.apnsToken else {
+        // APNs address with a wake token minted for the old one. The same for the style:
+        // a token minted in the old style is not kept for the new one.
+        guard var current = store.wakeRegistration, current.apnsToken == record.apnsToken,
+              current.effectiveRingStyle == record.effectiveRingStyle
+        else {
             return false
         }
         current.wakeToken = token
@@ -199,5 +257,20 @@ public enum WakePath {
         guard reg.wakeForwarderAdvertised != advertised else { return }
         reg.wakeForwarderAdvertised = advertised
         store.registration = reg
+    }
+}
+
+/// Runs forwarder registrations strictly one after another (`WakePath.mintIfNeeded`).
+private actor MintQueue {
+    private var tail: Task<Bool, Never>?
+
+    func run(_ work: @Sendable @escaping () async -> Bool) async -> Bool {
+        let previous = tail
+        let next = Task<Bool, Never> {
+            _ = await previous?.value
+            return await work()
+        }
+        tail = next
+        return await next.value
     }
 }

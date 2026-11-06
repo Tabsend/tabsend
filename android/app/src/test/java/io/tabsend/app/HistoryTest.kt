@@ -4,6 +4,8 @@ import io.tabsend.app.logic.Delivery
 import io.tabsend.app.logic.Direction
 import io.tabsend.app.logic.History
 import io.tabsend.app.logic.HistoryItem
+import io.tabsend.app.logic.HistoryRow
+import io.tabsend.app.logic.LatestLine
 import io.tabsend.app.logic.Inbox
 import io.tabsend.app.logic.InboxItem
 import io.tabsend.app.logic.parseIsoMillis
@@ -240,7 +242,7 @@ class HistoryTest {
         )
         val groups = Inbox.group(rows)
         assertEquals(1, groups.size)
-        assertEquals("2 of 3 tabs", Inbox.batchHeading(groups.first()))
+        assertEquals("2 of 3 tabs", Inbox.batchHeading(EN, groups.first()))
     }
 
     // --- the never-arrived announcement ---
@@ -292,5 +294,97 @@ class HistoryTest {
         val landed = item("a", source = "laptop", target = "phone", ackedAt = "2026-08-06T11:01:00.000Z")
         val rows = History.rows(listOf(mine, others, landed), emptyList(), "phone", now)
         assertFalse(History.hasWaitingForSelf(rows))
+    }
+
+    // --- Latest, on the home screen ---
+
+    private fun row(
+        id: String,
+        direction: Direction = Direction.RECEIVED,
+        delivery: Delivery = Delivery.ARRIVED,
+        openedAt: Long? = null,
+        url: String? = "https://example.com/$id",
+    ) = HistoryRow(
+        id = id,
+        direction = direction,
+        delivery = delivery,
+        targetEndpointId = "t",
+        url = url,
+        at = "2026-08-06T11:00:00.000Z",
+        openedAt = openedAt,
+    )
+
+    @Test
+    fun `Latest is the newest two in any direction, opened or not`() {
+        val rows = listOf(
+            row("a", Direction.SENT),
+            row("b", Direction.RECEIVED, openedAt = now),
+            row("c", Direction.ELSEWHERE),
+        )
+        assertEquals(listOf("a", "b"), History.latest(rows).map { it.id })
+    }
+
+    @Test
+    fun `Latest skips a send that never arrived, and a row with nothing to open`() {
+        val rows = listOf(
+            row("failed", Direction.SENT, Delivery.NEVER_ARRIVED),
+            row("locked", url = null),
+            row("waiting", Direction.SENT, Delivery.WAITING),
+            row("blocked", url = "javascript:alert(1)"),
+            row("last"),
+        )
+        val latest = History.latest(rows, { it.url?.startsWith("https:") == true })
+        assertEquals(listOf("waiting", "last"), latest.map { it.id })
+    }
+
+    @Test
+    fun `Latest copes with one tab and with none`() {
+        assertEquals(listOf("a"), History.latest(listOf(row("a"))).map { it.id })
+        assertTrue(History.latest(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `a Latest card says which way the tab went`() {
+        assertEquals(LatestLine.NEW_FROM, History.latestLine(row("a")))
+        assertEquals(LatestLine.FROM, History.latestLine(row("a", openedAt = now)))
+        assertEquals(LatestLine.SENT_TO, History.latestLine(row("a", Direction.SENT)))
+        assertEquals(LatestLine.BETWEEN, History.latestLine(row("a", Direction.ELSEWHERE)))
+    }
+
+    @Test
+    fun `the letter tile uses the site's first letter`() {
+        assertEquals("N", History.siteLetter("https://www.nytimes.com/a"))
+        assertEquals("G", History.siteLetter("https://github.com/x"))
+        assertNull(History.siteLetter(null))
+    }
+
+    // --- the picture address ---
+
+    @Test
+    fun `a picture address reaches the row from either source`() {
+        val entry = HistoryEntry(
+            id = "m1",
+            sourceEndpointId = "self",
+            targetEndpointId = "phone",
+            createdAt = "2026-08-06T11:00:00.000Z",
+            expiresAt = "2026-08-13T11:00:00.000Z",
+            blob = GroupSealed("xsalsa20-poly1305/secretbox", "k1", "n", "c"),
+        )
+        val record = HistoryRecord(
+            payload = SendPayload(url = "https://example.com/", sentAt = "2026-08-06T11:00:00.000Z", image = "https://cdn.example.com/a.jpg"),
+            sourceLabelAtSend = "A",
+            targetLabelAtSend = "B",
+        )
+        val fromRelay = History.rows(listOf(History.project(entry, record)), emptyList(), "self", now)
+        assertEquals("https://cdn.example.com/a.jpg", fromRelay.single().image)
+
+        val projected = Inbox.project(
+            "m2",
+            SendPayload(url = "https://example.com/", sentAt = "2026-08-06T11:00:00.000Z", image = "https://cdn.example.com/b.jpg"),
+            "A",
+            now,
+        )
+        val fromInbox = History.rows(emptyList(), listOf(projected), "self", now)
+        assertEquals("https://cdn.example.com/b.jpg", fromInbox.single().image)
     }
 }

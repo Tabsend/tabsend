@@ -1,5 +1,6 @@
 import type { Endpoint, SendPayload } from '@tabsend/shared'
 import { ext } from '../lib/ext'
+import { t } from '../lib/i18n'
 import type { FeedbackOrigin, PendingUndo } from '../lib/model'
 import {
   getCachedEndpoints,
@@ -112,8 +113,8 @@ export async function quickSend(): Promise<void> {
     await showFeedback(
       {
         tone: 'error',
-        headline: "Couldn't send",
-        detail: "There's nothing sendable in this tab.",
+        headline: t('toast.couldntSend'),
+        detail: t('toast.nothingSendable'),
       },
       origin ? { origin } : {},
     )

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setLocale } from '../lib/i18n'
+import { unlocalizedWords } from '../lib/pseudo'
 import { type SendBanner, sendBanner } from '../lib/strings'
 
 /**
@@ -144,6 +146,7 @@ beforeEach(() => {
   badgeTitle.mockClear()
 })
 afterEach(() => {
+  setLocale()
   const g = globalThis as Record<string, unknown>
   for (const k of ['document', 'window', 'location', 'chrome']) delete g[k]
 })
@@ -231,6 +234,44 @@ describe('the in-page banner (SECURITY_REVIEW L8)', () => {
     expect(sendMessage).not.toHaveBeenCalled()
     undo!.click(true)
     expect(sendMessage).toHaveBeenCalledWith({ __tabsendUndo: true, id: 'undo-1' })
+  })
+})
+
+describe('the words on the banner', () => {
+  const failed: SendBanner = {
+    tone: 'error',
+    headline: 'Pixel 8 is gone',
+    detail: 'Pair it again.',
+  }
+
+  it('reach the page as an argument, because the injected function has no catalog', async () => {
+    await showFeedback(failed, { origin: ORIGIN, undoId: 'undo-1' })
+    expect(executeScript.mock.calls[0]?.[0].args.at(-1)).toEqual({
+      undo: 'Undo',
+      undone: 'Send undone',
+      dismiss: 'Dismiss',
+    })
+    const buttons = findAll(host()!, (e) => e.tag === 'button').map((e) => e.textContent)
+    expect(buttons).toEqual(['Undo', 'Dismiss'])
+  })
+
+  it("are the catalog's in the pseudo-locale, buttons and tooltip alike", async () => {
+    setLocale('en-XA')
+    await showFeedback(failed, { origin: ORIGIN, undoId: 'undo-1' })
+    const labels = executeScript.mock.calls[0]?.[0].args.at(-1) as Record<string, string>
+    expect(Object.keys(labels).sort()).toEqual(['dismiss', 'undo', 'undone'])
+    for (const text of Object.values(labels)) expect(unlocalizedWords(text, [])).toEqual([])
+    // The tooltip joins the two lines through the catalog; the lines themselves were handed in.
+    const tooltip = badgeTitle.mock.calls[0]?.[0] as string
+    expect(unlocalizedWords(tooltip, [failed.headline, failed.detail ?? ''])).toEqual([])
+    expect(tooltip).not.toBe('Pixel 8 is gone. Pair it again.')
+  })
+
+  it('make the tooltip "headline. detail", and the headline alone without a detail', async () => {
+    await showFeedback(failed)
+    expect(badgeTitle.mock.calls[0]?.[0]).toBe('Pixel 8 is gone. Pair it again.')
+    await showFeedback({ tone: 'success', headline: 'Sent to Pixel 8' })
+    expect(badgeTitle.mock.calls[1]?.[0]).toBe('Sent to Pixel 8')
   })
 })
 

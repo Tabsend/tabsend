@@ -1,10 +1,17 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import type { CreatePairingResponse, Endpoint, RegisterResponse } from '@tabsend/shared'
 import type { Page } from 'playwright'
-import { extUrl, launchProfile, type Profile, until } from './browser'
+import {
+  buildExtension,
+  EXTENSION_DIST,
+  extUrl,
+  launchProfile,
+  type Profile,
+  until,
+} from './browser'
 import { REPO_ROOT, sleep, startRelay } from './relay'
 
 // libsodium-wrappers' ESM entry is broken (vitest.config.ts aliases it); this runs outside
@@ -38,11 +45,20 @@ const W = 1280
 const H = 800
 
 // Pages the shots are taken over. Real public pages, so the pop-up sits on something real.
-const PAGES = [
-  'https://en.wikipedia.org/wiki/Bread',
-  'https://www.nasa.gov/',
-  'https://developer.mozilla.org/en-US/docs/Web/HTML',
-] as const
+// TABSEND_E2E_LANG=de takes German pages and a German browser (see browser.ts).
+const DE = process.env.TABSEND_E2E_LANG === 'de'
+const LAPTOP = DE ? 'Arbeitslaptop' : 'Work laptop'
+const PAGES = DE
+  ? ([
+      'https://de.wikipedia.org/wiki/Brot',
+      'https://de.wikipedia.org/wiki/Croissant',
+      'https://de.wikipedia.org/wiki/Kaffee',
+    ] as const)
+  : ([
+      'https://en.wikipedia.org/wiki/Bread',
+      'https://www.nasa.gov/',
+      'https://developer.mozilla.org/en-US/docs/Web/HTML',
+    ] as const)
 
 interface ChromeLike {
   runtime: { sendMessage(msg: unknown): Promise<unknown> }
@@ -83,10 +99,11 @@ async function sendSealed(
   targetKey: string,
   url: string,
   title: string,
+  image?: string,
 ): Promise<void> {
   await sodium.ready
   const keyId = (k: string) => createHash('sha256').update(k).digest('base64url')
-  const payload = JSON.stringify({ url, title, sentAt: new Date().toISOString() })
+  const payload = JSON.stringify({ url, title, image, sentAt: new Date().toISOString() })
   const nonce = sodium.randombytes_buf(sodium.crypto_box_NONCEBYTES)
   const b64 = sodium.base64_variants.ORIGINAL
   const ciphertext = sodium.crypto_box_easy(
@@ -172,6 +189,15 @@ async function composite(
 
 async function main(): Promise<void> {
   mkdirSync(OUT, { recursive: true })
+  // The rig's own build: it is granted the test relay's address up front (the real one asks).
+  await buildExtension()
+  // History shows each page's preview picture, which the extension reads from the page it
+  // sends. A real user's click grants that for the tab (activeTab); a script cannot click the
+  // pop-up, so this build is also granted the public pages the shots are taken over.
+  const manifestPath = join(EXTENSION_DIST, 'manifest.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { host_permissions?: string[] }
+  manifest.host_permissions = [...(manifest.host_permissions ?? []), 'https://*/*']
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   const relay = await startRelay()
   const profile = await launchProfile()
   try {
@@ -215,8 +241,8 @@ async function main(): Promise<void> {
         platform: 'android',
       },
       {
-        label: 'Firefox · Work laptop',
-        deviceName: 'Work laptop',
+        label: `Firefox · ${LAPTOP}`,
+        deviceName: LAPTOP,
         kind: 'extension',
         browser: 'firefox',
         platform: 'windows',
@@ -228,19 +254,10 @@ async function main(): Promise<void> {
       )
     }
 
-    // This browser is told about each one; say they are ours.
+    // A device that joins is told once and nothing waits for an answer (PLANS.md P-23), so
+    // there is nothing to confirm; just let the browser see the new list.
     await firstrun.reload()
     await firstrun.waitForSelector('#screen-manage:not(.hidden)')
-    await firstrun.waitForSelector('#new-devices .new-device')
-    for (;;) {
-      const button = firstrun
-        .locator('#new-devices .new-device button:text("Yes, it\'s mine")')
-        .first()
-      if ((await button.count()) === 0) break
-      await button.click()
-      await sleep(500)
-    }
-    await firstrun.waitForSelector('#new-devices.hidden', { state: 'attached' })
 
     // 3. Tabs arrive from the phones (sealed exactly as the apps seal them).
     const [pixel, , iphone] = others
@@ -251,22 +268,34 @@ async function main(): Promise<void> {
       pixel,
       reg.endpointId,
       myKey,
-      'https://en.wikipedia.org/wiki/Sourdough',
-      'Sourdough - Wikipedia',
+      DE ? 'https://de.wikipedia.org/wiki/Sauerteig' : 'https://en.wikipedia.org/wiki/Sourdough',
+      DE ? 'Sauerteig – Wikipedia' : 'Sourdough - Wikipedia',
+      DE
+        ? 'https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0a/Sourdough.jpg/960px-Sourdough.jpg'
+        : undefined,
     )
     await sendSealed(
       relay.url,
       iphone,
       reg.endpointId,
       myKey,
-      'https://www.nasa.gov/missions/',
-      'Missions - NASA',
+      DE ? 'https://de.wikipedia.org/wiki/Marmelade' : 'https://www.nasa.gov/missions/',
+      DE ? 'Marmelade – Wikipedia' : 'Missions - NASA',
+      DE
+        ? 'https://thumb.wikimedia.org/wikipedia/commons/thumb/9/92/Marmelade.jpg/1280px-Marmelade.jpg'
+        : undefined,
     )
     await firstrun.evaluate(() => chrome.runtime.sendMessage({ type: 'pollNow' }))
-    await until(() => profile.context.pages().some((p) => p.url().includes('nasa.gov/missions')), {
-      what: 'the received tabs to open',
-      timeoutMs: 30_000,
-    })
+    await until(
+      () =>
+        profile.context
+          .pages()
+          .some((p) => p.url().includes(DE ? 'wikipedia.org/wiki/Marmelade' : 'nasa.gov/missions')),
+      {
+        what: 'the received tabs to open',
+        timeoutMs: 30_000,
+      },
+    )
     for (const p of profile.context.pages())
       if (!p.url().startsWith('chrome-extension')) await p.close()
 
@@ -274,7 +303,7 @@ async function main(): Promise<void> {
     for (const [i, target] of [
       [0, 'Pixel 8'],
       [1, 'iPhone'],
-      [2, 'Firefox · Work laptop'],
+      [2, `Firefox · ${LAPTOP}`],
     ] as const) {
       const site = await open(profile, PAGES[i])
       await site.bringToFront()

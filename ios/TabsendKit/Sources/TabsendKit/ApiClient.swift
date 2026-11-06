@@ -205,7 +205,11 @@ public actor ApiClient {
             if let parsed = try? Wire.decoder.decode(ApiErrorBody.self, from: data) {
                 throw ApiError(status: http.statusCode, code: parsed.error.code, message: parsed.error.message)
             }
-            throw ApiError(status: http.statusCode, code: "internal", message: "Request failed (\(http.statusCode)).")
+            throw ApiError(status: http.statusCode, code: "internal", message: String(
+                localized: "Request failed (\(http.statusCode)).",
+                bundle: .module,
+                comment: "Error shown when the relay answered with an error that has no readable message. %lld is the HTTP status number, such as 502, not a count."
+            ))
         }
         return try Wire.decoder.decode(T.self, from: data)
     }

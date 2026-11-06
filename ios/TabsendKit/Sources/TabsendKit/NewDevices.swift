@@ -757,8 +757,11 @@ public enum NewDevices {
     /// "3m ago"), so "Joined 3m ago" reads naturally. A date that cannot be read
     /// says "recently" rather than "unknown".
     public static func when(_ createdAt: String, now: Date = Date()) -> String {
-        let text = Inbox.relativeTime(createdAt, now: now)
-        return text == "unknown" ? "recently" : text
+        Inbox.age(createdAt, now: now) ?? String(
+            localized: "recently",
+            bundle: .module,
+            comment: "Stands in for how long ago a device joined, when the time is not known. Fits after \"It joined\" in a sentence."
+        )
     }
 
     // The one notification, information only (P-23): the same words on every client.
@@ -767,11 +770,31 @@ public enum NewDevices {
         let devices = announcement.devices
         switch announcement.kind {
         case .joined:
-            if devices.count == 1 { return "\(devices[0].label) was added" }
-            return "\(devices.count) devices were added"
+            if devices.count == 1 {
+                return String(
+                    localized: "\(devices[0].label) was added",
+                    bundle: .module,
+                    comment: "Notification title: one new device joined the group. %@ is the device name, such as \"Pixel 9\"."
+                )
+            }
+            return String(
+                localized: "\(devices.count) devices were added",
+                bundle: .module,
+                comment: "Notification title: several new devices joined the group. %lld is how many. The singular form is for completeness: one device uses the named title."
+            )
         case .firstList:
-            if devices.count == 1 { return "\(devices[0].label) is in your group" }
-            return "\(devices.count) devices are in your group"
+            if devices.count == 1 {
+                return String(
+                    localized: "\(devices[0].label) is in your group",
+                    bundle: .module,
+                    comment: "Notification title on a fresh pairing: one device was already in the group and the pairing link did not vouch for it. %@ is the device name."
+                )
+            }
+            return String(
+                localized: "\(devices.count) devices are in your group",
+                bundle: .module,
+                comment: "Notification title on a fresh pairing: several devices were already in the group and the pairing link did not vouch for them. %lld is how many. The singular form is for completeness: one device uses the named title."
+            )
         }
     }
 
@@ -781,35 +804,70 @@ public enum NewDevices {
         case .joined:
             if devices.count == 1 {
                 // A time that cannot be read is left out rather than guessed.
-                guard WireDate.date(from: devices[0].createdAt) != nil else {
-                    return "It joined your Tabsend devices. If that wasn't you, remove it in Tabsend."
+                guard let age = Inbox.age(devices[0].createdAt, now: now) else {
+                    return String(
+                        localized: "It joined your Tabsend devices. If that wasn't you, remove it in Tabsend.",
+                        bundle: .module,
+                        comment: "Notification body: one new device joined and the time is not known. \"It\" is the device named in the title."
+                    )
                 }
-                return "It joined your Tabsend devices \(Inbox.relativeTime(devices[0].createdAt, now: now)). If that wasn't you, remove it in Tabsend."
+                return String(
+                    localized: "It joined your Tabsend devices \(age). If that wasn't you, remove it in Tabsend.",
+                    bundle: .module,
+                    comment: "Notification body: one new device joined. \"It\" is the device named in the title. %@ is how long ago, such as \"3m ago\" or \"just now\"."
+                )
             }
-            return "\(listLabels(devices.map(\.label))) joined your Tabsend devices. If any wasn't you, remove it in Tabsend."
+            let names = listLabels(devices.map(\.label))
+            return String(
+                localized: "\(names) joined your Tabsend devices. If any wasn't you, remove it in Tabsend.",
+                bundle: .module,
+                comment: "Notification body: several new devices joined. %@ is the list of device names, such as \"Pixel 9, Home Firefox and Work laptop\"."
+            )
         case .firstList:
             if devices.count == 1 {
-                return "The device you paired with didn't list it. If it isn't yours, remove it in Tabsend."
+                return String(
+                    localized: "The device you paired with didn't list it. If it isn't yours, remove it in Tabsend.",
+                    bundle: .module,
+                    comment: "Notification body on a fresh pairing: one device is in the group that the device you paired with did not mention. \"It\" is the device named in the title."
+                )
             }
-            return "\(listLabels(devices.map(\.label))). The device you paired with didn't list them. If any isn't yours, remove it in Tabsend."
+            let names = listLabels(devices.map(\.label))
+            return String(
+                localized: "\(names). The device you paired with didn't list them. If any isn't yours, remove it in Tabsend.",
+                bundle: .module,
+                comment: "Notification body on a fresh pairing: several devices are in the group that the device you paired with did not mention. %@ is the list of device names, such as \"Pixel 9, Home Firefox and Work laptop\"."
+            )
         }
     }
 
     // The vanished notice: the same words on every client.
-    public static let vanishedDismiss = "Dismiss"
+    public static var vanishedDismiss: String {
+        String(
+            localized: "Dismiss",
+            bundle: .module,
+            comment: "Button on the card about a device that joined and then disappeared from the list. Hides the card on this phone. Keep it short."
+        )
+    }
 
     public static func vanishedTitle(_ notice: NewDeviceNotice) -> String {
-        "\(notice.label) joined, then disappeared"
+        String(
+            localized: "\(notice.label) joined, then disappeared",
+            bundle: .module,
+            comment: "Heading of a card on the home screen. A device joined the group and later vanished from the device list without being removed here. %@ is the device name."
+        )
     }
 
     public static func vanishedBody(_ notice: NewDeviceNotice, now: Date = Date()) -> String {
-        "It joined \(when(notice.createdAt, now: now)) and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this."
+        let age = when(notice.createdAt, now: now)
+        return String(
+            localized: "It joined \(age) and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this.",
+            bundle: .module,
+            comment: "Body of the card about a device that joined and then disappeared. \"It\" is the device named in the heading. %@ is how long ago it joined, such as \"3m ago\", \"just now\" or \"recently\". The relay is the server."
+        )
     }
 
-    /// "A", "A and B", "A, B and C".
+    /// "A", "A and B", "A, B, and C".
     static func listLabels(_ labels: [String]) -> String {
-        guard let last = labels.last else { return "" }
-        if labels.count == 1 { return last }
-        return labels.dropLast().joined(separator: ", ") + " and " + last
+        L10n.list(labels)
     }
 }

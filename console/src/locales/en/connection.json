@@ -1,0 +1,30 @@
+{
+  "connection.live.label": {
+    "message": "Live",
+    "description": "Small badge at the top right: the console receives updates the moment they happen. One word."
+  },
+  "connection.live.title": {
+    "message": "New tabs show up the moment they are sent.",
+    "description": "Tooltip on the “Live” badge."
+  },
+  "connection.polling.label": {
+    "message": "Checking",
+    "description": "Small badge at the top right: the console asks the relay for news every 20 seconds instead of receiving it at once. One word."
+  },
+  "connection.polling.title": {
+    "message": "Live updates are off. Checking for new tabs every 20 seconds, so nothing is lost.",
+    "description": "Tooltip on the “Checking” badge. A “relay” is the server that passes tabs between devices."
+  },
+  "connection.offline.label": {
+    "message": "Offline",
+    "description": "Small badge at the top right: the relay does not answer. One word."
+  },
+  "connection.offline.title": {
+    "message": "Not connected to the relay at {relayUrl}.",
+    "description": "Tooltip on the “Offline” badge. {relayUrl} is the address of the relay (a web address). A “relay” is the server that passes tabs between devices."
+  },
+  "connection.offline.titleHomeNetwork": {
+    "message": "Not connected to the relay at {relayUrl}. This address only works on your home network. Away from home or on mobile data? Connect to your home Wi-Fi or turn on your VPN.",
+    "description": "Same as the “Offline” tooltip, for a relay at a home-network address, with the extra advice. {relayUrl} is the relay's address. The last three sentences are the same words as in the browser extension and the phone apps."
+  }
+}

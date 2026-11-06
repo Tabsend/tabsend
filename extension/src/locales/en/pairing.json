@@ -1,0 +1,58 @@
+{
+  "pairing.error.unregistered": {
+    "message": "Set Tabsend up on this browser first, then you can pair other devices.",
+    "description": "Error when the person asks for a pairing link before this browser is set up."
+  },
+  "pairing.error.unreachable": {
+    "message": "Couldn't reach the relay at {relayUrl} — check it's running, then try again.",
+    "description": "Error when the pairing link could not be made because the relay did not answer. {relayUrl} is its address."
+  },
+  "pairing.error.unauthorized": {
+    "message": "This browser is no longer in the group — set it up again to pair other devices.",
+    "description": "Error when the relay no longer accepts this browser while making a pairing link."
+  },
+  "pairing.error.relay": {
+    "message": "The relay couldn't make a setup link: {detail}",
+    "description": "Error under “Add a device” when the relay refused to make a setup link. {detail} is the reason, one whole sentence of its own (such as “This group already has the most unused setup links it allows. Try again in a few minutes, when the oldest one expires.”). Place it after the colon as it is."
+  },
+  "pairing.localOnly": {
+    "message": "This code points at {relayUrl}, which only works for another browser on this same computer — a phone or another device cannot use it. To pair those, the relay needs to be reachable on your network, and this browser connected to it at that address.",
+    "description": "Warning next to a QR code whose relay address only works on this computer. {relayUrl} is that address."
+  },
+  "pairing.routes": {
+    "message": "The copied link pairs browser extensions through {browserRelayUrl}. The QR pairs phones through {nativeRelayUrl}. Each device saves its route to this same relay; it can be changed later under Connection.",
+    "description": "Explains why the copied link and the QR code carry different addresses for the same relay. “Connection” is the name of a section in settings."
+  },
+  "pairing.box.linkLabel": {
+    "message": "Setup link",
+    "description": "Spoken label (for screen readers) of the box that holds the pairing link, and the visible label of the field where a person pastes one."
+  },
+  "pairing.box.copyLink": {
+    "message": "Copy link",
+    "description": "Button that copies the pairing link to the clipboard. Short."
+  },
+  "pairing.box.copied": {
+    "message": "Copied ✓",
+    "description": "Confirmation next to the copy button. The check mark is a symbol; keep it. Short."
+  },
+  "pairing.box.copyFailed": {
+    "message": "Copy failed — the link is selected",
+    "description": "Shown when copying failed; the link is selected so the person can copy it by hand."
+  },
+  "pairing.box.tryAgain": {
+    "message": "Try again",
+    "description": "Button that retries making a pairing link after an error. Short."
+  },
+  "pairing.box.gettingLink": {
+    "message": "Getting a setup link…",
+    "description": "Shown while the relay makes a pairing link."
+  },
+  "pairing.box.hint": {
+    "message": "Scan with a phone's camera, or open the link in another browser. If Tabsend isn't installed there yet, the link shows how to install it.",
+    "description": "Hint next to the pairing QR code and link."
+  },
+  "pairing.box.qrLabel": {
+    "message": "Pairing QR code",
+    "description": "Spoken label (for screen readers) of the pairing QR code image."
+  }
+}

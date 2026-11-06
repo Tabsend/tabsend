@@ -26,8 +26,14 @@ vi.mock('../lib/api', async (importOriginal) => {
 })
 
 const tabsQuery = vi.fn<(...args: unknown[]) => Promise<chrome.tabs.Tab[]>>()
+const executeScript = vi.hoisted(() =>
+  vi.fn<(...args: unknown[]) => Promise<{ result: unknown }[]>>(async () => []),
+)
 vi.mock('../lib/ext', () => ({
-  ext: { tabs: { query: (...args: unknown[]) => tabsQuery(...args) } },
+  ext: {
+    tabs: { query: (...args: unknown[]) => tabsQuery(...args) },
+    scripting: { executeScript: (...args: unknown[]) => executeScript(...args) },
+  },
 }))
 
 // health.ts is deliberately NOT mocked. Which failures keep a tab and which
@@ -100,6 +106,7 @@ import {
   processOutbound,
   retargetHeldTab,
   sendToTarget,
+  withPageImages,
 } from './send'
 
 /**
@@ -1358,5 +1365,32 @@ describe('later outcomes go only to the tab they came from (L8)', () => {
     expect(named?.headline).toBe('“Title a” is waiting for a new device')
     expect(opts?.origin).toEqual(ORIGIN)
     expect(opts?.untitled?.headline).toBe('A tab is waiting for a new device')
+  })
+})
+
+describe('withPageImages', () => {
+  const tab = (id: number, url: string) => ({ id, url }) as chrome.tabs.Tab
+  const payload = (url: string): SendPayload => ({
+    url,
+    sentAt: '2026-11-03T10:00:00.000Z' as SendPayload['sentAt'],
+  })
+
+  it('adds the address a page names, resolved against that page', async () => {
+    executeScript.mockResolvedValueOnce([{ result: '/cover.jpg' }])
+    const out = await withPageImages(
+      [payload('https://example.com/a')],
+      [tab(1, 'https://example.com/a')],
+    )
+    expect(out[0]?.image).toBe('https://example.com/cover.jpg')
+  })
+
+  it('sends without one when the page refuses, or names something unsafe', async () => {
+    executeScript.mockRejectedValueOnce(new Error('restricted'))
+    executeScript.mockResolvedValueOnce([{ result: 'http://192.168.1.2/x.png' }])
+    const out = await withPageImages(
+      [payload('https://example.com/a'), payload('https://example.com/b')],
+      [tab(1, 'https://example.com/a'), tab(2, 'https://example.com/b')],
+    )
+    expect(out.map((p) => p.image)).toEqual([undefined, undefined])
   })
 })

@@ -1,0 +1,98 @@
+{
+  "relay.down": {
+    "message": "Can't reach your relay at {relayUrl}. It last answered {ago}, and sends are being held until it's back.",
+    "description": "Standing notice in the popup and settings when the relay has not answered for a while. {relayUrl} is its address; {ago} a short relative time such as “5m ago”."
+  },
+  "relay.down.homeNetwork": {
+    "message": "Can't reach your relay at {relayUrl}. It last answered {ago}, and sends are being held until it's back. This address only works on your home network. Away from home or on mobile data? Connect to your home Wi-Fi or turn on your VPN.",
+    "description": "Same as relay.down, for a relay on a home-network address, with one more sentence on why it may be silent away from home. Same words on Android, iOS and the web console."
+  },
+  "relay.probe.same": {
+    "message": "Same relay. Your devices stay paired.",
+    "description": "Result shown after the person typed a new relay address and it points at the same relay as before."
+  },
+  "relay.probe.sameUnverified": {
+    "message": "Probably the same relay. It's too old to confirm, but it accepted this browser's login.",
+    "description": "Result shown when the new address looks like the same relay but is too old to confirm."
+  },
+  "relay.probe.different": {
+    "message": "This is a different relay. It doesn't know your devices, so each one will need to pair again.",
+    "description": "Result shown when the new address is a different relay."
+  },
+  "relay.probe.unreachable": {
+    "message": "Couldn't reach a relay at {relayUrl}. Check the address and that it's running.",
+    "description": "Result shown when nothing answered at the typed address. {relayUrl} is that address."
+  },
+  "relay.probe.updated": {
+    "message": "Now using {relayUrl}.",
+    "description": "Confirmation after the relay address was changed. {relayUrl} is the new address."
+  },
+  "relay.probe.notPaired": {
+    "message": "This browser is not paired to a relay any more, so there is no address to move. Set it up again to start sending.",
+    "description": "Shown when the settings page is asked to move an address but this browser has been unpaired meanwhile."
+  },
+  "relay.access.denied": {
+    "message": "Tabsend can't reach this relay without your permission. Try again and choose Allow.",
+    "description": "Shown when the person said no to the browser's permission prompt for the relay. “Allow” is the button in the browser's prompt."
+  },
+  "relay.access.missing": {
+    "message": "Tabsend needs your permission to reach your relay at {relayUrl}. Until then, sends are held here.",
+    "description": "Shown when the browser's permission for the relay was removed. {relayUrl} is the relay's address."
+  },
+  "relay.access.allow": {
+    "message": "Allow access",
+    "description": "Button in settings that asks the browser for the permission again."
+  },
+  "relay.access.openSettings": {
+    "message": "Allow in Settings",
+    "description": "Button in the popup that opens Tabsend's settings, where the permission is asked for."
+  },
+  "relay.switch.pending": {
+    "message": "Setup on {relayUrl} isn't finished.",
+    "description": "Settings note: a move to another relay was started but not finished. {relayUrl} is the new relay's address."
+  },
+  "relay.switch.pendingSafe": {
+    "message": "This browser still sends and receives on {relayUrl} until you finish.",
+    "description": "Reassurance under that note. {relayUrl} is the current relay's address."
+  },
+  "relay.switch.pendingUnpaired": {
+    "message": "This browser is not paired to any relay, so it cannot send or receive until you finish.",
+    "description": "Replaces the reassurance when the browser has no current relay."
+  },
+  "relay.switch.target": {
+    "message": "Setting up on {relayUrl}.",
+    "description": "Setup page note: which relay the browser is being set up on. {relayUrl} is its address."
+  },
+  "relay.switch.cost": {
+    "message": "You stay paired to {relayUrl} until this browser is accepted. After that it leaves that group, and any device you want to keep pairs again here.",
+    "description": "Setup page note spelling out the one-way step of moving to another relay. {relayUrl} is the current relay's address."
+  },
+  "relay.switch.keep": {
+    "message": "Keep {relayUrl} instead",
+    "description": "Button on the setup page that cancels the move and keeps the current relay. {relayUrl} is the current relay's address. Keep it short."
+  },
+  "relay.switch.reusedLink": {
+    "message": "This is the link you pasted in settings. Setup links work once and expire, so make a new one if the relay refuses it.",
+    "description": "Hint shown when the setup link field was filled in from the link the person pasted in settings."
+  },
+  "relay.change.unreachable": {
+    "message": "Couldn't reach a relay at {relayUrl} any more. Nothing was changed.",
+    "description": "Error when the relay stopped answering between the check and the confirmation. {relayUrl} is its address."
+  },
+  "relay.change.differentRelay": {
+    "message": "That address answers as a different relay now. Nothing was changed. Check it again.",
+    "description": "Error when the address now points at a different relay than when it was checked."
+  },
+  "relay.change.tokenRejected": {
+    "message": "That relay stopped recognising this browser. Nothing was changed. Check the address again.",
+    "description": "Error when the relay no longer accepts this browser."
+  },
+  "relay.change.probeFailed": {
+    "message": "The relay refused the check: {detail} Nothing was changed.",
+    "description": "Error when the relay refused the check of a new relay address. {detail} is the reason, one whole sentence of its own that ends with a full stop (such as “Your relay is busy right now. Give it a moment and try again.”). Place it after the colon as it is."
+  },
+  "relay.solo.body": {
+    "message": "No other devices are set up on {relayUrl}. They may be on a different relay address.",
+    "description": "Notice when this browser is alone in its group for a while. {relayUrl} is the relay's address."
+  }
+}

@@ -7,6 +7,8 @@ import {
 } from '@tabsend/shared'
 import { mintPairing } from '../lib/api'
 import { ext } from '../lib/ext'
+import { failureText, isNetworkFailure } from '../lib/failure-text'
+import { t } from '../lib/i18n'
 import type { PairingView, RpcRequest, RpcResponse } from '../lib/model'
 import {
   classifyMintFailure,
@@ -15,6 +17,7 @@ import {
   parsePairingInput,
 } from '../lib/pairing'
 import { IS_FIREFOX } from '../lib/platform'
+import { type RelayAction, UserFacingError } from '../lib/relay-errors'
 import { getCachedEndpoints, getSettings } from '../lib/storage'
 import { pairingErrorLine, pairingRoutesLine } from '../lib/strings'
 import { clearBadge } from './badge'
@@ -61,6 +64,32 @@ import { updateSettings } from './settings'
 import { dismissUnreachable } from './unreachable'
 
 /**
+ * What the person was doing, for the sentence a relay refusal gets (`relayErrorLine`). A
+ * request that is not listed here has no screen of its own for the error.
+ */
+function actionFor(type: RpcRequest['type']): RelayAction {
+  switch (type) {
+    case 'createGroup':
+    case 'joinGroup':
+      return 'join'
+    case 'setDevice':
+    case 'renameEndpoint':
+      return 'rename'
+    case 'removeEndpoint':
+      return 'remove'
+    case 'mintPairing':
+      return 'pairingLink'
+    case 'stopGroupReset':
+      return 'stopReset'
+    case 'probeRelay':
+    case 'changeRelayUrl':
+      return 'check'
+    default:
+      return 'other'
+  }
+}
+
+/**
  * The page <-> service-worker RPC. The popup and first-run pages are thin
  * views; every decision runs here in the SW so there is exactly one pipeline
  * (INTERACTION_FLOWS §1) regardless of surface.
@@ -92,7 +121,7 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
         return { ok: true }
       }
       case 'getDevices': {
-        return { ok: true, devices: await buildDevicesView() }
+        return { ok: true, devices: await buildDevicesView({ cached: req.cached === true }) }
       }
       case 'renameEndpoint': {
         await renameEndpoint(req.endpointId, req.label)
@@ -183,15 +212,18 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
       case 'mintPairing': {
         const session = await currentSession()
         // Every failure here is re-thrown as USER copy: the pages show whatever
-        // message comes back verbatim, and a bare "Failed to fetch" tells the
+        // message comes back as it is, and a bare "Failed to fetch" tells the
         // user nothing about the relay being down.
-        if (!session) throw new Error(pairingErrorLine({ kind: 'unregistered' }))
+        // i18n-ignore: a kind name for the helper, not text
+        if (!session) throw new UserFacingError(pairingErrorLine({ kind: 'unregistered' }))
         const { registration } = session
         let res: CreatePairingResponse
         try {
           res = await mintPairing(registration.relayUrl, registration.deviceToken)
         } catch (err) {
-          throw new Error(pairingErrorLine(classifyMintFailure(err, registration.relayUrl)))
+          throw new UserFacingError(
+            pairingErrorLine(classifyMintFailure(err, registration.relayUrl)),
+          )
         }
         // The devices this browser has accepted ride along in the link, so the new
         // device asks only about the ones that do not match (P-23). The relay
@@ -203,12 +235,12 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
         )
         const copyLink = withVouch(res.browserLink ?? res.link, tags)
         const parsed = parsePairingInput(copyLink)
-        if (!parsed) throw new Error('The relay returned an invalid setup link.')
+        if (!parsed) throw new UserFacingError(t('errors.setupLink.invalid'))
         const qrLink = withVouch(res.link, tags)
         const qrParsed = parsePairingInput(qrLink)
-        if (!qrParsed) throw new Error('The relay returned an invalid QR setup link.')
+        if (!qrParsed) throw new UserFacingError(t('errors.setupLink.invalidQr'))
         const qrRelayUrl = pairingLinkRelayUrl(qrLink)
-        if (!qrRelayUrl) throw new Error('The relay returned an invalid QR pairing route.')
+        if (!qrRelayUrl) throw new UserFacingError(t('errors.setupLink.invalidQrRoute'))
         const pairing: PairingView = {
           relayUrl: parsed.relayUrl,
           link: copyLink,
@@ -282,7 +314,13 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
       }
     }
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    // What crosses to a page is a catalog sentence, never an exception's own text.
+    return {
+      ok: false,
+      error: isNetworkFailure(err)
+        ? t('errors.relay.unreachable')
+        : failureText(err, actionFor(req.type)),
+    }
   }
 }
 

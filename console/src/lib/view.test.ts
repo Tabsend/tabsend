@@ -168,7 +168,7 @@ describe('deliveryBadge', () => {
       ackedAt: null,
     }
     expect(deliveryBadge(entry(base), NOW)?.label).toBe('Waiting')
-    expect(deliveryBadge(entry({ ...base, ackedAt: base.createdAt }), NOW)?.label).toBe('Arrived')
+    expect(deliveryBadge(entry({ ...base, ackedAt: base.createdAt }), NOW)?.label).toBe('Delivered')
     expect(deliveryBadge(entry({ ...base, expiresAt: base.createdAt }), NOW)?.label).toBe(
       'Never arrived',
     )

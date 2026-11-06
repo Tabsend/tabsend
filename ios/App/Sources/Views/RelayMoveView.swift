@@ -22,13 +22,17 @@ struct RelayMoveView: View {
         _address = State(initialValue: currentUrl)
     }
 
+    /// The start of an address, shown in the empty field. Not a sentence, so not translated;
+    /// typed as `String` on purpose, since a literal would be looked up as a catalog key.
+    private static let addressExample: String = "https://" // l10n-ignore: example address
+
     private var candidate: String { Pairing.normalizeRelayUrl(address) }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    TextField("https://", text: $address)
+                    TextField(Self.addressExample, text: $address)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -40,7 +44,7 @@ struct RelayMoveView: View {
                         }
                         .panelRow()
                 } header: {
-                    PanelSectionHeader(RelayMove.hint)
+                    PanelSectionHeader(verbatim: RelayMove.hint)
                 }
 
                 if let status {

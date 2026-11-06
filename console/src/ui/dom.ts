@@ -5,6 +5,9 @@
  * innerHTML, so a crafted label/title can't inject markup into the console.
  */
 
+import { splitRich } from '@tabsend/shared'
+import { type MessageArgs, t } from '../lib/i18n'
+
 type Attrs = Record<string, string | number | boolean | ((ev: Event) => void) | undefined>
 type Child = Node | string | number | null | undefined | false
 
@@ -48,4 +51,22 @@ export function svg(markup: string): DocumentFragment {
   const tpl = document.createElement('template')
   tpl.innerHTML = markup
   return tpl.content
+}
+
+/**
+ * Nodes for a sentence that holds an element: `<link>tabsend.org</link>` in the message
+ * becomes whatever `tags.link('tabsend.org')` returns, in the order the language puts it.
+ * One sentence, one message; the translator moves the words and the tags together.
+ */
+export function richNodes(
+  key: string,
+  args: MessageArgs,
+  tags: Record<string, (text: string) => Node>,
+): Node[] {
+  return splitRich(t(key, args)).map((part) => {
+    if (typeof part === 'string') return document.createTextNode(part)
+    const make = tags[part.tag]
+    if (!make) throw new Error(`No element for <${part.tag}> in "${key}"`) // i18n-ignore: developer error
+    return make(part.text)
+  })
 }

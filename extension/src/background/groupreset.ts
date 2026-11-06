@@ -1,8 +1,10 @@
 import type { GroupResetState } from '@tabsend/shared'
 import { getGroupState, isGroupStateUnsupported, stopGroupReset } from '../lib/api'
 import { ext } from '../lib/ext'
+import { failureText, isNetworkFailure } from '../lib/failure-text'
 import type { GroupResetRecord } from '../lib/model'
 import { IS_FIREFOX } from '../lib/platform'
+import { UserFacingError } from '../lib/relay-errors'
 import { getGroupResetRecord, setGroupResetRecord } from '../lib/storage'
 import { groupResetCopy } from '../lib/strings'
 import { currentSession } from './session'
@@ -102,15 +104,13 @@ export async function groupResetNotice(): Promise<GroupResetState | undefined> {
  */
 export async function stopPendingGroupReset(): Promise<void> {
   const session = await currentSession()
-  if (!session) throw new Error(groupResetCopy.stopFailedOffline)
+  if (!session) throw new UserFacingError(groupResetCopy.stopFailedOffline)
   const { relayUrl, deviceToken, endpointId } = session.registration
   try {
     await stopGroupReset(relayUrl, deviceToken)
   } catch (err) {
-    if (err instanceof TypeError || (err instanceof Error && err.name === 'TimeoutError')) {
-      throw new Error(groupResetCopy.stopFailedOffline)
-    }
-    throw new Error(groupResetCopy.stopFailed(err instanceof Error ? err.message : String(err)))
+    if (isNetworkFailure(err)) throw new UserFacingError(groupResetCopy.stopFailedOffline)
+    throw new UserFacingError(failureText(err, 'stopReset'))
   }
   const was = await serial(async () => {
     const stored = await getGroupResetRecord()

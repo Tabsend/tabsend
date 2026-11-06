@@ -170,9 +170,22 @@ describe('answering it', () => {
     await gr.refreshGroupReset()
     h.state.stopFails = new TypeError('Failed to fetch')
     await expect(gr.stopPendingGroupReset()).rejects.toThrow(groupResetCopy.stopFailedOffline)
-    h.state.stopFails = new api.ApiClientError(500, 'internal', 'Request failed (500).')
+    // The relay answered with a refusal: the sentence comes from its code, never its message.
+    h.state.stopFails = new api.ApiClientError(500, 'internal', 'Relay wording that must not show.')
     await expect(gr.stopPendingGroupReset()).rejects.toThrow(
-      "Couldn't stop the reset: Request failed (500). The reset is still waiting. Try again.",
+      'Something went wrong inside your relay. It may be worth checking that it is healthy.',
+    )
+    h.state.stopFails = new api.ApiClientError(404, 'not_found', 'This group no longer exists.')
+    await expect(gr.stopPendingGroupReset()).rejects.toThrow(
+      'Your relay no longer has this group. Pair this browser again if you still have access.',
+    )
+    h.state.stopFails = new api.ApiClientError(
+      401,
+      'unauthorized',
+      'Unknown or invalid device token.',
+    )
+    await expect(gr.stopPendingGroupReset()).rejects.toThrow(
+      'Your relay no longer accepts this browser. Set Tabsend up again here.',
     )
     expect(await gr.groupResetNotice()).toEqual(RESET)
   })

@@ -38,15 +38,19 @@ import io.tabsend.app.receive.GroupResetWatcher
 import io.tabsend.app.receive.NewDeviceWatcher
 import io.tabsend.app.store.Store
 import io.tabsend.app.ui.DeviceRows
+import io.tabsend.app.ui.HistoryPreviews
 import io.tabsend.app.ui.MainActivity
 import io.tabsend.app.ui.SystemBars
 import io.tabsend.app.wire.SendPayload
 import io.tabsend.app.work.Scheduling
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.lang.ref.WeakReference
+import io.tabsend.app.logic.texts
 
 /**
  * The OS share-sheet target: "Send to Tabsend" appears when sharing a URL from any
@@ -67,6 +71,7 @@ class ShareActivity : AppCompatActivity() {
 
     /** True from the moment a device is picked; guards double taps and recreation. */
     private var sendStarted = false
+    private var imageLookup: Deferred<String?>? = null
 
     /** The toast's views, once a pick has turned this window into the toast. */
     private var toastBinding: ViewSendToastBinding? = null
@@ -87,14 +92,14 @@ class ShareActivity : AppCompatActivity() {
 
         val url = extractUrl(intent)
         if (url == null) {
-            toast(Feedback.failureLine(SendFailure.NothingToSend))
+            toast(Feedback.failureLine(texts(), SendFailure.NothingToSend))
             finish()
             return
         }
 
         val store = Store.get(this)
         if (!store.isRegistered) {
-            toast(Feedback.noDevices())
+            toast(Feedback.noDevices(texts()))
             startActivity(Intent(this, MainActivity::class.java))
             finish()
             return
@@ -102,6 +107,9 @@ class ShareActivity : AppCompatActivity() {
 
         val title = intent.getStringExtra(Intent.EXTRA_SUBJECT)
         val payload = SendPayload(url = url, title = title, sentAt = isoOf(System.currentTimeMillis()))
+        if (Store.get(this).websiteImages) {
+            imageLookup = AppScope.async { HistoryPreviews.findImage(url) }
+        }
         val reg = store.registration!!
 
         // This window is translucent, so the sharing app (e.g. Firefox) stays
@@ -163,7 +171,7 @@ class ShareActivity : AppCompatActivity() {
                 store.cachedEndpointsAt,
             )
             if (rows.isEmpty()) {
-                toast(Feedback.noDevices())
+                toast(Feedback.noDevices(texts()))
                 finish()
                 return@launch
             }
@@ -178,7 +186,7 @@ class ShareActivity : AppCompatActivity() {
                     send(picked, payload)
                     return@launch
                 }
-                toast("That device isn't in your group any more — pick another.")
+                toast(getString(R.string.share_pick_gone))
             }
             showChooser(rows, payload)
         }
@@ -223,7 +231,7 @@ class ShareActivity : AppCompatActivity() {
         }
         list.addView(
             TextView(this).apply {
-                text = Feedback.heldTabLabel(payload.title, payload.url)
+                text = Feedback.heldTabLabel(texts(), payload.title, payload.url)
                 setTextAppearance(R.style.TextAppearance_Tabsend_RowDetail)
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
@@ -303,11 +311,16 @@ class ShareActivity : AppCompatActivity() {
         val app = applicationContext
         chooser?.dismiss()
         chooser = null
-        val tabName = Feedback.heldTabLabel(payload.title, payload.url)
+        val tabName = Feedback.heldTabLabel(texts(), payload.title, payload.url)
         showSending(row.endpoint.label, tabName)
         val screen = WeakReference(this)
         AppScope.launch {
-            val outcome = Sender.sendTo(app, row.endpoint, payload)
+            // Started when this screen opened, so a person who took a moment to pick a
+            // device waits for nothing; only a pick inside the 1.5 s bound waits out the
+            // rest, before the tab is queued. No picture is an ordinary answer. A browser
+            // cannot look this up without a prompt (docs/HISTORY_PREVIEWS_PLAN.md).
+            val image = imageLookup?.await()
+            val outcome = Sender.sendTo(app, row.endpoint, payload.copy(image = image))
             // Republish FIRST, then report the usage — the order is load-bearing.
             // The send just moved this target to the head of the MRU, so the sync
             // both keeps the sheet agreeing with the chooser about what's on top
@@ -326,7 +339,7 @@ class ShareActivity : AppCompatActivity() {
                 ShareShortcuts.sync(app)
                 ShareShortcuts.reportUsed(app, row.endpoint.id)
             }
-            val banner = Feedback.banner(outcome.view())
+            val banner = Feedback.banner(app.texts(), outcome.view())
             // AppScope runs on the main thread, so the toast can be touched directly.
             val onScreen = screen.get()?.takeIf { !it.isFinishing && !it.isDestroyed }
             val shownInToast = onScreen?.showOutcome(outcome, banner, tabName) ?: false
@@ -419,7 +432,7 @@ class ShareActivity : AppCompatActivity() {
                 renderToast(
                     R.drawable.ic_status_waiting,
                     getString(R.string.send_toast_held),
-                    banner.detail ?: Feedback.failureLine(failure, label),
+                    banner.detail ?: Feedback.failureLine(texts(), failure, label),
                     closable = true,
                 )
             }
@@ -427,7 +440,7 @@ class ShareActivity : AppCompatActivity() {
                 renderToast(
                     R.drawable.ic_status_failed,
                     getString(R.string.send_toast_failed, label),
-                    banner.detail ?: Feedback.hardError(),
+                    banner.detail ?: Feedback.hardError(texts()),
                     closable = true,
                 )
             }

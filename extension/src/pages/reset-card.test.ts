@@ -1,5 +1,6 @@
 import type { GroupResetState, IsoTimestamp } from '@tabsend/shared'
 import { describe, expect, it } from 'vitest'
+import { UserFacingError } from '../lib/relay-errors'
 import { type ResetCardState, resetNotices, runStopReset } from './newdevice-banner'
 
 /** The reset card's page-side state (PLANS.md P-18 item 12), shared by popup and manage screen. */
@@ -40,7 +41,8 @@ describe('the reset card on a page', () => {
       state,
       RESET,
       async () => {
-        throw new Error('Could not reach your relay.')
+        // What rpcOk throws for a failure the background worded.
+        throw new UserFacingError('Could not reach your relay.')
       },
       () => undefined,
     )
@@ -48,5 +50,18 @@ describe('the reset card on a page', () => {
     expect(shown.groupReset).toEqual(RESET)
     expect(shown.resetError).toBe('Could not reach your relay.')
     expect(shown.resetStopped).toBe(false)
+  })
+
+  it('on a Stop that failed for a reason nobody planned for, says so plainly', async () => {
+    const state: ResetCardState = { busy: false }
+    await runStopReset(
+      state,
+      RESET,
+      async () => {
+        throw new Error('Cannot read properties of undefined')
+      },
+      () => undefined,
+    )
+    expect(resetNotices(state, RESET).resetError).toBe('Something went wrong. Try again.')
   })
 })

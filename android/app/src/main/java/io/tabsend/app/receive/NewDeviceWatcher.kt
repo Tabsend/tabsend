@@ -19,6 +19,8 @@ import io.tabsend.app.store.Store
 import io.tabsend.app.ui.MainActivity
 import io.tabsend.app.wire.Endpoint
 import java.io.IOException
+import io.tabsend.app.logic.TextSource
+import io.tabsend.app.logic.texts
 
 /**
  * The "new device joined" notice on Android (PLANS.md P-10).
@@ -250,12 +252,14 @@ object NewDeviceWatcher {
      * relativeTime except an unparseable time, which drops the {when} instead
      * of saying "unknown".
      */
-    fun whenText(createdAt: String): String? =
-        if (parseIsoMillis(createdAt) == null) null else relativeTime(createdAt)
+    fun whenText(text: TextSource, createdAt: String): String? =
+        if (parseIsoMillis(createdAt) == null) null else relativeTime(text, createdAt)
 
     private fun ensureChannel(context: Context) {
         val mgr = context.getSystemService(NotificationManager::class.java) ?: return
-        if (mgr.getNotificationChannel(CHANNEL_DEVICES) != null) return
+        // Created again every time, on purpose: for a channel that already exists this only updates its
+        // name and description (never the importance the person may have changed), which is how the
+        // channel names follow the phone's language after a language change or an update.
         mgr.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_DEVICES,
@@ -316,14 +320,16 @@ object NewDeviceWatcher {
         val res = context.resources
         val labels = listOfLabels(context, devices.map { it.label })
         return when {
+            // l10n-ignore: names one device or lists several, not grammar
             !joined && devices.size == 1 ->
                 context.getString(R.string.in_group_title, devices[0].label) to
                     context.getString(R.string.in_group_body)
             !joined ->
                 res.getQuantityString(R.plurals.in_group_several_title, devices.size, devices.size) to
                     context.getString(R.string.in_group_several_body, labels)
+            // l10n-ignore: names one device or counts several, not grammar
             devices.size == 1 -> {
-                val time = whenText(devices[0].createdAt)
+                val time = whenText(context.texts(), devices[0].createdAt)
                 context.getString(R.string.new_device_title, devices[0].label) to
                     if (time != null) {
                         context.getString(R.string.new_device_alert_body, time)
