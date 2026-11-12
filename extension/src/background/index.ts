@@ -7,6 +7,7 @@ import { IS_FIREFOX } from '../lib/platform'
 import { clearAuthWarning, getUnreadReceived } from '../lib/storage'
 import { registerUnreadBadgeSync, setUnreadBadge } from './badge'
 import { firefoxReconnect, refreshFirefoxWs, startFirefoxWake } from './fxwake'
+import { registerUninstallPageSync, syncUninstallPage } from './goodbye'
 import { registerRelayHealthTracking } from './health'
 import { heartbeatNow } from './heartbeat'
 import { refreshHistory } from './history'
@@ -62,6 +63,8 @@ registerRelayHealthTracking()
 registerUnreadBadgeSync()
 registerUnreachableBadgeSync()
 registerNotificationClickHandler()
+// The page an uninstall opens follows the pairing (PLANS P-31 item 1).
+registerUninstallPageSync()
 
 // --- removed-from-group detection ---------------------------------------
 // Any authenticated call (heartbeat, poll, send, rename, …) can discover the
@@ -192,6 +195,8 @@ async function bootstrap(): Promise<void> {
   // arriving first simply awaits the same promise.
   void cryptoReady().catch(() => undefined)
   await ensurePollAlarm()
+  // Unawaited: a relay that is slow to answer must not hold up delivery.
+  void syncUninstallPage().catch(() => undefined)
   const session = await currentSession()
   if (!session) {
     await applyToolbarMode() // still reflect the icon setting when unregistered

@@ -259,6 +259,10 @@ public struct Endpoint: Codable, Sendable, Identifiable, Equatable {
     public var presence: String   // online | offline
     public var lastSeenAt: String
     public var createdAt: String
+    /// Set when Google or Apple proved Tabsend uninstalled from this phone (PLANS P-31
+    /// item 3). The relay refuses sends to it (`target_uninstalled`); the list shows it in
+    /// red with Remove. Absent from an older relay.
+    public var uninstalledAt: String?
 
     public var isOnline: Bool { presence == "online" }
 }

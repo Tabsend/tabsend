@@ -228,6 +228,14 @@
             </span>
             <input type="checkbox" class="switch" id="no-website-images" />
           </label>
+
+          <label class="setting">
+            <span class="setting-text">
+              <span class="setting-title" data-i18n="options.pagePictures.title"></span>
+              <span class="setting-detail" data-i18n="options.pagePictures.detail"></span>
+            </span>
+            <input type="checkbox" class="switch" id="page-pictures" />
+          </label>
         </div>
       </section>
 
@@ -369,6 +377,20 @@
               data-i18n="common.setUpTabsend"
             ></button>
           </p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="sec-help">
+        <h2 class="section-label" id="sec-help" data-i18n="share.help.heading"></h2>
+        <div class="rows">
+          <div class="setting stack">
+            <div class="btn-row">
+              <button type="button" class="btn-secondary" id="help-share" data-i18n="share.help.share"></button>
+              <a class="linkish hidden" id="help-rate" href="https://tabsend.org" target="_blank" rel="noopener noreferrer" data-i18n="share.help.rate"></a>
+              <a class="linkish" id="help-feedback" href="mailto:contact@tabsend.org?subject=Tabsend%20feedback" data-i18n="share.help.feedback"></a>
+            </div>
+            <p class="setting-detail" id="help-note" role="status"></p>
+          </div>
         </div>
       </section>
 

@@ -1,4 +1,5 @@
 import {
+  CLIENT_PROTOCOL,
   type Endpoint,
   type EndpointId,
   type GroupKeyRecord,
@@ -684,5 +685,147 @@ describe('leaving the group (PLANS P-28)', () => {
     await controller.remove('console-1' as EndpointId)
     expect(deletes).toHaveLength(1)
     expect(controller.session.get()).toBeNull()
+  })
+})
+
+describe('"Is this console replacing Web console?" (PLANS.md P-31 item 2)', () => {
+  const LINK = 'http://relay.example/pair#c=ABCD-1234'
+  const old = () =>
+    makeEndpoint({
+      id: 'console-old' as EndpointId,
+      label: 'Web console',
+      kind: 'console',
+      presence: 'offline',
+      lastSeenAt: '2026-07-30T08:00:00.000Z' as never,
+      createdAt: '2026-06-01T08:00:00.000Z' as never,
+    })
+  const self = () =>
+    makeEndpoint({
+      id: 'console-new' as EndpointId,
+      label: 'Web console 2',
+      kind: 'console',
+      presence: 'online',
+      lastSeenAt: NOW_ISO as never,
+      createdAt: NOW_ISO as never,
+    })
+
+  /** A relay that records method and path, answering by path. */
+  function relay(list: () => Endpoint[]) {
+    const calls: { method: string; path: string; body?: unknown }[] = []
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname + new URL(String(input)).search
+      const method = init?.method ?? 'GET'
+      calls.push({ method, path, ...(init?.body ? { body: JSON.parse(String(init.body)) } : {}) })
+      const json = (body: unknown) =>
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      if (path === '/v1/config') {
+        return json({
+          vapidPublicKey: '',
+          protocol: CLIENT_PROTOCOL,
+          minClientProtocol: CLIENT_PROTOCOL,
+        })
+      }
+      if (path === '/v1/endpoints/register') {
+        return json({
+          endpointId: 'console-new',
+          groupId: 'group-1',
+          deviceToken: 'tok-new',
+          label: 'Web console 2',
+        })
+      }
+      if (path === '/v1/endpoints' && method === 'GET') return json(list())
+      if (method === 'PATCH') return json({ ...self(), label: 'Web console' })
+      return json([])
+    }) as FetchLike
+    return { fetchImpl, calls }
+  }
+
+  async function pair(list: () => Endpoint[], kv = new MemoryKv()) {
+    const { fetchImpl, calls } = relay(list)
+    const controller = new Controller({
+      kv,
+      store: new InMemoryHistoryStore(),
+      fetchImpl,
+      now: () => NOW,
+      detectPlatform: () => 'macos',
+    })
+    await controller.join(LINK, 'Web console')
+    controller.teardown()
+    return { controller, calls, kv }
+  }
+
+  it('asks right after pairing, about the old offline copy', async () => {
+    const { controller } = await pair(() => [self(), old(), ...endpoints().slice(0, 2)])
+    expect(controller.replaceOffer.get()).toEqual({
+      endpointId: 'console-old',
+      label: 'Web console',
+      appName: 'Web console',
+      lastSeenAt: '2026-07-30T08:00:00.000Z',
+    })
+  })
+
+  it('asks nothing when the old one was online in the last day', async () => {
+    const { controller } = await pair(() => [
+      self(),
+      makeEndpoint({ ...old(), lastSeenAt: '2026-08-05T00:00:00.000Z' as never }),
+    ])
+    expect(controller.replaceOffer.get()).toBeNull()
+  })
+
+  it('is never asked on a later load', async () => {
+    const kv = new MemoryKv()
+    saveSession({ ...session, endpointId: 'console-new', label: 'Web console 2' }, kv)
+    const { fetchImpl } = relay(() => [self(), old()])
+    const controller = new Controller({
+      kv,
+      store: new InMemoryHistoryStore(),
+      fetchImpl,
+      now: () => NOW,
+      detectPlatform: () => 'macos',
+    })
+    await controller.init()
+    controller.teardown()
+    expect(controller.replaceOffer.get()).toBeNull()
+  })
+
+  it('Replace removes the old entry, records it, then takes its name; answers no device', async () => {
+    let gone = false
+    const { controller, calls, kv } = await pair(() => (gone ? [self()] : [self(), old()]))
+    calls.length = 0
+    const deleted = controller.replaceOld()
+    gone = true
+    await deleted
+    const writes = calls.filter((c) => c.method !== 'GET')
+    expect(writes.map((c) => `${c.method} ${c.path}`)).toEqual([
+      'DELETE /v1/endpoints/console-old',
+      'PATCH /v1/endpoints/console-new',
+    ])
+    expect(writes[1]?.body).toEqual({ label: 'Web console' })
+    expect(loadNewDeviceWatch(kv)?.removed).toEqual(['console-old'])
+    expect(loadSession(kv)?.label).toBe('Web console')
+    expect(controller.replaceOffer.get()).toBeNull()
+  })
+
+  it('does nothing when the old one came back online before the click', async () => {
+    let back = false
+    const { controller, calls } = await pair(() =>
+      back ? [self(), makeEndpoint({ ...old(), presence: 'online' })] : [self(), old()],
+    )
+    back = true
+    calls.length = 0
+    await controller.replaceOld()
+    expect(calls.filter((c) => c.method !== 'GET')).toEqual([])
+    expect(controller.replaceOffer.get()).toBeNull()
+  })
+
+  it('Keep both changes nothing', async () => {
+    const { controller, calls } = await pair(() => [self(), old()])
+    calls.length = 0
+    controller.keepBoth()
+    expect(controller.replaceOffer.get()).toBeNull()
+    expect(calls).toEqual([])
   })
 })

@@ -3,7 +3,7 @@ import { type Controller, detectPlatform, type GroupHistoryStatus } from '../lib
 import { t } from '../lib/i18n'
 import type { DeviceRow, HistoryEntry } from '../lib/model'
 import { effect, signal } from '../lib/store'
-import { absoluteTime, isReadableTime, relativeTime } from '../lib/time'
+import { absoluteTime, isReadableTime, monthDay, relativeTime } from '../lib/time'
 import {
   batchHeading,
   connectionTitle,
@@ -21,6 +21,7 @@ import {
 } from '../lib/view'
 import { el, replaceChildren, richNodes, svg } from './dom'
 import { qrSvg } from './qr'
+import { renderHelpSection, renderShareBox } from './share'
 
 /**
  * The console UI. A handful of panels re-rendered by `effect()`s that read the
@@ -223,7 +224,50 @@ function renderNewDevices(controller: Controller): HTMLElement {
     const vanished = controller.vanished.get()
     const reset = controller.groupReset.get()
     const busy = controller.busy.get()
+    const replace = controller.replaceOffer.get()
     const cards: HTMLElement[] = []
+    // "Is this console replacing Web console?" (PLANS.md P-31 item 2): once, right after pairing.
+    if (replace) {
+      cards.push(
+        el(
+          'div',
+          { class: 'new-device replace-offer' },
+          el(
+            'div',
+            { class: 'new-device-title' },
+            t('devices.replace.title', { app: replace.appName }),
+          ),
+          el(
+            'p',
+            { class: 'new-device-body' },
+            t('devices.replace.body', { old: replace.label, date: monthDay(replace.lastSeenAt) }),
+          ),
+          el(
+            'div',
+            { class: 'new-device-actions' },
+            el(
+              'button',
+              {
+                class: 'btn small primary',
+                disabled: busy,
+                onClick: () => void controller.replaceOld(),
+              },
+              t('devices.replace.confirm', { app: replace.appName }),
+            ),
+            el(
+              'button',
+              { class: 'btn small', disabled: busy, onClick: () => controller.keepBoth() },
+              t('devices.replace.keep'),
+            ),
+          ),
+          el(
+            'p',
+            { class: 'new-device-body replace-note' },
+            t('devices.replace.note', { app: replace.appName }),
+          ),
+        ),
+      )
+    }
     if (reset) {
       cards.push(
         el(
@@ -357,6 +401,11 @@ function renderDevices(controller: Controller, dialog: { set(d: Dialog): void })
         t('devices.add'),
       ),
     ),
+    // The paired Home, under "Add a device": the share box (P-22) decides for itself.
+    renderShareBox({
+      relayUrl: session?.relayUrl,
+      deviceCount: controller.endpoints.get().length,
+    }),
     el('p', { class: 'muted' }, t('devices.intro')),
     list,
   )
@@ -368,7 +417,11 @@ function renderDeviceRow(row: DeviceRow, dialog: { set(d: Dialog): void }): HTML
   if (row.isSelf) tags.push(el('span', { class: 'tag tag-self' }, t('devices.tag.self')))
   if (row.isConsole && !row.isSelf)
     tags.push(el('span', { class: 'tag' }, t('devices.tag.console')))
-  if (row.stale) tags.push(el('span', { class: 'tag tag-stale' }, t('devices.tag.inactive')))
+  // Google or Apple proved Tabsend uninstalled there (P-31 item 3); the row's Remove
+  // takes it out of the group. Said instead of "inactive", which would understate it.
+  if (row.endpoint.uninstalledAt)
+    tags.push(el('span', { class: 'tag tag-broken' }, t('devices.tag.uninstalled')))
+  else if (row.stale) tags.push(el('span', { class: 'tag tag-stale' }, t('devices.tag.inactive')))
 
   meta.append(
     el('span', { class: `dot ${row.presenceKnown ? row.presence : 'unknown'}` }),
@@ -583,7 +636,7 @@ function renderHistoryEntry(
         titleText,
       )
 
-  const badge = deliveryBadge(entry)
+  const badge = deliveryBadge(entry, Date.now(), endpoints)
   const foot = el(
     'div',
     { class: 'entry-foot muted' },
@@ -687,6 +740,8 @@ function renderAccount(controller: Controller, dialog: { set(d: Dialog): void })
       { class: 'btn danger', onClick: () => dialog.set({ kind: 'unpair' }) },
       t('account.unpair.button'),
     ),
+
+    renderHelpSection(session?.relayUrl),
   )
 }
 

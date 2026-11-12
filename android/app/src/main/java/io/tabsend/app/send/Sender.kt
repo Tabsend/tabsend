@@ -110,6 +110,13 @@ object Sender {
     private val inFlight: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     suspend fun sendTo(context: Context, target: Endpoint, payload: SendPayload): SendOutcome =
+        deliver(context, target, payload).also { outcome ->
+            // A good moment for the review card (P-22): the relay took it and the device is online.
+            val clean = outcome.ok && !outcome.queued && outcome.failure == null
+            runCatching { Store.get(context).lastSendSucceeded = clean }
+        }
+
+    private suspend fun deliver(context: Context, target: Endpoint, payload: SendPayload): SendOutcome =
         withContext(Dispatchers.IO) {
             val store = Store.get(context)
             val identity = store.identity

@@ -178,6 +178,8 @@ object Feedback {
         "unknown_target" -> text.string(R.string.send_rejected_unknown_target, device)
         "expired_key" -> text.string(R.string.send_rejected_expired_key, device)
         "not_in_group" -> text.string(R.string.send_rejected_not_in_group, device)
+        // Google or Apple proved Tabsend uninstalled there (PLANS P-31 item 3). Final.
+        "target_uninstalled" -> text.string(R.string.send_rejected_target_uninstalled, device)
         "limit_reached" -> capHeldLine(text, limit)
         else -> text.string(R.string.relay_line_internal)
     }
@@ -407,7 +409,13 @@ val ALL_API_ERROR_CODES = listOf(
 )
 
 /** [SendResponse.rejected[].reason] — its own set, and NOT errors (still HTTP 200). */
-val ALL_REJECTION_REASONS = listOf("unknown_target", "expired_key", "not_in_group", "limit_reached")
+val ALL_REJECTION_REASONS = listOf(
+    "unknown_target",
+    "expired_key",
+    "not_in_group",
+    "limit_reached",
+    "target_uninstalled",
+)
 
 /**
  * [SendResponse.rejected[].limit] — which per-group cap refused the item [0030].

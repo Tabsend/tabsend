@@ -3,7 +3,7 @@ import { ext } from '../lib/ext'
 import { failureText } from '../lib/failure-text'
 import { t } from '../lib/i18n'
 import { localizePage } from '../lib/i18n-dom'
-import type { DevicesView, PendingSwitch, StateView } from '../lib/model'
+import type { DevicesView, PendingSwitch, ReplaceOffer, StateView } from '../lib/model'
 import { parsePairingInput } from '../lib/pairing'
 import { shouldWarnSoloGroup } from '../lib/policy'
 import { requestRelayAccess } from '../lib/relay-access'
@@ -11,6 +11,7 @@ import { onEndpointsCacheChanged } from '../lib/storage'
 import {
   browserNameSeed,
   deviceNameSeed,
+  monthDayLine,
   relayAccessCopy,
   relaySwitchCopy,
   soloGroupCopy,
@@ -336,6 +337,76 @@ async function enterManage(state: StateView): Promise<void> {
   }
 }
 
+/**
+ * "Is this browser replacing Dia?" (PLANS.md P-31 item 2). Asked once, right after this
+ * browser finished pairing, never on a later visit to this page. The service worker
+ * picks the old entry (`background/replacing.ts`) and checks it again on the click.
+ * "Replace" removes the old entry and gives this browser its name; it answers no device.
+ */
+async function offerReplace(): Promise<void> {
+  let offer: ReplaceOffer | null
+  try {
+    offer = (
+      await rpcOk<{ ok: true; replaceOffer: ReplaceOffer | null }>({ type: 'getReplaceOffer' })
+    ).replaceOffer
+  } catch {
+    return // Only an offer: a relay hiccup here costs nothing but the question.
+  }
+  if (!offer) return
+  renderReplaceOffer(offer)
+}
+
+/** The entry the replace box is about while it is on screen. */
+let replacing: ReplaceOffer | null = null
+
+function renderReplaceOffer(offer: ReplaceOffer): void {
+  replacing = offer
+  $('replace-title').textContent = t('firstrun.replace.title', { app: offer.appName })
+  $('replace-body').textContent = t('firstrun.replace.body', {
+    old: offer.label,
+    date: monthDayLine(offer.lastSeenAt),
+  })
+  $('replace-confirm').textContent = t('firstrun.replace.confirm', { app: offer.appName })
+  $('replace-keep').textContent = t('firstrun.replace.keep')
+  $('replace-note').textContent = t('firstrun.replace.note', { app: offer.appName })
+  $('replace-offer').classList.add('visible')
+}
+
+function closeReplaceOffer(): void {
+  replacing = null
+  $('replace-offer').classList.remove('visible')
+}
+
+async function replaceOld(): Promise<void> {
+  const offer = replacing
+  if (!offer) return
+  clearError()
+  const confirm = $<HTMLButtonElement>('replace-confirm')
+  const keep = $<HTMLButtonElement>('replace-keep')
+  confirm.disabled = true
+  keep.disabled = true
+  try {
+    const res = await rpcOk<{ ok: true; replaced: boolean }>({
+      type: 'replaceSelf',
+      endpointId: offer.endpointId,
+    })
+    closeReplaceOffer()
+    if (!res.replaced) return
+    $('rename-note').style.display = 'none'
+    const now = await rpcOk<{ ok: true; state: StateView }>({ type: 'getState' })
+    manageState = now.state
+    $('self-label-line').textContent = now.state.selfLabel
+      ? t('firstrun.manage.youAre', { device: now.state.selfLabel })
+      : ''
+    await refreshManage()
+  } catch (err) {
+    showError(failureText(err))
+  } finally {
+    confirm.disabled = false
+    keep.disabled = false
+  }
+}
+
 async function joinGroup(): Promise<void> {
   clearError()
   const browserName = browserNameInput.value.trim()
@@ -388,6 +459,7 @@ async function confirmDevice(): Promise<void> {
       )
     }
     await enterManage(res.state)
+    await offerReplace()
   } catch (err) {
     showError(failureText(err))
     btn.disabled = false
@@ -407,6 +479,8 @@ function wireControls(): void {
   $('switch-keep').addEventListener('click', () => void keepCurrentRelay())
   $('join').addEventListener('click', () => void joinGroup())
   $('device-confirm').addEventListener('click', () => void confirmDevice())
+  $('replace-confirm').addEventListener('click', () => void replaceOld())
+  $('replace-keep').addEventListener('click', closeReplaceOffer)
   wirePairingBox({
     trigger: $<HTMLButtonElement>('pair-another'),
     box: $('pairing-box'),

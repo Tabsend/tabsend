@@ -25,10 +25,24 @@ internal object HistoryPreviews {
     /** Says who is asking, as link previews do. OkHttp's default name is refused by many sites. */
     private val USER_AGENT = "Tabsend/${io.tabsend.app.BuildConfig.VERSION_NAME} (+https://tabsend.org)"
     /** [retryAt] is set on a failure that may pass (no signal), so it isn't remembered for good. */
-    data class Preview(val title: String?, val image: Bitmap?, val retryAt: Long = 0L)
+    data class Preview(val title: String?, val image: Bitmap?, val retryAt: Long = 0L, val icon: Boolean = false)
+
+    /**
+     * Where the site's own icon may be, for a tab with no picture: most pages a person sends
+     * offer none to a visitor who is not signed in. Only the site's address, never the page's
+     * path or query. The browsers ask the same places (extension `siteIconAddresses`).
+     */
+    fun siteIcons(raw: String): List<String> {
+        val url = raw.toHttpUrlOrNull()?.takeIf { eligible(raw) } ?: return emptyList()
+        val origin = "https://${url.host}"
+        return listOf("$origin/apple-touch-icon.png", "$origin/favicon.ico")
+    }
 
     private const val FAILURE_RETRY_MS = 5 * 60_000L
     private const val MAX_IMAGE_ADDRESS = 2048
+    private const val MAX_REDIRECTS = 4
+    /** Smaller than this, an "icon" is a placeholder pixel, not something to show. */
+    private const val MIN_ICON_PX = 8
     private const val SEND_LOOKUP_MS = 1_500L
     private const val PICTURE_PX = 480
 
@@ -68,32 +82,57 @@ internal object HistoryPreviews {
     fun usableImage(raw: String?): String? =
         raw?.takeIf { it.length <= MAX_IMAGE_ADDRESS && eligible(it) }
 
+    /**
+     * Follows a site's redirects itself, a few at most, so every hop meets the rule the first
+     * request did: a public HTTPS site, and for a page no query string (review HP3). Many sites
+     * and picture hosts answer with a redirect first, and refusing them all left most tiles
+     * without a picture (owner, 2026-11-06).
+     */
     private suspend fun fetch(raw: String, image: Boolean): ByteArray? {
-        currentCoroutineContext().ensureActive()
-        if (!eligible(raw)) return null
-        return client.newCall(Request.Builder().url(raw).header("Accept", if (image) "image/*" else "text/html").header("User-Agent", USER_AGENT).build())
-            .execute().use { response ->
-                val body = response.body ?: return null
-                val type = body.contentType()?.toString().orEmpty()
-                if (!response.isSuccessful || !(if (image) type.startsWith("image/") else type.startsWith("text/html"))) return null
-                val limit = if (image) 2_000_000 else 512_000
-                body.byteStream().use { stream ->
-                    val result = java.io.ByteArrayOutputStream()
-                    val buffer = ByteArray(8192)
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val count = stream.read(buffer)
-                        if (count < 0) break
-                        if (result.size() + count > limit) {
-                            if (image) return null
-                            break
-                        }
-                        result.write(buffer, 0, count)
-                        if (!image && result.toString("UTF-8").contains("</head>", ignoreCase = true)) break
-                    }
-                    result.toByteArray()
+        var address = raw
+        repeat(MAX_REDIRECTS + 1) { hop ->
+            currentCoroutineContext().ensureActive()
+            if (!eligible(address) || (!image && hop > 0 && !mayRequestPage(address))) return null
+            client.newCall(Request.Builder().url(address).header("Accept", if (image) "image/*" else "text/html").header("User-Agent", USER_AGENT).build())
+                .execute().use { response ->
+                    if (!response.isRedirect) return read(response, image)
+                    address = response.header("Location")?.let { response.request.url.resolve(it) }?.toString() ?: return null
                 }
+        }
+        return null
+    }
+
+    private suspend fun read(response: okhttp3.Response, image: Boolean): ByteArray? {
+        val body = response.body ?: return null
+        val type = body.contentType()?.toString().orEmpty()
+        if (!response.isSuccessful || !(if (image) type.startsWith("image/") else type.startsWith("text/html"))) return null
+        val limit = if (image) 2_000_000 else 512_000
+        body.byteStream().use { stream ->
+            val result = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            while (true) {
+                currentCoroutineContext().ensureActive()
+                val count = stream.read(buffer)
+                if (count < 0) break
+                if (result.size() + count > limit) {
+                    if (image) return null
+                    break
+                }
+                result.write(buffer, 0, count)
+                if (!image && result.toString("UTF-8").contains("</head>", ignoreCase = true)) break
             }
+            return result.toByteArray()
+        }
+    }
+
+    private fun decode(bytes: ByteArray): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0 || bounds.outWidth.toLong() * bounds.outHeight > MAX_PIXELS) return null
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = (maxOf(bounds.outWidth, bounds.outHeight) / PICTURE_PX).coerceAtLeast(1)
+        }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     }
 
     /** The most pixels a picture may have to be decoded; the iPhone uses the same number (review HP2). */
@@ -206,19 +245,16 @@ internal object HistoryPreviews {
                     catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                     catch (_: Exception) { null }
                 }
-                val bitmap = bytes?.let {
-                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    BitmapFactory.decodeByteArray(it, 0, it.size, bounds)
-                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0 || bounds.outWidth.toLong() * bounds.outHeight > MAX_PIXELS) null
-                    else {
-                        val options = BitmapFactory.Options().apply {
-                            inSampleSize = (maxOf(bounds.outWidth, bounds.outHeight) / PICTURE_PX).coerceAtLeast(1)
-                        }
-                        BitmapFactory.decodeByteArray(it, 0, it.size, options)
-                    }
+                val bitmap = bytes?.let(::decode)
+                // No picture: the site's own icon, before the letter.
+                val icon = if (bitmap != null) null else siteIcons(raw).firstNotNullOfOrNull { address ->
+                    val iconBytes = try { fetch(address, true) }
+                        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                        catch (_: Exception) { null }
+                    iconBytes?.let(::decode)?.takeIf { it.width >= MIN_ICON_PX && it.height >= MIN_ICON_PX }
                 }
                 currentCoroutineContext().ensureActive()
-                Preview(meta["og:title"], bitmap).also { cache.put(raw, it) }
+                Preview(meta["og:title"], bitmap ?: icon, icon = bitmap == null && icon != null).also { cache.put(raw, it) }
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) {
                 Preview(null, null, System.currentTimeMillis() + FAILURE_RETRY_MS).also { cache.put(raw, it) }

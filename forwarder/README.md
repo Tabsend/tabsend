@@ -177,6 +177,7 @@ Full details, and the reasoning behind each choice, are in
 | `POST /v1/register` | the iOS or Android app | none | `{ "apnsToken": … }` or `{ "fcmToken": … }`, exactly one. Returns `{ "wakeToken": "…" }`. Registering the same phone again replaces its old token. `501` when this forwarder cannot ring that kind of phone (no credential, or Google refusing it right now); `503` when it holds `MAX_DEVICES` phones. |
 | `POST /v1/wake` | any relay | wake token in `Authorization: Bearer` | `202 { "status": "accepted" }`, always. Which provider is rung is this service's business; no caller is told. |
 | `POST /v1/revoke` | the iOS or Android app | wake token in `Authorization: Bearer` | `200 { "status": "ok" }`, always. |
+| `POST /v1/status` | the relay, after a ring | wake token in `Authorization: Bearer` | `200 { "gone": true }` only if Apple or Google proved the app uninstalled; `{ "gone": false }` for every other token. PROTOCOL.md §3.5. |
 | `GET /healthz` | anyone | none | `{ "status": "ok", … }`. |
 
 Three things about that table are load-bearing:

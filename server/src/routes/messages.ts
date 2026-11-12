@@ -111,6 +111,14 @@ export function registerMessageRoutes(app: FastifyInstance, ctx: AppContext): vo
           rejected.push({ id, reason: 'unknown_target' })
           continue
         }
+        // A phone its push service proved uninstalled (PLANS P-31 item 3). Refused rather
+        // than queued, so the sender hears it now instead of watching "Waiting" forever.
+        // After the group check, so it says nothing about anyone else's devices; before
+        // the key check, because the key does not matter for a device that is gone.
+        if (target.uninstalled_at) {
+          rejected.push({ id, reason: 'target_uninstalled' })
+          continue
+        }
         if (item.envelope.targetKeyId !== keyIdFor(target.e2e_pubkey)) {
           rejected.push({ id, reason: 'expired_key' })
           continue

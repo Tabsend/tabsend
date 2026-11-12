@@ -45,6 +45,20 @@ struct NamePhoneView: View {
                     .font(.body)
                     .foregroundColor(Palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
+                if let email = arrival.maskedEmail {
+                    // Whose account this phone is about to join, with most of the address hidden.
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "envelope")
+                            .font(.body)
+                            .foregroundColor(Palette.muted)
+                            .accessibilityHidden(true)
+                        Text("Joining the account \(email)")
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
 
                 HStack(spacing: 12) {
                     Text("Name")

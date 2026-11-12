@@ -205,7 +205,8 @@ private struct ShareRootView: View {
                             // Only a list we just fetched can vouch for presence.
                             presence: row.presenceKnown ? (row.online ? .online : .offline) : .unknown,
                             isMain: row.isPrimary,
-                            isStale: row.stale
+                            isStale: row.stale,
+                            isUninstalled: row.endpoint.uninstalledAt != nil
                         )
                     }
                     // Plain, and one per row: inside a List row, buttons with the

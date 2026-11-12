@@ -273,6 +273,23 @@
         }
       }
     },
+    "Dismiss" : {
+      "comment" : "Spoken label (VoiceOver) of the close button on the share box on Home.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dismiss"
+          }
+        }
+      }
+    },
     "Don't load website images" : {
       "comment" : "Settings, Privacy section: label of a switch, off by default. On means no pictures are fetched from websites; each tab shows its site's first letter.",
       "localizations" : {
@@ -337,6 +354,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enter a complete setup link."
+          }
+        }
+      }
+    },
+    "Help Tabsend" : {
+      "comment" : "Settings, heading of the section with Share, Rate and feedback rows.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend unterstützen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Help Tabsend"
           }
         }
       }
@@ -426,6 +460,40 @@
         }
       }
     },
+    "Joining the account %@" : {
+      "comment" : "Name this phone screen, line under the title. %@ is the email address of the account this phone is about to join, with most of its letters hidden, for example m•••@example.org. Do not translate or change the address.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du trittst dem Konto %@ bei"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joining the account %@"
+          }
+        }
+      }
+    },
+    "Know someone who'd like Tabsend?" : {
+      "comment" : "Home, title of the box under Add a device that asks the person to share Tabsend. A question.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kennst du jemanden, dem Tabsend gefallen würde?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Know someone who'd like Tabsend?"
+          }
+        }
+      }
+    },
     "Latest" : {
       "comment" : "Section heading on Home above the cards for the newest tabs. Short.",
       "localizations" : {
@@ -490,6 +558,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Manage account"
+          }
+        }
+      }
+    },
+    "More for %@" : {
+      "comment" : "Spoken name of the More button on a device row, which opens Rename and Remove. %@ is the device name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr für %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More for %@"
           }
         }
       }
@@ -766,6 +851,40 @@
         }
       }
     },
+    "Rate Tabsend" : {
+      "comment" : "Settings row under Help Tabsend. Opens the App Store page to write a review. Hidden until the link is set.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend bewerten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate Tabsend"
+          }
+        }
+      }
+    },
+    "Read more" : {
+      "comment" : "Link in the share box on Home. Shows the longer text. Short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr lesen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read more"
+          }
+        }
+      }
+    },
     "Refresh" : {
       "comment" : "Row in Settings that checks the relay and the device list again. One word.",
       "localizations" : {
@@ -818,12 +937,12 @@
       }
     },
     "Remove %@" : {
-      "comment" : "Spoken description (VoiceOver) of the Remove button next to a device. %@ is the device name.",
+      "comment" : "Spoken name of the Remove button on the row of a phone Tabsend was uninstalled from. %@ is the device name.",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ entfernen"
+            "value" : "%@ entfernen"
           }
         },
         "en" : {
@@ -864,6 +983,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Remove “%@” from the group?"
+          }
+        }
+      }
+    },
+    "Rename" : {
+      "comment" : "Menu item on a device row (the More menu, or touch and hold) that changes the device's name. One word.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umbenennen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        }
+      }
+    },
+    "Rename device" : {
+      "comment" : "Title of the dialog for renaming any device in the group, opened from a device row.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerät umbenennen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename device"
           }
         }
       }
@@ -1051,6 +1204,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Setup link"
+          }
+        }
+      }
+    },
+    "Share Tabsend" : {
+      "comment" : "Button in the share box on Home, and a row in Settings under Help Tabsend. Opens the share sheet or the account site's Share page.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend teilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share Tabsend"
+          }
+        }
+      }
+    },
+    "Show less" : {
+      "comment" : "Link in the share box on Home after Read more. Hides the longer text. Short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weniger anzeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show less"
+          }
+        }
+      }
+    },
+    "Something not working? Tell me" : {
+      "comment" : "Settings row under Help Tabsend. Opens an email to the maker. \"Me\" is the person who built Tabsend.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etwas funktioniert nicht? Schreib mir"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something not working? Tell me"
           }
         }
       }
@@ -1272,6 +1476,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This ends any plan without a refund, deletes your group and unpairs every device. You finish on tabsend.org."
+          }
+        }
+      }
+    },
+    "This link only works on the phone that asked for it. Ask for a new one in this app." : {
+      "comment" : "Banner when an emailed account link is opened on a phone other than the one that asked for it (for example a link forwarded to someone else), or on a phone with no sign-in or sign-up waiting. The person is told to ask for a new link inside the app.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Link funktioniert nur auf dem Smartphone, das ihn angefordert hat. Fordere in dieser App einen neuen an."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This link only works on the phone that asked for it. Ask for a new one in this app."
           }
         }
       }

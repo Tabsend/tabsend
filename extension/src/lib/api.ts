@@ -10,6 +10,7 @@ import type {
   HeartbeatRequest,
   HeartbeatResponse,
   HistoryResponse,
+  LeaveTokenResponse,
   ListEndpointsResponse,
   Message,
   OutboxMessagesResponse,
@@ -205,6 +206,20 @@ export function updateEndpoint(
     token,
     body,
   })
+}
+
+/** POST /v1/endpoints/:id/leave-token — this device's leave token [PLANS P-31 item 1]. */
+export function mintLeaveToken(
+  relayUrl: string,
+  token: string,
+  endpointId: string,
+): Promise<LeaveTokenResponse> {
+  return req<LeaveTokenResponse>(
+    'POST',
+    relayUrl,
+    `/v1/endpoints/${encodeURIComponent(endpointId)}/leave-token`,
+    { token },
+  )
 }
 
 /** DELETE /v1/endpoints/:id — remove an endpoint from the group. */

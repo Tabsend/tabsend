@@ -90,6 +90,12 @@
   "options.page.title": {
     "message": "Tabsend-Einstellungen"
   },
+  "options.pagePictures.detail": {
+    "message": "Ruft das Bild jeder Seite ab, wenn das sendende Gerät keins gefunden hat. Braucht die Erlaubnis deines Browsers. Manche lassen das aus Datenschutzgründen lieber aus."
+  },
+  "options.pagePictures.title": {
+    "message": "Ein Bild für jeden Link"
+  },
   "options.pairing.detail": {
     "message": "Füge einen weiteren Browser oder dein Smartphone per Link oder QR-Code zu dieser Gruppe hinzu. Praktisch, wenn „Mit einem Klick senden“ aktiv ist, denn dann zeigt das Symbol deine Geräte nicht mehr an."
   },

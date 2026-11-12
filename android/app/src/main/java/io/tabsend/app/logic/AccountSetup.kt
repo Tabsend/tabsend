@@ -40,6 +40,45 @@ object AccountSetup {
         return age in 0..PENDING_WINDOW_MS
     }
 
+    // --- the number that ties an emailed link to this phone ---------------------
+
+    /**
+     * A link the account site emails is good on the phone that asked for it and on no other
+     * (security review v0.11.0, AL1 and AL3). The phone makes a random number, sends it with
+     * every sheet it opens (in the address's fragment, which no server sees), and the page passes
+     * it on when it asks for a link. The site keeps only a hash of it with the link and wants the
+     * same number back when the link is used, so a link forwarded to someone else fails there.
+     *
+     * One number, kept while the person may still be waiting for a link: it is good for
+     * [PENDING_WINDOW_MS] from the last time a sheet asked for it. The iPhone's twin is
+     * `AccountSetup.phoneNumber` in `AccountSetup.swift`.
+     */
+    const val NUMBER_BYTES: Int = 32
+
+    /** A new number: [NUMBER_BYTES] random bytes, written as base64url without padding (43 characters). */
+    fun newNumber(random: java.security.SecureRandom = java.security.SecureRandom()): String {
+        val bytes = ByteArray(NUMBER_BYTES)
+        random.nextBytes(bytes)
+        return io.tabsend.app.crypto.Base64x.encodeUrlNoPad(bytes)
+    }
+
+    /** The account site accepts 22 to 128 characters of letters, digits, `-` and `_`. Anything else is not a number. */
+    fun isPlausibleNumber(number: String): Boolean =
+        number.length in 22..128 && number.all {
+            it in '0'..'9' || it in 'A'..'Z' || it in 'a'..'z' || it == '-' || it == '_'
+        }
+
+    /**
+     * The number that is still good, or null: there is none, it cannot be one, or it is older than
+     * [PENDING_WINDOW_MS]. A number from a clock set back is not good either, so a wrong clock cannot
+     * keep one alive for ever.
+     */
+    fun liveNumber(number: String?, issuedAt: Long?, now: Long): String? {
+        if (number == null || issuedAt == null || !isPlausibleNumber(number)) return null
+        val age = now - issuedAt
+        return number.takeIf { age in 0..PENDING_WINDOW_MS }
+    }
+
     // --- the account site -------------------------------------------------------
 
     /** The account site's address. A debug build can point at another one ([AccountSite]). */
@@ -54,9 +93,20 @@ object AccountSetup {
         START("/start?from=app"),
         ACCOUNT("/account?from=app"),
         DELETE("/account?from=app#danger"),
+
+        /** The page with this account's personal link and the $5 credit [P-22]. The app never learns the link. */
+        SHARE("/share?from=app"),
     }
 
-    fun url(page: Page, site: String = DEFAULT_SITE): String = site.trimEnd('/') + page.path
+    /**
+     * The address of [page], with this phone's [number] in the fragment (`#n=NUMBER`, or `&n=NUMBER`
+     * after the delete page's own `#danger`). A number that cannot be one is left out.
+     */
+    fun url(page: Page, site: String = DEFAULT_SITE, number: String? = null): String {
+        val address = site.trimEnd('/') + page.path
+        if (number == null || !isPlausibleNumber(number)) return address
+        return address + (if ('#' in page.path) "&n=" else "#n=") + number
+    }
 }
 
 /**

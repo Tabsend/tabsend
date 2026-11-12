@@ -102,7 +102,7 @@ public enum SendFailure: Sendable, Equatable {
 
     /// `SendResponse.rejected[].reason` — its own set, and NOT errors (still 200).
     public static let allRejectionReasons = [
-        "unknown_target", "expired_key", "not_in_group", "limit_reached",
+        "unknown_target", "expired_key", "not_in_group", "limit_reached", "target_uninstalled",
     ]
 
     /// `SendResponse.rejected[].limit` — which per-group cap refused the item [0030].
@@ -250,6 +250,13 @@ extension Feedback {
                 localized: "Your relay says \(device) has left your group of devices.",
                 bundle: .module,
                 comment: "Explanation under a failed send: the receiving device is no longer in the group. %@ is the device name, or \"that device\". The relay is the server."
+            )
+        case "target_uninstalled":
+            // Google or Apple proved Tabsend uninstalled there (PLANS P-31 item 3). Final.
+            return String(
+                localized: "Tabsend was removed from \(device), so this tab can't reach it. Remove \(device) from your devices, or pair it again if you reinstalled Tabsend.",
+                bundle: .module,
+                comment: "Explanation under a failed send: Google or Apple reported that Tabsend was removed from the receiving phone. Both %@ are the device name, or \"that device\". Same sentence as on Android and in the browser extension."
             )
         case "limit_reached":
             return capHeldLine(limit)

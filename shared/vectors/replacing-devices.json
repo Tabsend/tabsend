@@ -1,0 +1,1129 @@
+{
+  "//": "Cases for 'Is this browser replacing Dia?' (PLANS.md P-31 item 2). Run by shared/src/replacing.test.ts, Android ReplacingTest.kt and iOS ReplacingTests.swift. 'selfId' is the device that just paired, 'removed' its removed list, 'now' its clock, and 'expect' the id of the old entry to offer, or null for no offer.",
+  "cases": [
+    {
+      "name": "the owner's case: \"Dia 2\" replacing an offline \"Dia\" on the same computer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        },
+        {
+          "id": "phone",
+          "label": "Galaxy S24 Ultra",
+          "kind": "mobile",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:58:00.000Z",
+          "createdAt": "2026-07-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "no counter on either: same name offered",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "a counter on both: \"Dia 3\" replacing \"Dia 2\"",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 3 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "case and extra ASCII spaces do not matter",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "DIA 2 · macbook  pro m1 pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "  dia ·   MacBook Pro\tM1 Pro ",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "a phone renamed by the dedupe: \"Pixel 9\" replacing \"Pixel 8\"",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "kind": "mobile",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Pixel 8",
+          "kind": "mobile",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "a phone with a plain name: \"iPhone 2\" replacing \"iPhone\"",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "iPhone 2",
+          "kind": "mobile",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "iPhone",
+          "kind": "mobile",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "another computer: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · Mac mini",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "another browser on the same computer: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Chrome · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a different kind with the same name: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Pixel 9",
+          "kind": "mobile",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Pixel 8",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "the old one is online: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "seen less than a day ago: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-11-08T12:00:01.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "seen exactly a day ago: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-11-08T12:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "seen a day and a millisecond ago: offered",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-11-08T11:59:59.999Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "on this device's removed list: no offer",
+      "selfId": "me",
+      "removed": ["old"],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "only this device: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "this device not in the list: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "the old one joined after this device: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-07-01T10:00:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "the old one was seen after this device joined: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-10-29T10:00:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a non-canonical lastSeenAt matches nothing (no milliseconds)",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a non-canonical lastSeenAt matches nothing (lowercase z)",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a non-canonical lastSeenAt matches nothing (leap second)",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T23:59:60.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a non-canonical lastSeenAt matches nothing (a day that does not exist)",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-02-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a non-canonical lastSeenAt matches nothing (RFC 1123)",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "Fri, 30 Oct 2026 08:00:00 GMT",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a non-canonical createdAt matches nothing (offset)",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000+00:00"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "this device's createdAt unreadable: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "yesterday"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a non-ASCII capital is not lowercased: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Ärger 2 · Mac",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "ärger · Mac",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "Greek capital sigma is not lowercased: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "ΣΑΣ 2 · Mac",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "σας · Mac",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "composed and decomposed accents are different names: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Café 2 · Mac",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Café · Mac",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "non-ASCII spaces are not collapsed: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a counter of 1 is part of the name: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 1 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a counter with a leading zero is part of the name: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 02 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a counter over 99 is part of the name: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 100 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a counter with no name before it stays the name",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "2",
+          "kind": "mobile",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "",
+          "kind": "mobile",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "several old copies: the one seen most recently",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "a",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-01T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        },
+        {
+          "id": "b",
+          "label": "Dia 3 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "b"
+    },
+    {
+      "name": "a tie on last seen: the one that joined later",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "a",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-02T10:00:00.000Z"
+        },
+        {
+          "id": "b",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "a"
+    },
+    {
+      "name": "a tie on both: the larger id",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "a",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        },
+        {
+          "id": "b",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "b"
+    },
+    {
+      "name": "the removed one is skipped and the next one offered",
+      "selfId": "me",
+      "removed": ["a"],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "a",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        },
+        {
+          "id": "b",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-01T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "b"
+    },
+    {
+      "name": "a two-digit counter: \"Dia 10\" replacing \"Dia\"",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 10 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "a second \" · \" stays part of the computer name",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · Mac · Work",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · Mac · Work",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "a second \" · \" that differs: no offer",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · Mac · Work",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · Mac · Home",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "an empty app half matches nothing",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": " · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": " · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a presence other than online counts as offline",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "away",
+          "lastSeenAt": "2026-10-30T08:00:00.000Z",
+          "createdAt": "2026-08-01T10:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    },
+    {
+      "name": "February 29 in a year that has none matches nothing",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "1900-02-29T08:00:00.000Z",
+          "createdAt": "1900-01-01T00:00:00.000Z"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "February 29 in a leap year is read",
+      "selfId": "me",
+      "removed": [],
+      "now": "2026-11-09T12:00:00.000Z",
+      "list": [
+        {
+          "id": "me",
+          "label": "Dia 2 · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "online",
+          "lastSeenAt": "2026-11-09T11:59:00.000Z",
+          "createdAt": "2026-11-09T11:50:00.000Z"
+        },
+        {
+          "id": "old",
+          "label": "Dia · MacBook Pro M1 Pro",
+          "kind": "extension",
+          "presence": "offline",
+          "lastSeenAt": "2000-02-29T08:00:00.000Z",
+          "createdAt": "2000-01-01T00:00:00.000Z"
+        }
+      ],
+      "expect": "old"
+    }
+  ]
+}

@@ -331,6 +331,7 @@ export async function buildDevicesView(opts: { cached?: boolean } = {}): Promise
       presenceLabel: presenceLabel(endpoint, now, presenceKnown),
     }
     if (endpoint.deviceName) row.deviceName = endpoint.deviceName
+    if (endpoint.uninstalledAt) row.uninstalled = true
     return row
   })
 

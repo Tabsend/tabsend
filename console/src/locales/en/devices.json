@@ -27,6 +27,10 @@
     "message": "inactive",
     "description": "Small tag on a device that has been offline for more than 30 days. Lowercase, short."
   },
+  "devices.tag.uninstalled": {
+    "message": "uninstalled",
+    "description": "Small red tag on a phone when Google or Apple reported that Tabsend was removed from it. Links can't be sent to it; the row's Remove takes it out of the group. Lowercase, short."
+  },
   "devices.kind.browser": {
     "message": "Browser",
     "description": "Kind of device, first word of the grey line under a device name: a computer running the browser extension. Capitalized, one word if possible."
@@ -86,5 +90,25 @@
   "devices.reset.stopFailedOffline": {
     "message": "Couldn't reach your relay, so the reset is still waiting. Try again.",
     "description": "Error at the bottom of the page when stopping the reset failed because the relay did not answer."
+  },
+  "devices.replace.title": {
+    "message": "Is this console replacing {app}?",
+    "description": "Title of a card shown once, right after this web console paired, when the group already has an older, offline entry with this console's name, likely left behind when the browser's data was cleared. {app} is that name, such as “Web console”. A question: it must not claim the two are the same. Same wording as the browser extension's setup page, with “console” for “browser”."
+  },
+  "devices.replace.body": {
+    "message": "“{old}” hasn't been online since {date}. If Tabsend was set up here again, replace it so this console takes its place.",
+    "description": "Body of that card. {old} is the old entry's whole name. {date} is a month and day, such as “October 30”."
+  },
+  "devices.replace.confirm": {
+    "message": "Replace {app}",
+    "description": "Main button of that card: removes the old entry and gives this console its name. Short."
+  },
+  "devices.replace.keep": {
+    "message": "Keep both",
+    "description": "Second button of that card: closes it and changes nothing. Short."
+  },
+  "devices.replace.note": {
+    "message": "This console takes the name {app}. The old one is removed from your devices.",
+    "description": "Small line under the buttons of that card, saying what the main button does. {app} is the name, such as “Web console”."
   }
 }

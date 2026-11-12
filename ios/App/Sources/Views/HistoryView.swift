@@ -20,6 +20,9 @@ struct HistoryView: View {
     /// What a "Send again" did. Held here rather than in the app-wide banner, which
     /// Home renders: the answer would arrive on a tab the user is not looking at.
     @State private var resendNotice: String?
+    /// The row whose "Send again" is asking where to, because the device it was
+    /// for has left the group (PLANS P-31 item 4, sketch A).
+    @State private var resendChoiceFor: HistoryItem?
 
     private var selfEndpointId: String { model.registration?.endpointId ?? "" }
 
@@ -130,6 +133,28 @@ struct HistoryView: View {
         // by opening a tab, and comes back to a row whose state has changed.
         // Arrivals while it is open land the same way.
         .onAppear { model.refreshHistory() }
+        // "Dia is no longer in your group." with the devices it can go to instead,
+        // the list a held tab whose device is gone offers.
+        .confirmationDialog(
+            resendChoiceFor.map { model.sendAgainGoneLine($0) } ?? "",
+            isPresented: Binding(
+                get: { resendChoiceFor != nil },
+                set: { if !$0 { resendChoiceFor = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: resendChoiceFor
+        ) { item in
+            ForEach(model.sendAgainChoices(item) ?? [], id: \.id) { device in
+                Button(device.label) {
+                    Task { resendNotice = await model.sendAgain(item, to: device) }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { item in
+            if (model.sendAgainChoices(item) ?? []).isEmpty {
+                Text(GoneTargetCopy.noOtherDevice)
+            }
+        }
     }
 
     private var retentionFooter: some View {
@@ -235,7 +260,11 @@ struct HistoryView: View {
                     if state == .neverArrived, History.sendAgainPayload(item) != nil {
                         Spacer()
                         Button("Send again") {
-                            Task { resendNotice = await model.sendAgain(item) }
+                            if model.sendAgainChoices(item) == nil {
+                                Task { resendNotice = await model.sendAgain(item) }
+                            } else {
+                                resendChoiceFor = item
+                            }
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)

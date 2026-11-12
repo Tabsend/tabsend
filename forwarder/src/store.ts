@@ -125,7 +125,7 @@ interface DeviceRowV2 {
  * Schema version, tracked in SQLite's own `user_version`. The migration list is
  * append-only, and a fresh file and an upgraded one end identically.
  */
-const SCHEMA_VERSION = 4
+const SCHEMA_VERSION = 5
 
 const DEFAULT_WAKE_FLUSH_INTERVAL_MS = 60_000
 
@@ -153,6 +153,26 @@ const DEVICES_TABLE = `
 const RING_STYLE_COLUMN = `
   ALTER TABLE devices ADD COLUMN ring_style TEXT NOT NULL DEFAULT 'background';
 `
+
+/**
+ * Schema 5 [2026-11-09, P-31 item 3]: the wake tokens whose phone Apple or Google PROVED
+ * gone (`410 Unregistered`, `UNREGISTERED`), so `POST /v1/status` can tell the relay that
+ * rang it (PROTOCOL.md §3.5). The token hash and the time only, kept `GONE_RETENTION_MS`.
+ * One row per phone that left, never one per wake.
+ */
+const GONE_TABLE = `
+  CREATE TABLE IF NOT EXISTS gone (
+    wake_token_hash TEXT PRIMARY KEY,
+    gone_at         INTEGER NOT NULL
+  );
+`
+
+/**
+ * How long a gone token is remembered: long enough for a relay that rings a phone only
+ * now and then to ask, short enough that the table stays small. A relay that asks later
+ * hears `gone: false`, the answer it got before this existed.
+ */
+export const GONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 const META_TABLE = `
   CREATE TABLE IF NOT EXISTS meta (
@@ -196,6 +216,9 @@ export class DeviceStore {
     count: Statement
     flushedAt: Statement
     trimUnrung: Statement
+    insertGone: Statement
+    findGone: Statement
+    pruneGone: Statement
   }
   /** The register transaction, built once around the statements above. */
   private readonly registerTx: (params: RegisterParams) => { replaced: boolean }
@@ -256,6 +279,11 @@ export class DeviceStore {
             ORDER BY created_at
             LIMIT ?)`,
       ),
+      insertGone: this.db.prepare(
+        'INSERT OR REPLACE INTO gone (wake_token_hash, gone_at) VALUES (?, ?)',
+      ),
+      findGone: this.db.prepare('SELECT 1 AS hit FROM gone WHERE wake_token_hash = ?'),
+      pruneGone: this.db.prepare('DELETE FROM gone WHERE gone_at < ?'),
     }
     this.rows = (this.statements.count.get() as { n: number }).n
     this.registerTx = this.db.transaction((params: RegisterParams) => {
@@ -290,6 +318,11 @@ export class DeviceStore {
         this.flushWakes()
       } catch (err) {
         // Thrown out of a timer, this would end the process. The tallies stay pending.
+        this.onFlushError?.(err)
+      }
+      try {
+        this.pruneGone()
+      } catch (err) {
         this.onFlushError?.(err)
       }
       // A clean-up a busy reader held up at start-up is finished as soon as it can be.
@@ -347,8 +380,10 @@ export class DeviceStore {
    *   clean-up therefore cannot leave clear text behind for good.
    * - Version 4 [2026-11-05, P-29] adds `ring_style`; every existing row is `background`,
    *   which is how it was rung before.
+   * - Version 5 [2026-11-09, P-31 item 3] adds the `gone` table, empty.
    *
-   * A fresh file is made at version 3 and then takes the same version-4 step as an old one.
+   * A fresh file is made at version 3 and then takes the same version-4 and 5 steps as an
+   * old one.
    */
   private migrate(): void {
     let current = this.db.pragma('user_version', { simple: true }) as number
@@ -410,6 +445,12 @@ export class DeviceStore {
       this.db.transaction(() => {
         this.db.exec(RING_STYLE_COLUMN)
         this.db.pragma('user_version = 4')
+      })()
+    }
+    if (current < 5) {
+      this.db.transaction(() => {
+        this.db.exec(GONE_TABLE)
+        this.db.pragma('user_version = 5')
       })()
     }
   }
@@ -555,6 +596,30 @@ export class DeviceStore {
     const { changes } = this.statements.deleteByHash.run(wakeTokenHash)
     this.rows -= changes
     return changes > 0
+  }
+
+  /**
+   * The provider PROVED this token's phone gone: drop its row, and remember the token hash
+   * so `POST /v1/status` can say so to the relay (PROTOCOL.md §3.5). One transaction, so a
+   * token is never both rung and reported gone.
+   */
+  markGone(wakeTokenHash: string, now: number): void {
+    this.pendingWakes.delete(wakeTokenHash)
+    this.db.transaction(() => {
+      const { changes } = this.statements.deleteByHash.run(wakeTokenHash)
+      this.rows -= changes
+      this.statements.insertGone.run(wakeTokenHash, now)
+    })()
+  }
+
+  /** Whether this token's phone was proved gone in the last `GONE_RETENTION_MS`. */
+  isGone(wakeTokenHash: string): boolean {
+    return this.statements.findGone.get(wakeTokenHash) !== undefined
+  }
+
+  /** Forget gone tokens older than `GONE_RETENTION_MS`. Runs on the flush timer. */
+  pruneGone(now: number = Date.now()): number {
+    return this.statements.pruneGone.run(now - GONE_RETENTION_MS).changes
   }
 
   /** Registered devices. Operator-facing aggregate; not served on any public route. */

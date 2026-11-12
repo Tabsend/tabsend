@@ -253,7 +253,11 @@ jobs:
       # The APK for the public GitHub release: the release build type, signed with
       # the same stable key, so it installs over the debug builds (and they over it).
       # Only for release tags; the owner attaches it to the release on Tabsend/tabsend.
+      # The public repo (Tabsend/tabsend) has no signing key by design, so there the
+      # step skips with a warning instead of failing every tag. The private repo
+      # still fails hard if the key is missing.
       - name: Build release APK
+        id: release_apk
         if: env.RELEASE_TAG != '' && github.event_name != 'pull_request'
         working-directory: android
         env:
@@ -262,15 +266,21 @@ jobs:
           TABSEND_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -z "${TABSEND_KEYSTORE_FILE:-}" ]; then
+            if [ "$GITHUB_REPOSITORY" = "Tabsend/tabsend" ]; then
+              echo "::warning::No signing key in the public repo, so no release APK was built here."
+              echo "built=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             echo "::error::A release APK needs the stable signing key (ANDROID_KEYSTORE_BASE64)."
             exit 1
           fi
           ./gradlew --no-daemon :app:assembleRelease
           v=${RELEASE_TAG#v}
           mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/tabsend-$v.apk"
+          echo "built=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload release APK artifact
-        if: env.RELEASE_TAG != '' && github.event_name != 'pull_request'
+        if: env.RELEASE_TAG != '' && github.event_name != 'pull_request' && steps.release_apk.outputs.built == 'true'
         uses: actions/upload-artifact@v5
         with:
           name: tabsend-release-apk

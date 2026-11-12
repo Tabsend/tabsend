@@ -394,7 +394,9 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       } else if (result.deviceGone) {
         // The provider is authoritative about its own tokens. A doorbell address that
         // rings nothing is not worth keeping, and the phone re-registers when it returns.
-        store.delete(wakeTokenHash)
+        // The token is remembered as gone, so the relay that rang it can ask (§3.5,
+        // P-31 item 3): this is the one answer that proves the app was uninstalled.
+        store.markGone(wakeTokenHash, now())
         request.log.info(
           {
             tokenRef: ref,
@@ -637,6 +639,29 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       )
     })
     return reply.code(200).send({ status: 'ok' })
+  })
+
+  /**
+   * POST /v1/status — the relay asks whether Apple or Google proved this token's phone
+   * gone (PROTOCOL.md §3.5, P-31 item 3).
+   *
+   * `gone: true` only for a token whose ring got `410 Unregistered` or `UNREGISTERED` in
+   * the last `GONE_RETENTION_MS`; a live token, an unknown one and a revoked one all answer
+   * `gone: false`, so this tells nobody whether a token is live (§4). What it does tell a
+   * holder of the token is that the app it rang was uninstalled; §4 says why that is
+   * accepted. The lookup is in the `gone` table only, which a live and an unknown token
+   * both miss, so the two cost the same; it runs before the reply because it IS the reply.
+   * Never rings, so it draws on the caller's bucket only.
+   */
+  app.post('/v1/status', async (request, reply) => {
+    charge(
+      callerLimiter,
+      request.ip,
+      'Too many requests from this address. Wait for the window to pass and try again.',
+    )
+    const token = bearerToken(request)
+    const gone = store.isGone(hashWakeToken(token))
+    return reply.code(200).send({ gone })
   })
 
   /**

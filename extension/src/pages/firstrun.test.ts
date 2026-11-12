@@ -1,6 +1,6 @@
 import type { IsoTimestamp, NewDeviceNotice } from '@tabsend/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DeviceRow, DevicesView, RpcRequest, StateView } from '../lib/model'
+import type { DeviceRow, DevicesView, ReplaceOffer, RpcRequest, StateView } from '../lib/model'
 import { unlocalizedWords } from '../lib/pseudo'
 import { type FakePage, installFakePage, uninstallFakePage } from './test-dom'
 
@@ -79,12 +79,18 @@ function answer(req: RpcRequest): unknown {
       return { ok: true, devices }
     case 'setDevice':
       return deviceChosen ? { ok: true, state: deviceChosen } : { ok: true }
+    case 'getReplaceOffer':
+      return { ok: true, replaceOffer: offer }
+    case 'replaceSelf':
+      return { ok: true, replaced: true }
     default:
       return { ok: true }
   }
 }
 
 let page: FakePage
+/** What the service worker offers for replacing (P-31 item 2); null for nothing. */
+let offer: ReplaceOffer | null = null
 
 async function openPage(hash = ''): Promise<void> {
   page = installFakePage('firstrun.html', { hash })
@@ -101,6 +107,7 @@ beforeEach(() => {
   requests.length = 0
   storageListeners.length = 0
   deviceChosen = undefined
+  offer = null
   toolbar.settings = undefined
   toolbar.throws = false
   devices = {
@@ -422,5 +429,92 @@ describe('first run: all text written by the page comes from the catalog', () =>
     await openPseudoPage()
     expect(strays('switch-target', ['https://other.example'])).toEqual([])
     expect(page.byId('switch-cost').textContent).toBe('')
+  })
+})
+
+describe('first run, manage screen: "Is this browser replacing Dia?" (P-31 item 2)', () => {
+  const dia: ReplaceOffer = {
+    endpointId: 'ep-dia',
+    label: 'Dia · MacBook Pro M1 Pro',
+    appName: 'Dia',
+    lastSeenAt: '2026-10-30T08:00:00.000Z',
+  }
+
+  async function pairAndPickDevice(): Promise<void> {
+    state.registered = false
+    page = installFakePage('firstrun.html')
+    vi.resetModules()
+    await import('./firstrun')
+    await vi.waitFor(() => expect(document.body.dataset.ready).toBe('1'))
+    page.byId('browser-name').value = 'Dia'
+    page.byId('pairing-link-input').value = 'http://192.168.1.20:8080/pair#c=ABCD-1234'
+    state.registered = true
+    deviceChosen = { ...state, browserName: 'Dia 2', selfLabel: 'Dia 2 · MacBook Pro M1 Pro' }
+    page.byId('join').click()
+    await vi.waitFor(() =>
+      expect(page.byId('screen-device').classList.contains('hidden')).toBe(false),
+    )
+    page.byId('device-new').value = 'MacBook Pro M1 Pro'
+    page.byId('device-confirm').click()
+    await vi.waitFor(() =>
+      expect(page.byId('screen-manage').classList.contains('hidden')).toBe(false),
+    )
+    await vi.waitFor(() => expect(requests.some((r) => r.type === 'getReplaceOffer')).toBe(true))
+  }
+
+  it('asks, right after pairing, with the old name and when it was last online', async () => {
+    offer = dia
+    await pairAndPickDevice()
+    await vi.waitFor(() =>
+      expect(page.byId('replace-offer').classList.contains('visible')).toBe(true),
+    )
+    expect(page.byId('replace-title').textContent).toBe('Is this browser replacing Dia?')
+    expect(page.byId('replace-body').textContent).toContain('“Dia · MacBook Pro M1 Pro”')
+    expect(page.byId('replace-body').textContent).toContain('October 30')
+    expect(page.byId('replace-confirm').textContent).toBe('Replace Dia')
+  })
+
+  it('Replace sends only the replace request for that entry, and answers no device', async () => {
+    offer = dia
+    await pairAndPickDevice()
+    await vi.waitFor(() =>
+      expect(page.byId('replace-offer').classList.contains('visible')).toBe(true),
+    )
+    page.byId('replace-confirm').click()
+    await vi.waitFor(() =>
+      expect(page.byId('replace-offer').classList.contains('visible')).toBe(false),
+    )
+    expect(requests.filter((r) => r.type === 'replaceSelf')).toEqual([
+      { type: 'replaceSelf', endpointId: 'ep-dia' },
+    ])
+    expect(
+      requests.filter((r) => r.type === 'confirmNewDevice' || r.type === 'confirmReview'),
+    ).toEqual([])
+  })
+
+  it('Keep both closes it and changes nothing', async () => {
+    offer = dia
+    await pairAndPickDevice()
+    await vi.waitFor(() =>
+      expect(page.byId('replace-offer').classList.contains('visible')).toBe(true),
+    )
+    page.byId('replace-keep').click()
+    expect(page.byId('replace-offer').classList.contains('visible')).toBe(false)
+    expect(requests.filter((r) => r.type === 'replaceSelf' || r.type === 'removeEndpoint')).toEqual(
+      [],
+    )
+  })
+
+  it('stays hidden when there is nothing to replace', async () => {
+    await pairAndPickDevice()
+    expect(page.byId('replace-offer').classList.contains('visible')).toBe(false)
+  })
+
+  it('is never asked on a later visit to the page', async () => {
+    offer = dia
+    await openPage()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(requests.some((r) => r.type === 'getReplaceOffer')).toBe(false)
+    expect(page.byId('replace-offer').classList.contains('visible')).toBe(false)
   })
 })

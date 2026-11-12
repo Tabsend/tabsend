@@ -27,6 +27,7 @@ import {
 } from './newdevice-banner'
 import { wirePairingBox } from './pairing-box'
 import { rpcOk } from './rpc-client'
+import { paintShareBox } from './share-box'
 
 /**
  * The toolbar popup chooser (MVP slice of INTERACTION_FLOWS §3.1): ordered
@@ -155,11 +156,13 @@ function renderRow(row: ChooserRow): HTMLLIElement {
   // the list is a snapshot, and reading out "online" from it is the spoken
   // version of the green dot that started this (dogfood 2026-08-05).
   const ago = agoLine(row.endpoint.lastSeenAt, Date.now())
-  const presence = !row.presenceKnown
-    ? t('chooser.row.spoken.unknown', { ago })
-    : row.endpoint.presence === 'online'
-      ? t('chooser.row.spoken.online')
-      : t('chooser.row.spoken.offline', { ago })
+  const presence = row.endpoint.uninstalledAt
+    ? t('chooser.row.spoken.uninstalled')
+    : !row.presenceKnown
+      ? t('chooser.row.spoken.unknown', { ago })
+      : row.endpoint.presence === 'online'
+        ? t('chooser.row.spoken.online')
+        : t('chooser.row.spoken.offline', { ago })
   btn.setAttribute(
     'aria-label',
     t('chooser.row.aria', {
@@ -205,6 +208,11 @@ function renderRow(row: ChooserRow): HTMLLIElement {
     // already refused a send to it (P-20). The card above says what to do.
     status.classList.add('broken')
     status.textContent = unreachableCopy.rowStatus
+  } else if (row.endpoint.uninstalledAt) {
+    // Google or Apple proved Tabsend uninstalled there (P-31 item 3), so the relay
+    // refuses sends to it. Said in red instead of presence; Remove is in the device list.
+    status.classList.add('broken')
+    status.textContent = unreachableCopy.uninstalledStatus
   } else if (row.presenceKnown && row.endpoint.presence === 'online') {
     status.classList.add('online')
     status.textContent = t('chooser.row.status.online')
@@ -452,6 +460,18 @@ function renderChooser(view: ChooserView, state: StateView): void {
   show(emptyEl, false)
   show(targetsEl, true)
   targetsEl.replaceChildren(...view.targets.map(renderRow))
+  // The paired Home, under "Add a device": the share box (P-22) decides for itself.
+  void paintShareBox(
+    {
+      box: $('share-box'),
+      body: $('share-body'),
+      go: $('share-go'),
+      more: $('share-more'),
+      dismiss: $('share-dismiss'),
+      note: $('share-note'),
+    },
+    { relayUrl: state.relayUrl, deviceCount: view.targets.length + 1 },
+  )
 
   // Always require an explicit click to send, even with exactly one target —
   // auto-sending on open (the old "one-row chooser is friction" rule) made the

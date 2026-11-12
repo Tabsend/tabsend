@@ -3,6 +3,7 @@ import type {
   EndpointId,
   GroupId,
   HeartbeatResponse,
+  LeaveTokenResponse,
   ListEndpointsResponse,
   Platform,
   PushSubscription,
@@ -21,8 +22,8 @@ import type { Database } from '../db/schema'
 import { fail } from '../errors'
 import { hashToken, newDeviceToken, newId } from '../ids'
 import { toEndpoint } from '../mappers'
-import { revokeDeleted } from '../push'
 import { makeRateLimit } from '../ratelimit'
+import { groupGone, removeEndpoint } from '../removal'
 import { readGroupGate, SUSPENDED_JOIN_MESSAGE } from '../tenancy'
 import { iso } from '../time'
 import {
@@ -499,6 +500,28 @@ export function registerEndpointRoutes(app: FastifyInstance, ctx: AppContext): v
     },
   )
 
+  // POST /v1/endpoints/:id/leave-token — mint the caller's leave token [PLANS P-31 item 1].
+  // Own endpoint only. Replaces any earlier one, so the newest uninstall page is the only
+  // one that works. The raw token is returned once and only its hash is stored.
+  app.post<{ Params: { id: string } }>(
+    '/v1/endpoints/:id/leave-token',
+    { preHandler: requireAuth },
+    async (request) => {
+      const caller = callerOf(request)
+      if (request.params.id !== caller.id) {
+        fail('forbidden', 'A device can only ask for its own leave token.')
+      }
+      const leaveToken = newDeviceToken()
+      await ctx.db
+        .updateTable('endpoints')
+        .set({ leave_token_hash: hashToken(leaveToken) })
+        .where('id', '=', caller.id)
+        .execute()
+      const response: LeaveTokenResponse = { leaveToken }
+      return response
+    },
+  )
+
   // GET /v1/endpoints — every endpoint in the caller's group (presence derived).
   app.get('/v1/endpoints', { preHandler: requireAuth }, async (request) => {
     const caller = callerOf(request)
@@ -558,24 +581,10 @@ export function registerEndpointRoutes(app: FastifyInstance, ctx: AppContext): v
     { preHandler: requireAuth },
     async (request) => {
       const caller = callerOf(request)
-      const postgres = isPostgresUrl(ctx.config.databaseUrl)
-
-      // ONE transaction holding the group row [0031 amended 2026-10-01], because both
-      // halves of a removal race something that holds it too. `removed_endpoints` has
-      // no foreign key to `groups`, so a removal racing a tenancy deletion used to be
-      // able to commit its tombstone after the cascade had swept that table, leaving a
-      // token hash naming a tenancy reported as gone. And the send and the group-key
-      // upload now read their targets under the same hold, so a removal either lands
-      // first, and they no longer see the device, or lands after them, and the
-      // group-key delete below sweeps whatever they stored for it.
-      const row = await ctx.groupWrites.run(caller.group_id, () =>
-        ctx.db.transaction().execute(async (trx) => {
-          if (!(await lockGroup(trx, postgres, caller.group_id))) {
-            fail(
-              'not_found',
-              'This group no longer exists on this relay, so there is nothing left to remove.',
-            )
-          }
+      await removeEndpoint(
+        ctx,
+        caller.group_id,
+        async (trx) => {
           // The device asking must still be in the group, read under the hold every
           // removal takes: a device removed a moment ago gets the answer its next call
           // would get, rather than one last removal of somebody else.
@@ -592,61 +601,10 @@ export function registerEndpointRoutes(app: FastifyInstance, ctx: AppContext): v
             .where('group_id', '=', caller.group_id)
             .executeTakeFirst()
           if (!found) fail('not_found', 'Endpoint not found in your group.')
-          // Tombstone BEFORE the delete, so the removed device gets a definitive
-          // "you were removed" on its next call instead of an ambiguous 401 it would
-          // have to guess about. Same transaction as the delete: a removal without its
-          // tombstone is exactly the ambiguity this exists to remove.
-          await trx
-            .insertInto('removed_endpoints')
-            .values({
-              device_token_hash: found.device_token_hash,
-              endpoint_id: found.id,
-              group_id: found.group_id,
-              removed_at: iso(ctx.now()),
-            })
-            .execute()
-          await trx.deleteFrom('endpoints').where('id', '=', found.id).execute()
-          // Its copies of the group key go with it [0028]. They are sealed to a key
-          // only the removed device holds, so they are unreadable to everyone else
-          // and useless to it once its token is gone — but leaving them would mean
-          // the relay stores key material for a device that is no longer in the
-          // group, which is exactly the state a rotation exists to end.
-          await trx.deleteFrom('group_keys').where('target_endpoint_id', '=', found.id).execute()
-          // And the copies it sent. No client opens one once its sender has left the
-          // list, so they unlock nothing, but they still fill the recipient's slots
-          // (at most 64 copies per device, caps.ts): a device about to be removed
-          // could post 64 copies to each other member and leave them behind, and the
-          // rotation that follows its removal would be refused `limit_reached` for
-          // the whole history window, with history still sealed under the key it
-          // holds (review 2026-10-13).
-          // Scoped to the group so it uses `group_keys_group_idx` rather than scanning
-          // every tenant's copies while this group's row is held.
-          await trx
-            .deleteFrom('group_keys')
-            .where('group_id', '=', found.group_id)
-            .where('source_endpoint_id', '=', found.id)
-            .execute()
           return found
-        }),
-      )
-
-      // After the commit, and only then: a rollback must not announce a removal.
-      ctx.hub.toGroup(caller.group_id as GroupId, {
-        type: 'endpoint_removed',
-        endpointId: row.id as EndpointId,
-      })
-      // And its open sockets go too, after it has been told above. A socket
-      // authenticates once, in its hello (routes/stream.ts), so without this a removed
-      // device kept receiving the group's broadcasts for as long as it held its socket
-      // open: every later device's label, name and public key, and presence. Its token
-      // stopped working at once; its fast path did not.
-      ctx.hub.disconnectEndpoint(row.id as EndpointId, 'endpoint removed')
-      // And its doorbell [2026-10-20, PLANS P-17]: a removed phone is never rung again,
-      // so without this the forwarder kept its record for good. Detached; see push.ts.
-      revokeDeleted(
-        ctx.push,
-        [{ endpointId: row.id, pushSubscription: row.push_subscription }],
+        },
         request.log,
+        groupGone,
       )
       return { ok: true }
     },

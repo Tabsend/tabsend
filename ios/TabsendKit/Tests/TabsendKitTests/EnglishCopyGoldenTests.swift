@@ -62,6 +62,13 @@ final class EnglishCopyGoldenTests: XCTestCase {
         put("chooser.sendFailed", Feedback.sendFailed)
         put("feedback.thatDevice", Feedback.thatDevice)
 
+        // The in-app asks (P-22).
+        put("asks.boxBodyCredit", InAppAsks.boxBodyCredit)
+        put("asks.boxBodyPlain", InAppAsks.boxBodyPlain)
+        put("asks.expandedCredit", InAppAsks.expandedCredit)
+        put("asks.expandedPlain", InAppAsks.expandedPlain)
+        put("asks.shareText", InAppAsks.shareText)
+
         // Feedback.failureLine, every failure, with and without a device name.
         let failures: [(String, SendFailure)] = [
             ("phoneOffline", .phoneOffline),
@@ -141,6 +148,15 @@ final class EnglishCopyGoldenTests: XCTestCase {
         }
         put("gone.sendToMenu", GoneTargetCopy.sendToMenu)
         put("gone.noOtherDevice", GoneTargetCopy.noOtherDevice)
+
+        // ReplacingCopy (P-31 item 2): the offer after pairing.
+        put("replacing.title", ReplacingCopy.title(oldLabel: "iPhone"))
+        put("replacing.body", ReplacingCopy.body(
+            oldLabel: "iPhone", lastSeenAt: "2026-10-30T08:00:00.000Z", timeZone: TimeZone(identifier: "UTC")!
+        ))
+        put("replacing.replace", ReplacingCopy.replaceButton(oldLabel: "iPhone"))
+        put("replacing.keepBoth", ReplacingCopy.keepBoth)
+        put("replacing.smallLine", ReplacingCopy.smallLine(oldLabel: "iPhone"))
 
         // GroupReset
         put("reset.cardTitle", GroupReset.cardTitle)

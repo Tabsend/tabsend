@@ -35,6 +35,11 @@ internal class PictureSlot(context: Context, cornerDp: Int, letterSp: Float) : F
         scaleType = ImageView.ScaleType.CENTER_CROP
         visibility = View.GONE
     }
+    /** The site's own icon, small in the middle of the tile, as the browsers show it. */
+    private val icon = ImageView(context).apply {
+        scaleType = ImageView.ScaleType.FIT_CENTER
+        visibility = View.GONE
+    }
 
     init {
         background = GradientDrawable().apply {
@@ -45,6 +50,8 @@ internal class PictureSlot(context: Context, cornerDp: Int, letterSp: Float) : F
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         addView(letter, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         addView(image, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        val iconPx = (ICON_DP * resources.displayMetrics.density).toInt()
+        addView(icon, LayoutParams(iconPx, iconPx, Gravity.CENTER))
     }
 
     fun showLetter(text: String?) {
@@ -56,6 +63,16 @@ internal class PictureSlot(context: Context, cornerDp: Int, letterSp: Float) : F
         image.setImageBitmap(bitmap)
         image.visibility = View.VISIBLE
         letter.visibility = View.GONE
+    }
+
+    fun showIcon(bitmap: Bitmap) {
+        icon.setImageBitmap(bitmap)
+        icon.visibility = View.VISIBLE
+        letter.visibility = View.GONE
+    }
+
+    private companion object {
+        const val ICON_DP = 28
     }
 }
 
@@ -92,7 +109,11 @@ internal class PictureLoader(private val activity: AppCompatActivity, private va
             activity.lifecycleScope.launch {
                 val preview = HistoryPreviews.load(url, image, needTitle)
                 val bitmap = preview?.image
-                if (bitmap != null) slot.showPicture(bitmap) else slot.showLetter(letter)
+                when {
+                    bitmap == null -> slot.showLetter(letter)
+                    preview?.icon == true -> slot.showIcon(bitmap)
+                    else -> slot.showPicture(bitmap)
+                }
                 if (needTitle) preview?.title?.takeIf { it.isNotBlank() }?.let(onTitle)
             }
         }

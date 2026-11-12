@@ -209,7 +209,7 @@ describe('schema migrations', () => {
       await rig.close()
     }
     const db = new SQLite(databasePath, { readonly: true })
-    expect(db.pragma('user_version', { simple: true })).toBe(4)
+    expect(db.pragma('user_version', { simple: true })).toBe(5)
     db.close()
   })
 

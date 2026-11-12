@@ -97,6 +97,8 @@ export interface StatusDevice {
   pushTransport: string
   pushFailures: number
   pushDead: boolean
+  /** When Apple or Google proved the phone's app uninstalled (PLANS P-31 item 3). */
+  uninstalledAt?: string
   createdAt: string
 }
 
@@ -353,6 +355,7 @@ export async function buildRelayStatus(ctx: AppContext): Promise<RelayStatus> {
         'device_name',
         'push_subscription',
         'push_failures',
+        'uninstalled_at',
         'last_seen_at',
         'created_at',
       ])
@@ -389,6 +392,7 @@ export async function buildRelayStatus(ctx: AppContext): Promise<RelayStatus> {
           pushTransport: transportOf(row.push_subscription),
           pushFailures: row.push_failures,
           pushDead,
+          ...(row.uninstalled_at ? { uninstalledAt: row.uninstalled_at } : {}),
           createdAt: row.created_at,
         })
       }

@@ -1,6 +1,7 @@
 package io.tabsend.app.logic
 
 import io.tabsend.app.wire.BatchInfo
+import io.tabsend.app.wire.Endpoint
 import io.tabsend.app.wire.HistoryEntry
 import io.tabsend.app.wire.HistoryRecord
 import kotlinx.serialization.Serializable
@@ -276,4 +277,32 @@ object History {
     /** What a row calls the tab, or null when this device cannot read its blob. */
     fun displayTitle(row: HistoryRow): String? =
         row.url?.let { Inbox.displayTitle(row.title, it) }
+
+    /**
+     * Where "Send again" goes (PLANS P-31 item 4). The device the tab was for, while
+     * it is still in the group as this phone accepts it; once it has left (a browser
+     * paired again leaves its old entry behind), the devices a held tab whose device
+     * is gone may move to ([choices], from `NewDeviceWatcher.heldTabChoices`, L3),
+     * by name. With nothing accepted (no watch of this pairing) nothing counts as
+     * gone, as for a held tab. The extension and the iPhone decide the same way.
+     */
+    fun sendAgainTarget(
+        targetEndpointId: String,
+        acceptedIds: Set<String>,
+        list: List<Endpoint>,
+        choices: List<Endpoint>,
+    ): SendAgainTarget {
+        val same = list.firstOrNull { it.id == targetEndpointId }
+        val gone = acceptedIds.isNotEmpty() && targetEndpointId !in acceptedIds
+        if (same != null && !gone) return SendAgainTarget.Same(same)
+        return SendAgainTarget.Gone(choices.sortedBy { it.label.lowercase() })
+    }
+}
+
+/** The answer of [History.sendAgainTarget]. */
+sealed interface SendAgainTarget {
+    data class Same(val endpoint: Endpoint) : SendAgainTarget
+
+    /** Gone from the group: pick one of [choices], which may be empty. */
+    data class Gone(val choices: List<Endpoint>) : SendAgainTarget
 }

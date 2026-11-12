@@ -1,0 +1,66 @@
+{
+  "share.title": {
+    "message": "Know someone who'd like Tabsend?",
+    "description": "Heading of the small box that asks the person to share Tabsend with a friend or coworker. “Tabsend” is the product name."
+  },
+  "share.body.credit": {
+    "message": "Built by a dad to support his family. Share it, and get $5 off your next payment when a friend subscribes (once a year, however many friends join).",
+    "description": "Short text in the share box for people on Tabsend's own service. “Built by a dad” is the maker speaking about himself. $5 is US dollars. The credit is given once a year however many friends join; keep that."
+  },
+  "share.body.plain": {
+    "message": "Built by a dad to support his family. If you like it, would you share it with a coworker or friend?",
+    "description": "Short text in the share box for people who run their own relay, so no credit is offered. “Built by a dad” is the maker speaking about himself."
+  },
+  "share.expanded.credit": {
+    "message": "Tabsend was built by a dad to support his family. If you like it, would you share it with a coworker or friend? It's not for everyone, but I bet you have a good idea who else would find it useful. As a thank you, you'll get $5 off your next payment when a friend subscribes. That's once a year, however many friends join.",
+    "description": "Longer text shown after “Read more” in the share box, for people on Tabsend's own service. First person, the maker speaking. $5 is US dollars, once a year however many friends join; keep that."
+  },
+  "share.expanded.plain": {
+    "message": "Tabsend was built by a dad to support his family. If you like it, would you share it with a coworker or friend? It's not for everyone, but I bet you have a good idea who else would find it useful.",
+    "description": "Longer text shown after “Read more” in the share box, for people who run their own relay. First person, the maker speaking. No credit is mentioned."
+  },
+  "share.button": {
+    "message": "Share Tabsend",
+    "description": "Button in the share box and the name of the matching row in Settings. For people on Tabsend's service it opens the Tabsend account website's share page; otherwise it copies a sentence to share."
+  },
+  "share.more": {
+    "message": "Read more",
+    "description": "Link in the share box that shows the longer text. Short."
+  },
+  "share.less": {
+    "message": "Show less",
+    "description": "Link in the share box that hides the longer text again. Short."
+  },
+  "share.dismiss": {
+    "message": "Dismiss",
+    "description": "Spoken label (for screen readers) of the close button on the share box. It has no visible text."
+  },
+  "share.copied": {
+    "message": "Copied",
+    "description": "Short confirmation shown after the sentence to share was copied to the clipboard."
+  },
+  "share.copy.failed": {
+    "message": "Couldn't copy. Select the text and copy it yourself.",
+    "description": "Shown when copying the sentence to share did not work."
+  },
+  "share.text": {
+    "message": "Tabsend sends a link from your computer to your phone, or the other way. https://tabsend.org",
+    "description": "The sentence that is copied when someone taps Share Tabsend, ready to paste into a message. Keep the web address exactly as it is."
+  },
+  "share.help.heading": {
+    "message": "Help Tabsend",
+    "description": "Heading of the Settings section with the Share, Rate and feedback rows. Short."
+  },
+  "share.help.share": {
+    "message": "Share Tabsend",
+    "description": "Row in Settings under “Help Tabsend”: share Tabsend with a friend or coworker."
+  },
+  "share.help.rate": {
+    "message": "Rate Tabsend",
+    "description": "Row in Settings under “Help Tabsend”: opens the store page to leave a rating. Shown only once a store link exists."
+  },
+  "share.help.feedback": {
+    "message": "Something not working? Tell me",
+    "description": "Row in Settings under “Help Tabsend”: opens an email to the maker. “Me” is the maker speaking."
+  }
+}

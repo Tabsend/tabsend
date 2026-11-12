@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 import TabsendKit
 
@@ -72,6 +73,26 @@ struct RootView: View {
                 showSignIn = model.accountSignInURL != nil
             }
         }
+        // Shown once, right after this phone pairs, when the group holds an old offline copy
+        // of it (docs/PLANS.md P-31 item 2). "Keep both" only closes it.
+        .alert(
+            model.replacingOffer.map { ReplacingCopy.title(oldLabel: $0.label) } ?? "",
+            isPresented: Binding(
+                get: { model.replacingOffer != nil },
+                set: { if !$0 { model.replacingOffer = nil } }
+            ),
+            presenting: model.replacingOffer
+        ) { old in
+            Button(ReplacingCopy.replaceButton(oldLabel: old.label)) {
+                Task { await model.replaceOldCopy(old) }
+            }
+            .keyboardShortcut(.defaultAction)
+            Button(ReplacingCopy.keepBoth, role: .cancel) {}
+        } message: { old in
+            // Two whole sentences from the catalog, as two paragraphs.
+            Text(ReplacingCopy.body(oldLabel: old.label, lastSeenAt: old.lastSeenAt)
+                + "\n\n" + ReplacingCopy.smallLine(oldLabel: old.label))
+        }
         .sheet(isPresented: $showSignIn, onDismiss: { model.accountSignInURL = nil }) {
             if let url = model.accountSignInURL {
                 AccountSheet(url: url) { showSignIn = false }
@@ -90,6 +111,10 @@ struct MainTabsView: View {
     }
 
     @State private var tab = Tab.home
+    @EnvironmentObject private var model: AppModel
+    /// Apple's own review pop-up. No question of ours comes first (App Store 5.6.1), and the
+    /// system decides whether it shows.
+    @Environment(\.requestReview) private var requestReview
 
     var body: some View {
         TabView(selection: $tab) {
@@ -114,5 +139,6 @@ struct MainTabsView: View {
             .tag(Tab.settings)
         }
         .tint(Palette.accent)
+        .onChange(of: model.reviewRequest) { _ in requestReview() }
     }
 }

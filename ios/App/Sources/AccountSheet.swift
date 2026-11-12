@@ -39,10 +39,32 @@ struct AccountSheet: UIViewControllerRepresentable {
 enum AccountPage: Identifiable {
     case account
     case delete
+    case share
 
-    var id: Int { self == .account ? 0 : 1 }
+    var id: Int {
+        switch self {
+        case .account: return 0
+        case .delete: return 1
+        case .share: return 2
+        }
+    }
 
     var url: URL? {
-        AccountSite.url(for: self == .account ? .account : .delete)
+        switch self {
+        case .account: return AccountSite.url(for: .account)
+        case .delete: return AccountSite.url(for: .delete)
+        case .share: return AccountSite.url(for: .share)
+        }
     }
+}
+
+/// The system share sheet with some text (the plain variant of Share, P-22).
+struct ActivityView: UIViewControllerRepresentable {
+    let text: String
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [text], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

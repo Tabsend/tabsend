@@ -110,6 +110,8 @@ export interface StartOptions {
   rateLimit?: { max: number; windowMs: number }
   /** Override the dead-subscription threshold for a focused pruning test. */
   pushDeadThreshold?: number
+  /** Override how long after a forwarder ring the relay asks whether the phone is gone. */
+  wakeGoneCheckDelayMs?: number
   /** Sweeper cadence in ms. The background sweeper is never started here; this only
    *  changes what the relay REPORTS about it, which `0` (switched off) makes visible. */
   sweepIntervalMs?: number
@@ -178,6 +180,11 @@ export interface StartOptions {
    * nothing leaving the process. Requires `wakeForwarderUrl`.
    */
   wakeFetch?: typeof fetch
+  /**
+   * Mark the relay hosted (`TABSEND_PROFILE=hosted`). Only what the routes read from it
+   * changes (the goodbye page's feedback box); the boot-time posture check is not run.
+   */
+  profile?: 'hosted'
 }
 
 interface DialectHandle {
@@ -262,6 +269,8 @@ export async function startTestServer(options: StartOptions = {}): Promise<TestS
     sendWindowMs: options.caps?.sendWindowMs ?? 60_000,
   }
   if (options.pushDeadThreshold !== undefined) config.pushDeadThreshold = options.pushDeadThreshold
+  if (options.wakeGoneCheckDelayMs !== undefined)
+    config.wakeGoneCheckDelayMs = options.wakeGoneCheckDelayMs
   if (options.sweepIntervalMs !== undefined) config.sweepIntervalMs = options.sweepIntervalMs
   if (options.bodyLimitBytes !== undefined) config.bodyLimitBytes = options.bodyLimitBytes
   if (options.streamMaxFrameBytes !== undefined)
@@ -297,6 +306,7 @@ export async function startTestServer(options: StartOptions = {}): Promise<TestS
   if (options.wakeForwarderUrl !== undefined) {
     config.wakeForwarderUrl = options.wakeForwarderUrl
   }
+  if (options.profile !== undefined) config.profile = options.profile
   if (options.wakeFetch && options.wakeForwarderUrl === undefined) {
     throw new Error('wakeFetch needs a wakeForwarderUrl — there is nothing to ring without one.')
   }

@@ -154,11 +154,15 @@
     <string name="account_link_has_device">This account already has a device. On a paired device, choose Add a device, then scan its code here.</string>
     <string name="account_unreachable">Couldn\'t reach Tabsend\'s service. Check your connection, then open the link in your email again.</string>
     <string name="account_unexpected">Something went wrong. Open the link in your email again.</string>
+    <!-- First screen (or a toast on a paired phone), when an emailed account link is opened on a phone other than the one that asked for it (for example a forwarded link), or on a phone with no sign-in or sign-up waiting. -->
+    <string name="account_other_phone">This link only works on the phone that asked for it. Ask for a new one in this app.</string>
     <!-- A toast when the phone has no web browser that can open the account page. -->
     <string name="account_page_failed">Couldn\'t open the page. Check that a web browser is installed.</string>
     <!-- Name this phone: the screen after the account was made, before pairing. -->
     <string name="name_phone_title">Name this phone</string>
     <string name="name_phone_body">Choose the name your other devices will see.</string>
+    <!-- Line under the title: whose account this phone is about to join. %1$s is the account email with most letters hidden, such as "m•••@example.org". -->
+    <string name="name_phone_account">Joining the account %1$s</string>
     <!-- Label of the text box. It is filled in with the phone\'s own name. -->
     <string name="name_phone_field">Name</string>
     <string name="name_phone_help">You can change it later in Tabsend.</string>
@@ -198,6 +202,7 @@
     <string name="pair_link_phone_removed">This phone was removed from the group. Pair it again before adding another device.</string>
     <string name="pair_link_access_invalid">This phone\'s relay access is no longer valid. Pair it again before adding another device.</string>
     <string name="rename_device">Rename this device</string>
+    <string name="rename_other_device">Rename device</string>
     <string name="rename_save">Save</string>
     <string name="rename_unreachable">Couldn\'t reach the relay to rename.</string>
     <string name="unpair">Unpair this phone</string>
@@ -435,6 +440,9 @@
     <string name="device_status_unknown">Status unknown</string>
     <!-- Offline past the 30-day horizon; still a valid target. -->
     <string name="device_status_inactive">Inactive</string>
+    <!-- Google or Apple reported that Tabsend was removed from this phone (PLANS P-31). Shown in
+         red, next to a Remove button on the row; links can't be sent to it. -->
+    <string name="device_status_uninstalled">Uninstalled</string>
     <string name="device_this_phone">This phone</string>
     <!-- Second part of a device row\'s line, after "Phone", "Browser" or "This phone", once the free
          trial ended and sending is paused. It takes the place of Online and Offline. -->
@@ -504,6 +512,9 @@
     <string name="send_rejected_unknown_target">Your relay doesn\'t know %1$s any more. Pair it again, then send this tab a second time.</string>
     <string name="send_rejected_expired_key">The keys on %1$s have changed since this phone last saw them. Open Tabsend once to pick up the new ones, then send again.</string>
     <string name="send_rejected_not_in_group">Your relay says %1$s has left your group of devices.</string>
+    <!-- Google or Apple reported that Tabsend was removed from the target phone. Same sentence as
+         the browser extension and the iPhone. %1$s is the device's name (or "that device"). -->
+    <string name="send_rejected_target_uninstalled">Tabsend was removed from %1$s, so this tab can\'t reach it. Remove %1$s from your devices, or pair it again if you reinstalled Tabsend.</string>
     <!-- A limit for the group made the relay hold the tab back; every limit clears by itself, so
          these read as a wait, not as a failure. -->
     <string name="send_cap_pacing">Your relay is pacing sends for your group right now. This tab is queued and will send itself shortly.</string>
@@ -630,10 +641,12 @@
     </plurals>
     <!-- %1$s is the list of device names, e.g. "Pixel 8, iPhone and Console". -->
     <string name="in_group_several_body">%1$s. The device you paired with didn\'t list them. If any isn\'t yours, remove it in Tabsend.</string>
-    <!-- Button on a notice: removes the device from the group. -->
-    <string name="review_remove">Remove</string>
-    <!-- Spoken by a screen reader for that button. %1$s is the device's name. -->
-    <string name="review_remove_for">Remove %1$s</string>
+    <!-- Device row's More menu: its items, and the spoken name of the button. %1$s is the device name. -->
+    <string name="device_action_rename">Rename</string>
+    <string name="device_action_remove">Remove from group</string>
+    <string name="device_more_for">More for %1$s</string>
+    <!-- Spoken name of the Remove button on the row of a phone Tabsend was uninstalled from. %1$s is the device name. -->
+    <string name="device_remove_for">Remove %1$s</string>
     <!-- Card for a device that joined and then vanished from the list. %1$s is its name. -->
     <string name="vanished_title">%1$s joined, then disappeared</string>
     <!-- %1$s is a relative time such as "5m ago". -->
@@ -667,4 +680,51 @@
     <!-- Pop-up after the device was removed. %1$s is its name. -->
     <string name="remove_device_done">Removed %1$s.</string>
     <string name="remove_device_offline">Couldn\'t reach the relay to remove %1$s. Try again when you\'re online.</string>
+
+    <!-- "Is this phone replacing …?" (PLANS.md P-31 item 2): asked once, right after this phone
+         paired, when the group still has an old offline copy of it (Tabsend reinstalled). -->
+    <!-- Title. %1$s is the old entry's name without the computer part, e.g. "Pixel 8". -->
+    <string name="replace_offer_title">Is this phone replacing %1$s?</string>
+    <!-- %1$s is the old entry's full name, shown in curly quotes. %2$s is the day it was last online, a short date such as "Oct 30". -->
+    <string name="replace_offer_body">“%1$s” hasn\'t been online since %2$s. If Tabsend was reinstalled here, replace it so links come to this phone.</string>
+    <!-- Main button. %1$s is the same name as in the title. -->
+    <string name="replace_offer_replace">Replace %1$s</string>
+    <!-- Second button: closes the question and changes nothing. -->
+    <string name="replace_offer_keep_both">Keep both</string>
+    <!-- Small line under the text. %1$s is the old entry's full name, which this phone takes. -->
+    <string name="replace_offer_note">This phone takes the name %1$s. The old one is removed from your devices.</string>
+
+    <!-- Help Tabsend (P-22). Home, under the device list: a small card that asks, once a year at most,
+         whether the person would share the app. The dad is the app's maker; keep the first person
+         out of it. "Tabsend" stays as it is. -->
+    <string name="share_box_title">Know someone who\'d like Tabsend?</string>
+    <!-- Card text for a group on Tabsend\'s service with an account. The $5 is once a year, however many friends join. -->
+    <string name="share_box_body_credit">Built by a dad to support his family. Share it, and get $5 off your next payment when a friend subscribes (once a year, however many friends join).</string>
+    <!-- Card text for everyone else (a self-hosted relay, or no account page on this phone). -->
+    <string name="share_box_body_plain">Built by a dad to support his family. If you like it, would you share it with a coworker or friend?</string>
+    <!-- The same text after "Read more". Credit version. -->
+    <string name="share_box_more_credit">Tabsend was built by a dad to support his family. If you like it, would you share it with a coworker or friend? It\'s not for everyone, but I bet you have a good idea who else would find it useful. As a thank you, you\'ll get $5 off your next payment when a friend subscribes. That\'s once a year, however many friends join.</string>
+    <!-- The same text after "Read more". Plain version. -->
+    <string name="share_box_more_plain">Tabsend was built by a dad to support his family. If you like it, would you share it with a coworker or friend? It\'s not for everyone, but I bet you have a good idea who else would find it useful.</string>
+    <!-- Button on the card and the row in Settings that start sharing. -->
+    <string name="share_tabsend">Share Tabsend</string>
+    <!-- Small link on the card: opens the longer text, then closes it again. -->
+    <string name="share_box_read_more">Read more</string>
+    <string name="share_box_show_less">Show less</string>
+    <!-- Spoken name of the card\'s close button (an X). -->
+    <string name="share_box_dismiss">Dismiss</string>
+    <!-- Settings section with three rows. -->
+    <string name="section_help_tabsend">Help Tabsend</string>
+    <!-- Settings row. Only shown once the app has a store page to go to. -->
+    <string name="rate_tabsend">Rate Tabsend</string>
+    <!-- Settings row. Opens an email to the maker. -->
+    <string name="feedback_row">Something not working? Tell me</string>
+    <!-- Title of the system share sheet. -->
+    <string name="share_sheet_title">Share Tabsend</string>
+    <!-- The text sent to a friend by the plain share. Ends with the address. -->
+    <string name="share_text_plain">Tabsend sends a link from your computer to your phone, or the other way. https://tabsend.org</string>
+    <!-- Pop-up when no email app is installed. -->
+    <string name="feedback_no_mail_app">No email app found. Write to contact@tabsend.org.</string>
+    <!-- Pop-up when no app can open the store page. -->
+    <string name="rate_page_failed">Couldn\'t open the store page.</string>
 </resources>

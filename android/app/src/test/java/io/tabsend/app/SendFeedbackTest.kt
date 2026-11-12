@@ -193,6 +193,16 @@ class SendFeedbackTest {
         )
     }
 
+    /** PLANS P-31 item 3: the same sentence the extension and the iPhone say. Final. */
+    @Test
+    fun `says Tabsend was removed from a phone its push service reported uninstalled`() {
+        assertEquals(
+            "Tabsend was removed from S24, so this tab can't reach it. Remove S24 from your devices, or pair it again if you reinstalled Tabsend.",
+            Feedback.failureLine(EN, SendFailure.RelayRejected("target_uninstalled"), "S24"),
+        )
+        assertFalse(Feedback.isRecoverable(SendFailure.RelayRejected("target_uninstalled")))
+    }
+
     /** Owner preference: no em dashes in the copy added since the locked §4 table. */
     @Test
     fun `uses no em dashes in the newer failure copy`() {

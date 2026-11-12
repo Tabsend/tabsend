@@ -13,6 +13,7 @@ import { createPushSender, type PushSender } from './push'
 import { RateLimiter } from './ratelimit'
 import { registerConfigRoute } from './routes/config'
 import { registerEndpointRoutes } from './routes/endpoints'
+import { registerGoodbyeRoutes } from './routes/goodbye'
 import { registerGroupRoutes } from './routes/group'
 import { registerGroupKeyRoutes } from './routes/group-keys'
 import { registerMessageRoutes } from './routes/messages'
@@ -192,6 +193,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   }
   if (options.config.provisioningToken) registerProvisioningRoutes(app, ctx)
   registerPairPageRoute(app)
+  registerGoodbyeRoutes(app, ctx)
   registerEndpointRoutes(app, ctx)
   registerPairingRoutes(app, ctx)
   registerMessageRoutes(app, ctx)

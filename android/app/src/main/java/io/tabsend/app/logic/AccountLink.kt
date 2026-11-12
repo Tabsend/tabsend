@@ -65,10 +65,12 @@ sealed interface AccountLink {
 
         /**
          * The sign-in page the sheet opens for a [SignIn] link: the same token, in the fragment
-         * as the account site always carries it, so the page signs in inside the sheet.
+         * as the account site always carries it, and this phone's [number] beside it, so the page
+         * signs in inside the sheet and the site can tell the link came back to the phone that asked
+         * (review AL3). Null for a number that cannot be one: the link is not opened.
          */
-        fun signInPage(link: SignIn, site: String = AccountSetup.DEFAULT_SITE): String =
-            "${site.trimEnd('/')}/signin?from=app#t=${link.token}"
+        fun signInPage(link: SignIn, number: String, site: String = AccountSetup.DEFAULT_SITE): String? =
+            if (AccountSetup.isPlausibleNumber(number)) "${site.trimEnd('/')}/signin?from=app#t=${link.token}&n=$number" else null
 
         /**
          * The account site's tokens are long and made of letters, digits, `-` and `_`. Anything

@@ -13,16 +13,20 @@ import {
 } from '../lib/history'
 import { t } from '../lib/i18n'
 import { localizePage } from '../lib/i18n-dom'
-import { pictureAddress, siteLetter } from '../lib/link-preview'
-import type { HistoryRow } from '../lib/model'
+import { pictureAddress, siteIconAddresses, siteLetter } from '../lib/link-preview'
+import type { HistoryRow, ResendChoices } from '../lib/model'
+import { findPagePicture, mayReadPage } from '../lib/page-picture'
 import { isEmbeddedFavicon, isOpenableWebUrl } from '../lib/policy'
 import {
   getHistory,
   getInbox,
+  getPicturesAskClosed,
   getRegistration,
   getSettings,
+  setPicturesAskClosed,
   setUnreadReceived,
 } from '../lib/storage'
+import { goneTargetCopy } from '../lib/strings'
 import { rpc } from './rpc-client'
 
 /**
@@ -47,6 +51,25 @@ const groupsEl = document.getElementById('groups') as HTMLDivElement
 const emptyEl = document.getElementById('empty') as HTMLDivElement
 /** Whether pictures are shown, read once per render (Settings, "Website images"). */
 let imagesOn = true
+/** Whether the browser lets this page read websites (the History card or Settings asked). */
+let pageAccess = false
+
+/**
+ * Rows with no picture of their own look the page up once they come near the screen,
+ * so opening a long History does not ask every site in it at once.
+ */
+const nearScreen = new IntersectionObserver(
+  (entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue
+      nearScreen.unobserve(entry.target)
+      waitingForScreen.get(entry.target)?.()
+      waitingForScreen.delete(entry.target)
+    }
+  },
+  { rootMargin: '300px' },
+)
+const waitingForScreen = new WeakMap<Element, () => void>()
 const retentionEl = document.getElementById('retention') as HTMLParagraphElement
 
 // Retention is stated here rather than buried in settings, and it names BOTH
@@ -105,36 +128,63 @@ function directionGlyph(row: HistoryRow): HTMLSpanElement {
 
 /**
  * The picture slot: the plain letter tile until a picture has loaded over it, and the
- * tile for good when there is none or it fails, so a broken image never shows. An
- * embedded favicon may stand in for the letter: it asks nothing of any site.
+ * tile for good when there is none or it fails, so a broken image never shows. The
+ * site's icon stands in for the letter: an embedded favicon always (it asks nothing of
+ * any site), and with Website images on, the site's icon from the web.
  */
 function pictureSlot(row: HistoryRow, className: string): HTMLSpanElement {
   const slot = document.createElement('span')
   slot.className = `picture ${className}`
   slot.setAttribute('aria-hidden', 'true')
-  if (isEmbeddedFavicon(row.favicon)) {
+  const letter = document.createTextNode(siteLetter(row.url))
+  slot.appendChild(letter)
+  const icons = [
+    ...(isEmbeddedFavicon(row.favicon) ? [row.favicon] : []),
+    ...(imagesOn ? siteIconAddresses(row.url, row.favicon) : []),
+  ]
+  if (icons.length > 0) {
     const icon = document.createElement('img')
-    icon.className = 'picture-icon'
+    icon.className = 'picture-icon hidden'
     icon.alt = ''
-    icon.src = row.favicon
-    icon.addEventListener('error', () => {
-      icon.remove()
-      slot.textContent = siteLetter(row.url)
+    icon.referrerPolicy = 'no-referrer'
+    const queue = [...icons]
+    icon.addEventListener('load', () => {
+      // A 1x1 "no icon" answer would show as an empty tile.
+      if (icon.naturalWidth < 8) return icon.dispatchEvent(new Event('error'))
+      letter.remove()
+      icon.classList.remove('hidden')
     })
+    const tryNext = (): void => {
+      const address = queue.shift()
+      if (address) icon.src = address
+      else icon.remove()
+    }
+    icon.addEventListener('error', tryNext)
+    tryNext()
     slot.appendChild(icon)
-  } else {
-    slot.textContent = siteLetter(row.url)
   }
-  const source = imagesOn ? pictureAddress(row.image) : undefined
-  if (source) {
+  const showPicture = (address: string): void => {
     const image = document.createElement('img')
     image.className = 'picture-image'
     image.alt = ''
     image.referrerPolicy = 'no-referrer'
     image.loading = 'lazy'
     image.addEventListener('error', () => image.remove())
-    image.src = source
+    image.src = address
     slot.appendChild(image)
+  }
+  const source = imagesOn ? pictureAddress(row.image) : undefined
+  const page = row.url
+  if (source) {
+    showPicture(source)
+  } else if (imagesOn && pageAccess && page && mayReadPage(page)) {
+    // The sender found no picture: look the page up from here (it was turned on).
+    waitingForScreen.set(slot, () => {
+      void findPagePicture(page).then((address) => {
+        if (address) showPicture(address)
+      })
+    })
+    nearScreen.observe(slot)
   }
   return slot
 }
@@ -175,6 +225,47 @@ function stateChip(row: HistoryRow): HTMLSpanElement | undefined {
   return chip
 }
 
+/** The tab as it was sent, to send again. */
+function resendPayload(row: HistoryRow, url: string): SendPayload {
+  return {
+    url,
+    sentAt: row.sentAt as SendPayload['sentAt'],
+    ...(row.title !== undefined ? { title: row.title } : {}),
+    ...(row.favicon !== undefined ? { favicon: row.favicon } : {}),
+    ...(row.image !== undefined ? { image: row.image } : {}),
+  }
+}
+
+/**
+ * Send it, and say on `label` what became of the click. The normal send path
+ * reports its own outcome (banner + badge), so this only says what it did.
+ */
+function resend(
+  row: HistoryRow,
+  url: string,
+  targetEndpointId: string,
+  label: HTMLElement,
+  controls: Array<HTMLButtonElement | HTMLSelectElement>,
+): void {
+  for (const c of controls) c.disabled = true
+  label.textContent = t('history.sendAgain.sending')
+  const insteadOf =
+    targetEndpointId === row.targetEndpointId ? {} : { insteadOf: row.targetEndpointId }
+  void rpc({ type: 'sendAgain', targetEndpointId, payload: resendPayload(row, url), ...insteadOf })
+    .then((res) => {
+      // Chrome can resolve sendMessage with no payload when the worker was
+      // stopped before replying, so `res` itself may be missing. `moved: false`
+      // is a device the background would not send to.
+      const sent = res?.ok === true && !('moved' in res && res.moved === false)
+      label.textContent = sent ? t('history.sendAgain.sent') : t('history.sendAgain.retry')
+      for (const c of controls) c.disabled = sent
+    })
+    .catch(() => {
+      label.textContent = t('history.sendAgain.retry')
+      for (const c of controls) c.disabled = false
+    })
+}
+
 /**
  * "Send again" on a tab that never arrived. Possible at all only because the
  * source kept a readable copy of what it sent, which is the point of sealing
@@ -183,38 +274,95 @@ function stateChip(row: HistoryRow): HTMLSpanElement | undefined {
  * Offered on rows this browser SENT. Re-sending someone else's tab would put
  * this browser's name on it, which is a different claim from the one the row
  * makes.
+ *
+ * To the same device while it is still in the group. Once it has left (a browser
+ * paired again leaves its old entry behind, PLANS P-31 item 4), the click opens
+ * the choice a held tab whose device is gone shows (sketch A, owner 2026-11-09):
+ * "Dia is no longer in your group. Send to: Dia 2 · Pixel 9", under the row.
  */
-function sendAgainButton(row: HistoryRow, url: string): HTMLButtonElement {
+function sendAgainButton(row: HistoryRow, url: string, li: HTMLLIElement): HTMLButtonElement {
   const btn = document.createElement('button')
   btn.type = 'button'
   btn.className = 'again'
   btn.textContent = t('history.sendAgain.button')
   btn.addEventListener('click', () => {
     btn.disabled = true
-    btn.textContent = t('history.sendAgain.sending')
-    const payload: SendPayload = {
-      url,
-      sentAt: row.sentAt as SendPayload['sentAt'],
-      ...(row.title !== undefined ? { title: row.title } : {}),
-      ...(row.favicon !== undefined ? { favicon: row.favicon } : {}),
-      ...(row.image !== undefined ? { image: row.image } : {}),
-    }
-    // The normal send path reports its own outcome (banner + badge), so this
-    // button only has to say what it did with the click.
-    void rpc({ type: 'sendAgain', targetEndpointId: row.targetEndpointId, payload })
+    void rpc({ type: 'resendChoices', targetEndpointId: row.targetEndpointId })
+      .catch(() => undefined)
       .then((res) => {
-        // Chrome can resolve sendMessage with no payload when the worker was
-        // stopped before replying, so `res` itself may be missing.
-        const sent = res?.ok === true
-        btn.textContent = sent ? t('history.sendAgain.sent') : t('history.sendAgain.retry')
-        btn.disabled = sent
-      })
-      .catch(() => {
-        btn.textContent = t('history.sendAgain.retry')
-        btn.disabled = false
+        const answer = res && res.ok && 'resend' in res ? res.resend : undefined
+        if (answer?.gone) {
+          btn.remove()
+          li.append(goneDeviceChoice(row, url, answer))
+          return
+        }
+        // Still in the group, or the worker did not answer: the device it was for.
+        resend(row, url, row.targetEndpointId, btn, [btn])
       })
   })
   return btn
+}
+
+/** Up to this many devices get a button each; more get a menu (as for held tabs). */
+const MAX_RESEND_BUTTONS = 3
+
+/** The choice under a row whose device has left the group. */
+function goneDeviceChoice(row: HistoryRow, url: string, answer: ResendChoices): HTMLElement {
+  const box = document.createElement('div')
+  box.className = 'again-gone'
+  const line = document.createElement('div')
+  line.textContent = goneTargetCopy.removedLine(row.targetLabel, answer.removedHere)
+  box.append(line)
+  if (answer.choices.length === 0) {
+    const none = document.createElement('div')
+    none.textContent = goneTargetCopy.noOtherDevice
+    box.append(none)
+    return box
+  }
+  const choices = document.createElement('div')
+  choices.className = 'again-gone-choices'
+  const status = document.createElement('span')
+  status.className = 'again-gone-status'
+  const controls: Array<HTMLButtonElement | HTMLSelectElement> = []
+  const tabLabel = row.title?.trim() || hostOf(url)
+  if (answer.choices.length <= MAX_RESEND_BUTTONS) {
+    const lead = document.createElement('span')
+    lead.textContent = goneTargetCopy.sendTo
+    choices.append(lead)
+    for (const choice of answer.choices) {
+      const pick = document.createElement('button')
+      pick.type = 'button'
+      pick.className = 'linkish'
+      pick.textContent = choice.label
+      pick.setAttribute('aria-label', goneTargetCopy.sendToAria(tabLabel, choice.label))
+      pick.addEventListener('click', () => resend(row, url, choice.id, status, controls))
+      controls.push(pick)
+      choices.append(pick)
+    }
+  } else {
+    const select = document.createElement('select')
+    select.setAttribute('aria-label', t('chooser.held.sendToMenuAria', { tab: tabLabel }))
+    const placeholder = document.createElement('option')
+    placeholder.value = ''
+    placeholder.textContent = goneTargetCopy.sendToMenu
+    placeholder.disabled = true
+    placeholder.selected = true
+    select.append(placeholder)
+    for (const choice of answer.choices) {
+      const option = document.createElement('option')
+      option.value = choice.id
+      option.textContent = choice.label
+      select.append(option)
+    }
+    select.addEventListener('change', () => {
+      if (select.value) resend(row, url, select.value, status, controls)
+    })
+    controls.push(select)
+    choices.append(select)
+  }
+  choices.append(status)
+  box.append(choices)
+  return box
 }
 
 function renderRow(row: HistoryRow, now: number): HTMLLIElement {
@@ -262,7 +410,7 @@ function renderRow(row: HistoryRow, now: number): HTMLLIElement {
   const chip = stateChip(row)
   if (chip) wrap.appendChild(chip)
   if (row.direction === 'sent' && row.state === 'never-arrived' && url) {
-    wrap.appendChild(sendAgainButton(row, url))
+    wrap.appendChild(sendAgainButton(row, url, li))
   }
 
   li.appendChild(wrap)
@@ -371,6 +519,40 @@ function renderGroup(group: HistoryGroup, now: number): HTMLDivElement {
   return box
 }
 
+/** Site access for reading pages' pictures: optional, asked for only from the card. */
+const PAGE_ACCESS = { origins: ['https://*/*'] }
+
+/**
+ * The one-time "Show pictures for every link" card (owner, 2026-11-09: option A). Shown
+ * while Website images is on, the browser has not granted page access, and the card has
+ * not been answered. Either button closes it for good; Settings keeps the switch.
+ */
+async function showPicturesAsk(): Promise<void> {
+  const card = document.getElementById('pictures-ask')
+  if (!card) return
+  const granted = await ext.permissions?.contains(PAGE_ACCESS).catch(() => false)
+  const closed = await getPicturesAskClosed()
+  card.classList.toggle('hidden', !imagesOn || Boolean(granted) || Boolean(closed))
+}
+
+document.getElementById('pictures-allow')?.addEventListener('click', () => {
+  // Asked straight from the click: browsers allow the prompt only from a user gesture.
+  void ext.permissions
+    ?.request(PAGE_ACCESS)
+    .catch(() => false)
+    .then(async (granted) => {
+      if (granted) {
+        await setPicturesAskClosed()
+        await render()
+      } else await showPicturesAsk()
+    })
+})
+for (const id of ['pictures-later', 'pictures-close']) {
+  document.getElementById(id)?.addEventListener('click', () => {
+    void setPicturesAskClosed().then(showPicturesAsk)
+  })
+}
+
 async function render(): Promise<void> {
   const [cached, received, registration, settings] = await Promise.all([
     getHistory(),
@@ -379,6 +561,8 @@ async function render(): Promise<void> {
     getSettings(),
   ])
   imagesOn = settings.websiteImages
+  pageAccess = Boolean(await ext.permissions?.contains(PAGE_ACCESS).catch(() => false))
+  void showPicturesAsk()
   // The relay's list is authoritative, and the local received record fills its
   // gaps: rows whose group key this browser does not hold, and rows the relay
   // never had (an older relay, one serving no history, or one that is down).

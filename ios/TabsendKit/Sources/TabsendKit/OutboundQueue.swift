@@ -264,4 +264,15 @@ public struct HeldTargets: Sendable, Equatable {
     public func removedHere<T: TargetedItem>(_ item: T) -> Bool {
         removedIds.contains(item.targetEndpointId)
     }
+
+    /// Where History's "Send again" may go for a tab that was for `targetEndpointId`
+    /// (PLANS P-31 item 4). nil while that device is still in the group as this
+    /// phone accepts it: the same device again. Once it has left, the devices a
+    /// held tab whose device is gone may move to (`choices`, L3), by name, which may
+    /// be none. With nothing accepted (no watch of this pairing) nothing counts as
+    /// gone, as for a held tab. The extension and Android decide the same way.
+    public func sendAgainChoices(for targetEndpointId: String) -> [Endpoint]? {
+        if acceptedIds.isEmpty || acceptedIds.contains(targetEndpointId) { return nil }
+        return choices.sorted { $0.label.lowercased() < $1.label.lowercased() }
+    }
 }

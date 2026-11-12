@@ -109,15 +109,21 @@ object Registrar {
     }
 
     /**
-     * Rename this endpoint (PATCH /v1/endpoints/:id) and mirror the label locally
-     * — the STORED one, since the relay de-duplicates within the group and may
-     * have suffixed what we asked for.
+     * Rename a device in the group (PATCH /v1/endpoints/:id), this phone or another, and mirror
+     * the label locally: the STORED one, since the relay de-duplicates within the group and may
+     * have suffixed what we asked for. This phone's own name lives in the registration, the
+     * others' in the cached device list.
      */
-    suspend fun rename(context: Context, label: String) = withContext(Dispatchers.IO) {
+    suspend fun rename(context: Context, endpointId: String, label: String) = withContext(Dispatchers.IO) {
         val store = Store.get(context)
         val reg = store.registration ?: return@withContext
-        val stored = ApiClient.forRegistration(reg).rename(reg.deviceToken, reg.endpointId, label)
-        store.updateLabel(stored.label)
+        val stored = ApiClient.forRegistration(reg).rename(reg.deviceToken, endpointId, label)
+        mirrorRename(store, reg.endpointId, endpointId, stored.label)
+    }
+
+    /** Where a stored label is kept on this phone: see [rename]. */
+    internal fun mirrorRename(store: Store, selfId: String, endpointId: String, storedLabel: String) {
+        if (endpointId == selfId) store.updateLabel(storedLabel) else store.renameCachedEndpoint(endpointId, storedLabel)
     }
 
     /**

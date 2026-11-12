@@ -27,6 +27,7 @@ import {
 import { askNewDeviceName, removeIfConfirmed, renderDeviceList } from './device-list'
 import { wirePairingBox } from './pairing-box'
 import { rpcOk } from './rpc-client'
+import { wireHelpRows } from './share-box'
 
 // The page's static text, in the visitor's language, before anything else runs.
 localizePage()
@@ -85,6 +86,28 @@ function renderSettings(s: ClientSettings): void {
   const noImages = $<HTMLInputElement>('no-website-images')
   noImages.checked = !s.websiteImages
   noImages.addEventListener('change', () => void patch({ websiteImages: !noImages.checked }))
+
+  // Page access for History pictures (owner, 2026-11-09). The browser holds the answer, so
+  // the switch shows it; asked straight from the click, as browsers require.
+  const pageAccess = { origins: ['https://*/*'] }
+  const pagePictures = $<HTMLInputElement>('page-pictures')
+  void ext.permissions
+    ?.contains(pageAccess)
+    .then((granted) => {
+      pagePictures.checked = granted
+    })
+    .catch(() => undefined)
+  pagePictures.addEventListener('change', () => {
+    const asked = pagePictures.checked
+      ? ext.permissions?.request(pageAccess)
+      : ext.permissions?.remove(pageAccess).then(() => false)
+    void Promise.resolve(asked)
+      .catch(() => false)
+      .then(() => ext.permissions?.contains(pageAccess))
+      .then((granted) => {
+        pagePictures.checked = Boolean(granted)
+      })
+  })
 }
 
 function openFirstRun(): void {
@@ -573,6 +596,16 @@ async function main(): Promise<void> {
   })
   wirePairing()
   wireConnection()
+  // Rate stays hidden and Feedback gets its link even if the state below fails to load.
+  wireHelpRows(
+    {
+      share: $('help-share'),
+      rate: $('help-rate'),
+      feedback: $('help-feedback'),
+      note: $('help-note'),
+    },
+    undefined,
+  )
 
   // Settings pages get left open for days. Setup finishing in another tab, a
   // move being abandoned, or another device removing this browser all happen
@@ -596,6 +629,15 @@ async function main(): Promise<void> {
       rpcOk<{ ok: true; chooser: ChooserView }>({ type: 'getChooser' }),
     ])
     paintConnection(stateRes.state)
+    wireHelpRows(
+      {
+        share: $('help-share'),
+        rate: $('help-rate'),
+        feedback: $('help-feedback'),
+        note: $('help-note'),
+      },
+      stateRes.state.relayUrl,
+    )
     renderSettings(settingsRes.settings)
     renderPrimary(chooserRes.chooser)
     await refreshDevices(stateRes.state)

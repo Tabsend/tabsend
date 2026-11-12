@@ -20,6 +20,7 @@ import io.tabsend.app.logic.AccountLink
 import io.tabsend.app.logic.AccountSetup
 import io.tabsend.app.logic.AccountSite
 import io.tabsend.app.logic.GroupService
+import io.tabsend.app.logic.InAppAsks
 import io.tabsend.app.logic.Pairing
 import io.tabsend.app.logic.ServicePlan
 import io.tabsend.app.logic.uiLocale
@@ -71,6 +72,19 @@ class AccountFlow(
         }
         return AccountSetup.allowsAccountSetup(debugBuild = BuildConfig.DEBUG, linkOutAvailable = linkOut?.available == true)
     }
+
+    /**
+     * The words the share box and the Share rows use [P-22]: credit only where this phone may open
+     * account pages (the same rule as "Manage account") and the group has an account.
+     */
+    fun shareVariant(): InAppAsks.ShareVariant =
+        InAppAsks.shareVariant(doorAllowed(), GroupService.plan(store.groupService))
+
+    /** Whether this phone may open account pages at all (for the share box's rule). */
+    fun accountDoorAllowed(): Boolean = doorAllowed()
+
+    /** The credit variant's Share: the account site's Share page, through Google's link-out in the Play build. */
+    fun openSharePage() = openSheet(AccountSetup.Page.SHARE)
 
     init {
         binding.accountSetupButton.setOnClickListener { startSignup() }
@@ -138,16 +152,40 @@ class AccountFlow(
             is AccountLink.NewAccount -> {
                 // Only a phone that asked for a sign-up takes the link: one that arrives cold, from
                 // someone else's email, would put this phone in a stranger's group (review AL1).
-                if (!store.isRegistered && AccountSetup.isPending(store.accountStartedAt, System.currentTimeMillis())) {
-                    model.redeem(link.token)
+                // The phone's number goes with the token: a link another phone asked for is refused (AL1).
+                val now = System.currentTimeMillis()
+                val number = store.livePhoneNumber(now)
+                if (!store.isRegistered) {
+                    if (number != null && AccountSetup.isPending(store.accountStartedAt, now)) {
+                        model.redeem(link.token, number)
+                    } else {
+                        tellOtherPhone()
+                    }
                 }
                 true
             }
             is AccountLink.SignIn -> {
-                openUrl(AccountLink.signInPage(link, AccountSite.base))
+                // Only a phone that asked for a sign-in link has a number to show with it; a link that
+                // arrives cold, forwarded from someone else's email, is turned away here (AL3).
+                val number = store.livePhoneNumber()
+                val page = number?.let { AccountLink.signInPage(link, it, AccountSite.base) }
+                if (page != null) openUrl(page) else tellOtherPhone()
                 true
             }
             null -> false
+        }
+    }
+
+    /**
+     * An emailed account link reached a phone that did not ask for it: say so, and where to ask
+     * again. On the first screen the line sits where a failed link's reason does; a paired phone
+     * has no such place, so it gets a toast.
+     */
+    private fun tellOtherPhone() {
+        if (store.isRegistered) {
+            Toast.makeText(activity, R.string.account_other_phone, Toast.LENGTH_LONG).show()
+        } else {
+            model.tell(R.string.account_other_phone)
         }
     }
 
@@ -168,6 +206,7 @@ class AccountFlow(
     fun pairingDone() {
         model.arrival = null
         store.accountStartedAt = null
+        store.forgetPhoneNumber()
     }
 
     // --- first screen and "Name this phone" -------------------------------------
@@ -194,6 +233,10 @@ class AccountFlow(
                 ?.let { activity.getString(R.string.account_started_notice, GroupService.shortDay(it, locale = activity.uiLocale())) }
                 ?: activity.getString(R.string.account_started_notice_no_date)
         }
+        // Whose account this phone is about to join, with most of the address hidden.
+        val email = arrival.maskedEmail
+        binding.arrivalAccount.visibility = if (email != null) View.VISIBLE else View.GONE
+        if (email != null) binding.arrivalAccountText.text = activity.getString(R.string.name_phone_account, email)
         if (binding.arrivalNameInput.text.isNullOrBlank()) binding.arrivalNameInput.setText(defaultName())
     }
 
@@ -240,7 +283,8 @@ class AccountFlow(
      * A debug build opens every page plainly. [then] runs once the page is opening.
      */
     private fun openSheet(page: AccountSetup.Page, then: () -> Unit = {}) {
-        val url = AccountSetup.url(page, AccountSite.base)
+        // Every sheet carries this phone's number: the sign-in page it can lead to asks for a link in its name.
+        val url = AccountSetup.url(page, AccountSite.base, store.phoneNumber())
         val linkOut = linkOut
         if (linkOut == null || page == AccountSetup.Page.DELETE) {
             openUrl(url)

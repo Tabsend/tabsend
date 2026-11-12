@@ -22,6 +22,16 @@ public enum Registrar {
         return identity
     }
 
+    /// A pairing starts from nothing. The Keychain can outlive a deleted app, so a
+    /// reinstalled app may still hold the group keys of its old install (P-31 item 2).
+    /// A device that is not registered has no right to any key; the real ones arrive
+    /// from the group after the register call.
+    static func dropLeftoverKeys(store: TabsendStore) {
+        if store.registration == nil, !store.groupKeyring.isEmpty {
+            store.groupKeyring = []
+        }
+    }
+
     /// Join an existing group with a pairing code, or create a new one (pairingCode nil).
     /// The app only ever calls this WITH a code; the create path exists to mirror the
     /// wire contract. A relay that already hosts a group refuses a create with
@@ -59,6 +69,9 @@ public enum Registrar {
                 comment: "Fallback error when pairing is blocked by a version mismatch and no more specific message applies. Not normally shown."
             ))
         }
+
+        // 1b. Keys left in the Keychain by a deleted install must not carry over.
+        dropLeftoverKeys(store: store)
 
         // 2. Identity (lazily created, kept across failed joins).
         let identity = ensureIdentity(store: store)

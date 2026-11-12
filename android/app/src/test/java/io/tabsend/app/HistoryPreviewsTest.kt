@@ -21,6 +21,15 @@ class HistoryPreviewsTest {
         }
         assertFalse(HistoryPreviews.mayRequestPage("http://example.com/article"))
     }
+    // No picture: the site's icon, asked for by the site's address alone, never the page's path or query.
+    @Test fun siteIconsUseOnlyTheSite() {
+        assertEquals(
+            listOf("https://openrouter.ai/apple-touch-icon.png", "https://openrouter.ai/favicon.ico"),
+            HistoryPreviews.siteIcons("https://openrouter.ai/activity?token=x"),
+        )
+        assertTrue(HistoryPreviews.siteIcons("https://printer.local/a").isEmpty())
+        assertTrue(HistoryPreviews.siteIcons("http://example.com").isEmpty())
+    }
     @Test fun metadataHandlesAttributeOrderAndEntities() {
         val values = HistoryPreviews.metadata("""<meta content='A &amp; B' property='og:title'><meta property=og:image content='/cover.jpg'><meta name="description" content="Details">""")
         assertEquals("A & B", values["og:title"])

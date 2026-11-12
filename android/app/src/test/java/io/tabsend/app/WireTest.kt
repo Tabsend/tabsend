@@ -1,6 +1,7 @@
 package io.tabsend.app
 
 import io.tabsend.app.wire.BatchInfo
+import io.tabsend.app.wire.Endpoint
 import io.tabsend.app.wire.GroupKeyDelivery
 import io.tabsend.app.wire.GroupKeyRecord
 import io.tabsend.app.wire.HistoryEntry
@@ -35,6 +36,26 @@ class WireTest {
 
         val older = """{"accepted":[],"rejected":[{"id":"m-1","reason":"unknown_target"}]}"""
         assertNull(WireJson.decodeFromString(SendResponse.serializer(), older).rejected.first().limit)
+    }
+
+    /** PLANS P-31 item 3: a phone proved uninstalled; absent on every other device. */
+    @Test
+    fun `an endpoint says when its app was proved uninstalled, and nothing from an older relay`() {
+        val base = """{"id":"e1","groupId":"g1","kind":"mobile","platform":"android","label":"S24",
+            "e2ePubkey":"k","presence":"offline","lastSeenAt":"2026-11-01T00:00:00Z",
+            "createdAt":"2026-10-01T00:00:00Z"""".trimIndent()
+        val marked = WireJson.decodeFromString(
+            Endpoint.serializer(),
+            "$base,\"uninstalledAt\":\"2026-11-09T10:00:00Z\"}",
+        )
+        assertEquals("2026-11-09T10:00:00Z", marked.uninstalledAt)
+        assertNull(WireJson.decodeFromString(Endpoint.serializer(), "$base}").uninstalledAt)
+        // A rejection with the new reason parses like any other.
+        val refused = """{"accepted":[],"rejected":[{"id":"m-1","reason":"target_uninstalled"}]}"""
+        assertEquals(
+            "target_uninstalled",
+            WireJson.decodeFromString(SendResponse.serializer(), refused).rejected.first().reason,
+        )
     }
 
     @Test

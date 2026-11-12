@@ -1,10 +1,12 @@
 import {
+  appNameOf,
   type CreatePairingResponse,
   confirmNewDevice,
   confirmReview,
   dismissVanished,
   type Endpoint,
   endpointsKnownTo,
+  findReplacedSelf,
   type GroupKeyRecord,
   type GroupResetState,
   ListWithoutSelfError,
@@ -46,7 +48,7 @@ import { syncGroupKeys } from './group-keys'
 import { changedRows, mergeTimeline, projectGroupHistory } from './history'
 import { t } from './i18n'
 import { sortKeys } from './keyring'
-import type { ConnectionMode, ConsoleSession, HistoryEntry } from './model'
+import type { ConnectionMode, ConsoleSession, HistoryEntry, ReplaceOfferView } from './model'
 import {
   isLoopbackRelayUrl,
   pairingLinkRelayUrl,
@@ -173,6 +175,11 @@ export class Controller {
   readonly status: Signal<StatusLine> = signal<StatusLine>({ kind: 'idle', message: '' })
   readonly pairing: Signal<PairingView | null> = signal<PairingView | null>(null)
   readonly busy: Signal<boolean> = signal<boolean>(false)
+  /**
+   * "Is this console replacing Web console?" (PLANS.md P-31 item 2): an old offline
+   * copy of this console, offered once, right after this console paired. Null otherwise.
+   */
+  readonly replaceOffer: Signal<ReplaceOfferView | null> = signal<ReplaceOfferView | null>(null)
   private leaving = false
 
   private stream: StreamClient | null = null
@@ -292,6 +299,7 @@ export class Controller {
       this.status.set({ kind: 'idle', message: '' })
       await this.refreshConfig()
       await this.refresh()
+      this.offerReplace(session)
       this.goLive()
     } catch (err) {
       this.status.set({ kind: 'error', message: failureText(err, 'join', relayUrl) })
@@ -607,6 +615,81 @@ export class Controller {
       this.status.set({ kind: 'idle', message: '' })
     } catch (err) {
       this.status.set({ kind: 'error', message: failureText(err, 'remove', session.relayUrl) })
+    } finally {
+      this.busy.set(false)
+    }
+  }
+
+  /** The old offline copy of this console in `list`, by the shared rule (`shared/src/replacing.ts`). */
+  private replacedSelf(list: Endpoint[], session: ConsoleSession): Endpoint | null {
+    const watch = loadNewDeviceWatch(this.deps.kv)
+    const removed = watch?.selfId === session.endpointId ? (watch.removed ?? []) : []
+    return findReplacedSelf(session.endpointId, list, removed, this.deps.now())
+  }
+
+  /** Asked only here, right after pairing; never on a later load. */
+  private offerReplace(session: ConsoleSession): void {
+    const old = this.replacedSelf(this.endpoints.get(), session)
+    this.replaceOffer.set(
+      old
+        ? {
+            endpointId: old.id,
+            label: old.label,
+            appName: appNameOf(old.label),
+            lastSeenAt: old.lastSeenAt,
+          }
+        : null,
+    )
+  }
+
+  /** "Keep both": nothing changes. */
+  keepBoth(): void {
+    this.replaceOffer.set(null)
+  }
+
+  /**
+   * "Replace Web console": on a list read now, only if the same entry is still the
+   * match, remove it (the ordinary removal, recorded in the watch) and then take its
+   * name. Never answers or accepts any device (SECURITY_REVIEW.md L1, L5).
+   */
+  async replaceOld(): Promise<void> {
+    const session = this.session.get()
+    const offer = this.replaceOffer.get()
+    if (!session || !offer) return
+    this.busy.set(true)
+    let removed = false
+    try {
+      const old = this.replacedSelf(await this.fetchWatchedEndpoints(session), session)
+      if (!old || old.id !== offer.endpointId) {
+        this.replaceOffer.set(null)
+        return
+      }
+      try {
+        await deleteEndpoint(this.opts(), session.deviceToken, old.id)
+      } catch (err) {
+        if (!(err instanceof ApiClientError && err.status === 404)) throw err
+      }
+      this.recordRemoval(old.id, session)
+      this.replaceOffer.set(null)
+      removed = true
+      const stored = await renameEndpoint(
+        this.opts(),
+        session.deviceToken,
+        session.endpointId,
+        old.label,
+      )
+      // The relay's dedupe has the last word on the name, as in the extension.
+      const updated = { ...session, label: stored?.label || old.label }
+      saveSession(updated, this.deps.kv)
+      this.session.set(updated)
+      await this.refresh()
+      this.status.set({ kind: 'idle', message: '' })
+    } catch (err) {
+      // Once the old entry is gone, what failed is the rename.
+      this.status.set({
+        kind: 'error',
+        message: failureText(err, removed ? 'rename' : 'remove', session.relayUrl),
+      })
     } finally {
       this.busy.set(false)
     }

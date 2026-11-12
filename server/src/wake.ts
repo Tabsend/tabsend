@@ -77,6 +77,64 @@ async function wakeTarget(
 }
 
 /**
+ * After a forwarder ring, ask whether Apple or Google proved the phone uninstalled, and
+ * mark the endpoint if so (PLANS P-31 item 3). Never throws; detached like the ring.
+ *
+ * Waits first, because the forwarder learns the answer only after its 202 (it rings after
+ * replying, at a random point in the next half second, and then waits for the provider).
+ *
+ * The mark is written only while the endpoint still holds the subscription that was rung
+ * and has not called the relay since the ring: a phone that re-registered with a fresh
+ * token, or made any authenticated call, has proved it is installed, and a stale answer
+ * about its old token must not mark it. Any authenticated call clears the mark later too
+ * (`context.ts`).
+ *
+ * Only for the forwarder. A Web Push 404/410 is NOT counted as uninstalled: it means the
+ * subscription expired, which happens to an installed browser after an update, a cleared
+ * site data or a profile move, and the extension renews it at its next heartbeat. A
+ * browser's uninstall is caught by the extension itself (P-31 item 1).
+ */
+async function checkGone(
+  ctx: AppContext,
+  log: FastifyBaseLogger,
+  target: EndpointRow,
+  subscription: PushSubscription,
+): Promise<void> {
+  const isGone = ctx.push.isGone?.bind(ctx.push)
+  if (!isGone) return
+  const delay = ctx.config.wakeGoneCheckDelayMs
+  if (delay > 0) {
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, delay)
+      // A pending question must not hold a stopping relay open.
+      timer.unref?.()
+    })
+  }
+  let gone: boolean
+  try {
+    gone = await isGone(subscription)
+  } catch (err) {
+    log.warn({ err, endpointId: target.id }, 'could not ask the wake forwarder about a phone')
+    return
+  }
+  if (!gone) return
+  const result = await ctx.db
+    .updateTable('endpoints')
+    .set({ uninstalled_at: ctx.now().toISOString() })
+    .where('id', '=', target.id)
+    .where('push_subscription', '=', target.push_subscription)
+    .where('last_seen_at', '=', target.last_seen_at)
+    .where('uninstalled_at', 'is', null)
+    .executeTakeFirst()
+  if (Number(result.numUpdatedRows ?? 0n) > 0) {
+    log.info(
+      { endpointId: target.id },
+      'phone proved uninstalled by its push service; sends to it are refused until it is removed or calls again',
+    )
+  }
+}
+
+/**
  * Ring one device's doorbell, once. The caller has already handed any live socket
  * its event (`hub.toEndpoint` / `hub.toGroup`); this is for the device that is not
  * listening. Never throws.
@@ -90,6 +148,9 @@ export async function ringDoorbell(
   // 404/410s). The WS event + the target's poll still deliver; the client's
   // heartbeat rotates a fresh subscription, which resets push_failures to 0.
   if (target.push_failures >= ctx.config.pushDeadThreshold) return
+  // Nor a phone its push service proved uninstalled (P-31 item 3): the forwarder dropped
+  // its address, so a ring would only spend the forwarder's budget.
+  if (target.uninstalled_at) return
 
   // An unreadable stored subscription is relay-side corruption, not a client
   // error, and it must not fail a call whose work is already durable: there is simply
@@ -141,9 +202,11 @@ export async function ringDoorbell(
     if (ctx.hub.hasFreshSocket(target.id as EndpointId, ctx.now().getTime(), FRESH_SOCKET_MS)) {
       return
     }
-    void wakeTarget(ctx, log, target, subscription).catch((err) => {
-      log.warn({ err, endpointId: target.id }, 'detached wake handler failed')
-    })
+    void wakeTarget(ctx, log, target, subscription)
+      .then(() => checkGone(ctx, log, target, subscription))
+      .catch((err) => {
+        log.warn({ err, endpointId: target.id }, 'detached wake handler failed')
+      })
     return
   }
   await wakeTarget(ctx, log, target, subscription)

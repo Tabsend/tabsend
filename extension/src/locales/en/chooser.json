@@ -47,6 +47,10 @@
     "message": "online",
     "description": "Said at the end of a device row’s spoken name when the device is connected right now. Lowercase, one word if possible. See chooser.row.aria."
   },
+  "chooser.row.spoken.uninstalled": {
+    "message": "Tabsend uninstalled",
+    "description": "Said at the end of a device row’s spoken name when Google or Apple reported that Tabsend was removed from that phone. See chooser.row.aria."
+  },
   "chooser.row.spoken.offline": {
     "message": "offline, last seen {ago}",
     "description": "Said at the end of a device row’s spoken name when the device is not connected. {ago} is a short relative time such as “5m ago”. See chooser.row.aria."

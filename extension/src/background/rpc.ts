@@ -52,9 +52,12 @@ import { ensureOffscreen, pushConfigToOffscreen } from './offscreen'
 import { setPrimary } from './prefs'
 import { ensurePushSubscription } from './push'
 import { pollPending } from './receive'
+import { replaceOffer, replaceSelf } from './replacing'
 import {
   cancelHeldTab,
+  mayResendTo,
   processOutbound,
+  resendChoices,
   retargetHeldTab,
   selectedTabCount,
   sendToTarget,
@@ -76,6 +79,7 @@ function actionFor(type: RpcRequest['type']): RelayAction {
     case 'renameEndpoint':
       return 'rename'
     case 'removeEndpoint':
+    case 'replaceSelf':
       return 'remove'
     case 'mintPairing':
       return 'pairingLink'
@@ -133,6 +137,14 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
         await rebuildMenus()
         return { ok: true }
       }
+      case 'getReplaceOffer': {
+        return { ok: true, replaceOffer: await replaceOffer() }
+      }
+      case 'replaceSelf': {
+        const replaced = await replaceSelf(req.endpointId)
+        await rebuildMenus()
+        return { ok: true, replaced }
+      }
       case 'confirmNewDevice': {
         await confirmNewDeviceNotice(req.endpointId)
         return { ok: true }
@@ -189,6 +201,14 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
         return { ok: true, send }
       }
       case 'sendAgain': {
+        // A different device than the tab was for only from the offered choices.
+        if (
+          req.insteadOf !== undefined &&
+          !(await mayResendTo(req.insteadOf, req.targetEndpointId))
+        ) {
+          // Not one of the devices offered: nothing is sent, and the page says so.
+          return { ok: true, moved: false }
+        }
         // The history page shows its own outcome, so the in-page banner goes up
         // alongside this response rather than in front of it.
         const send = await sendToTarget(req.targetEndpointId, resendPayload(req.payload), {
@@ -198,6 +218,9 @@ export async function handleRpc(req: RpcRequest): Promise<RpcResponse> {
         // than leaving the page showing only the failure it was started from.
         void refreshHistory().catch(() => undefined)
         return { ok: true, send }
+      }
+      case 'resendChoices': {
+        return { ok: true, resend: await resendChoices(req.targetEndpointId) }
       }
       case 'getSettings': {
         return { ok: true, settings: await getSettings() }

@@ -13,22 +13,27 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.doOnPreDraw
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.tabsend.app.R
 import io.tabsend.app.logic.Delivery
 import io.tabsend.app.logic.Direction
 import io.tabsend.app.logic.Feedback
+import io.tabsend.app.logic.GoneTargetCopy
 import io.tabsend.app.logic.History
 import io.tabsend.app.logic.HistoryRow
 import io.tabsend.app.logic.Inbox
 import io.tabsend.app.logic.InboxGroup
+import io.tabsend.app.logic.SendAgainTarget
 import io.tabsend.app.logic.isoOf
 import io.tabsend.app.logic.parseIsoMillis
 import io.tabsend.app.logic.relativeTime
 import io.tabsend.app.net.GroupHistory
 import io.tabsend.app.receive.Deliverer
 import io.tabsend.app.receive.LinkPolicy
+import io.tabsend.app.receive.NewDeviceWatcher
 import io.tabsend.app.send.Sender
 import io.tabsend.app.store.Store
+import io.tabsend.app.wire.Endpoint
 import io.tabsend.app.wire.SendPayload
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -400,27 +405,66 @@ internal class HistoryScreen(
     }
 
     /**
-     * Send the same tab to the same device again.
+     * Send the tab again.
      *
      * A new send, not a retry of the old one: the original expired at the relay
      * and cannot be revived, and it gets a new id, a new envelope and a fresh
-     * history blob of its own. The target has to still be in the group: sending
-     * to a device that has left would be a guess, and a tab going to the wrong
-     * device is not a recoverable mistake.
+     * history blob of its own.
+     *
+     * To the same device while it is still in the group. Once it has left (PLANS
+     * P-31 item 4: a browser paired again leaves its old entry behind, and the relay
+     * ends the tabs still waiting for it), a short list asks where to instead,
+     * titled with what happened: "Dia is no longer in your group." The list is the
+     * one a held tab whose device is gone offers (L3), and the pick is checked
+     * against it again before anything is sealed.
      */
     private fun sendAgain(row: HistoryRow) {
         val url = openableUrl(row) ?: return
-        val target = store.cachedEndpoints.firstOrNull { it.id == row.targetEndpointId }
-        if (target == null) {
-            Toast.makeText(activity, R.string.history_send_again_gone, Toast.LENGTH_LONG).show()
-            return
+        val payload = SendPayload(
+            url = url,
+            title = row.title,
+            sentAt = isoOf(System.currentTimeMillis()),
+            image = row.image,
+        )
+        val where = History.sendAgainTarget(
+            row.targetEndpointId,
+            NewDeviceWatcher.acceptedIds(store),
+            store.cachedEndpoints,
+            NewDeviceWatcher.heldTabChoices(store),
+        )
+        when (where) {
+            is SendAgainTarget.Same -> send(where.endpoint, payload)
+            is SendAgainTarget.Gone -> {
+                val texts = activity.texts()
+                val reason = GoneTargetCopy.removedLine(
+                    texts,
+                    row.targetLabel,
+                    row.targetEndpointId in NewDeviceWatcher.removedHere(store),
+                )
+                val dialog = MaterialAlertDialogBuilder(activity).setTitle(reason)
+                if (where.choices.isEmpty()) {
+                    dialog.setMessage(GoneTargetCopy.noOtherDevice(texts))
+                        .setPositiveButton(android.R.string.ok, null)
+                } else {
+                    dialog.setItems(where.choices.map { it.label }.toTypedArray()) { _, which ->
+                        val picked = where.choices[which]
+                        // The list may have changed while the dialog was open.
+                        val still = NewDeviceWatcher.heldTabChoices(store).firstOrNull { it.id == picked.id }
+                        if (still == null) {
+                            Toast.makeText(activity, R.string.history_send_again_gone, Toast.LENGTH_LONG).show()
+                        } else {
+                            send(still, payload)
+                        }
+                    }.setNegativeButton(android.R.string.cancel, null)
+                }
+                dialog.show()
+            }
         }
+    }
+
+    private fun send(target: Endpoint, payload: SendPayload) {
         activity.lifecycleScope.launch {
-            val outcome = Sender.sendTo(
-                activity,
-                target,
-                SendPayload(url = url, title = row.title, sentAt = isoOf(System.currentTimeMillis()), image = row.image),
-            )
+            val outcome = Sender.sendTo(activity, target, payload)
             Toast.makeText(
                 activity,
                 Feedback.banner(activity.texts(), outcome.view()).headline,

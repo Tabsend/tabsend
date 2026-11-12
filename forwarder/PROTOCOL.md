@@ -267,6 +267,27 @@ Deliberately says nothing else. Device counts and wake tallies are operator busi
 to the log, not to an unauthenticated route: a public counter of registered devices is
 metadata about the user base that no caller needs.
 
+### 3.5 `POST /v1/status` — was this phone proved uninstalled? [2026-11-09, P-31 item 3]
+
+**Auth:** `Authorization: Bearer <wakeToken>`, as for wake. Empty JSON body. Rate-limited
+on the caller's bucket only (it never rings, so the per-device bucket is not touched).
+
+```jsonc
+{ "gone": true }   // 200
+```
+
+`gone` is `true` only when a ring of this token got Apple's `410 Unregistered` or Google's
+`UNREGISTERED` in the last 30 days: the two answers that prove the app was removed from the
+phone (§9). Every other token, live, never issued, revoked, or refused for another reason
+(`BadDeviceToken`, `INVALID_ARGUMENT`, an outage), answers `{ "gone": false }`.
+
+Why it exists: the relay used to have no way to tell an uninstalled phone from a sleeping
+one, so links to an uninstalled phone waited until they expired (`docs/PLANS.md` P-20,
+P-31). A relay asks this a short while after a ring it sent, and once more on later rings.
+An older forwarder answers 404 to this route, which a relay reads as "not known".
+
+What it gives away, and why that is accepted, is in §4.
+
 ---
 
 ## 4. The unknown-token decision
@@ -299,7 +320,16 @@ Two corollaries, so this is not quietly undone later:
   that answer that the token was live, in use, and roughly when its relay had last rung
   it [revised 2026-10-01]. The per-caller bucket still answers 429: it is the caller's
   own, and says nothing about any token.
-- **Provider outcomes never reach the caller.** An APNs 400, a 410 for a dead device token,
+- **One provider outcome does reach the caller, on its own route [2026-11-09, P-31 item 3].**
+  `POST /v1/status` (§3.5) answers `gone: true` for a token whose ring was answered by
+  Apple's 410 or Google's `UNREGISTERED`. This is not the oracle above: a live token and an
+  unknown one still answer identically (`gone: false`), and the lookup is in the `gone`
+  table, which both miss, so they cost the same. What it does tell a holder of a token is
+  that the phone it rang no longer has the app, a token that from then on rings nothing.
+  A prober with a leaked token learns that its owner uninstalled Tabsend; that is the whole
+  of it, and it is accepted because the relay needs exactly this to stop sending links into
+  a void. Wake answers stay uniform, so nothing about it can be read from `POST /v1/wake`.
+- **Provider outcomes never otherwise reach the caller.** An APNs 400, a 410 for a dead device token,
   a Google `UNREGISTERED`, and a total outage at either provider all still answer 202.
   Otherwise an outage would flip the response for
   live tokens only, which is the oracle again, wearing a hat. The operator reads outcomes in
@@ -399,7 +429,7 @@ cheap to refuse.
 
 ## 5. What is stored, and why "stateless" survives it
 
-Two SQLite tables: the devices, and a small `meta` table holding the key check (below),
+Three SQLite tables: the devices, the tokens proved gone (since schema 5, below), and a small `meta` table holding the key check (below),
 the time of the last tally write, and, while a migration's clean-up is unfinished, a
 marker for it. That is the whole persistent state of the service.
 
@@ -416,7 +446,15 @@ CREATE TABLE devices (
   wake_count       INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);  -- key check, tally time
+CREATE TABLE gone (                     -- schema 5 [2026-11-09]: read by POST /v1/status
+  wake_token_hash TEXT PRIMARY KEY,     -- the hash of a token whose phone was proved gone
+  gone_at         INTEGER NOT NULL      -- ms since epoch; the row is dropped after 30 days
+);
 ```
+
+A `gone` row is written in the same transaction that deletes the device's row, only on
+Apple's 410 or Google's `UNREGISTERED`, so a token is never both ringable and reported gone.
+It holds no address and no relay; at most one row per phone that left.
 
 Schema version 4 [2026-11-05]: version 4 added `ring_style`, with every existing row
 `background`, which is how it was rung before. Version 3 [2026-10-02]. Version 1 was iOS-only (`apns_token`, no `platform`);

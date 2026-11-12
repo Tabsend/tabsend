@@ -30,6 +30,21 @@
   "devices.lastSeen.online": {
     "message": "jetzt online"
   },
+  "devices.replace.body": {
+    "message": "„{old}“ war seit {date} nicht mehr online. Wenn Tabsend hier neu eingerichtet wurde, ersetze es, damit diese Web-Konsole seinen Platz einnimmt."
+  },
+  "devices.replace.confirm": {
+    "message": "{app} ersetzen"
+  },
+  "devices.replace.keep": {
+    "message": "Beide behalten"
+  },
+  "devices.replace.note": {
+    "message": "Diese Web-Konsole übernimmt den Namen {app}. Die alte wird aus deinen Geräten entfernt."
+  },
+  "devices.replace.title": {
+    "message": "Ersetzt diese Web-Konsole {app}?"
+  },
   "devices.reset.body": {
     "message": "Beantragt auf deiner Kontoseite am {requestedDate}. Am {resetsDate} um {resetsTime} Uhr werden alle Geräte entfernt, auch dieses. Falls du das nicht warst, stoppe das Zurücksetzen jetzt und ändere dann dein E-Mail-Passwort."
   },
@@ -56,6 +71,9 @@
   },
   "devices.tag.self": {
     "message": "diese Web-Konsole"
+  },
+  "devices.tag.uninstalled": {
+    "message": "deinstalliert"
   },
   "devices.title": {
     "message": "Geräte"

@@ -194,5 +194,13 @@
   "options.websiteImages.detail": {
     "message": "Pictures load directly from each website, so those sites can see this browser's internet address and when it asked. Turn this on if you don't want to be tracked this way. You'll see each site's first letter instead.",
     "description": "Settings page: explains the “Don't load website images” checkbox, under its label."
+  },
+  "options.pagePictures.title": {
+    "message": "A picture for every link",
+    "description": "Setting: let the extension look up each sent page's preview picture itself."
+  },
+  "options.pagePictures.detail": {
+    "message": "Looks up each page's picture when the sending device found none. Needs your browser's permission. Some people keep this off for privacy.",
+    "description": "Detail under the 'A picture for every link' setting."
   }
 }

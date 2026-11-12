@@ -51,6 +51,18 @@
   "history.pageTitle": {
     "message": "Tabsend-Verlauf"
   },
+  "history.picturesAsk.allow": {
+    "message": "Einschalten"
+  },
+  "history.picturesAsk.body": {
+    "message": "Tabsend ruft dafür das Bild jeder Seite ab und braucht die Erlaubnis deines Browsers. Manche lassen das aus Datenschutzgründen lieber aus."
+  },
+  "history.picturesAsk.later": {
+    "message": "Nicht jetzt"
+  },
+  "history.picturesAsk.title": {
+    "message": "Für jeden Link ein Bild anzeigen?"
+  },
   "history.retention": {
     "message": "Dein Relay bestimmt, wie weit die Liste zurückreicht. Die neuesten {max} bleiben in diesem Browser gespeichert, damit die Seite auch offline funktioniert. Bilder werden von den verlinkten Websites geladen, die Anfragen von diesem Gerät sehen können. Du kannst sie in den Tabsend-Einstellungen ausschalten."
   },

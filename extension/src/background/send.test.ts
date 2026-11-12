@@ -102,8 +102,10 @@ import {
   buildConsoleCopies,
   cancelHeldTab,
   captureSelectedTabs,
+  mayResendTo,
   payloadsFromTabs,
   processOutbound,
+  resendChoices,
   retargetHeldTab,
   sendToTarget,
   withPageImages,
@@ -1392,5 +1394,60 @@ describe('withPageImages', () => {
       [tab(1, 'https://example.com/a'), tab(2, 'https://example.com/b')],
     )
     expect(out.map((p) => p.image)).toEqual([undefined, undefined])
+  })
+})
+
+// PLANS P-31 item 4: History's "Send again" on a tab whose device left the group.
+describe('resendChoices', () => {
+  beforeEach(() => {
+    endpointList = [target]
+    watch = acceptAll(endpointList)
+  })
+
+  it('sends to the same device while it is still in the group', async () => {
+    expect(await resendChoices('target-1')).toEqual({
+      gone: false,
+      removedHere: false,
+      choices: [],
+    })
+    expect(await mayResendTo('target-1', 'target-1')).toBe(true)
+  })
+
+  it('offers the accepted devices once the one it was for is gone', async () => {
+    // "Dia" was removed; "Dia 2" (the target) is what is left.
+    expect(await resendChoices('old-dia')).toEqual({
+      gone: true,
+      removedHere: false,
+      choices: [{ id: 'target-1', label: target.label }],
+    })
+    expect(await mayResendTo('old-dia', 'target-1')).toBe(true)
+  })
+
+  it('says "removed" only when this browser removed it, and never offers it (L3)', async () => {
+    const removed = { ...target, id: 'removed-1' as EndpointId }
+    endpointList = [target, removed] // the relay still lists it
+    watch = { ...acceptAll(endpointList), removed: ['removed-1'] }
+    const answer = await resendChoices('removed-1')
+    expect(answer.gone).toBe(true)
+    expect(answer.removedHere).toBe(true)
+    expect(answer.choices.map((c) => c.id)).toEqual(['target-1'])
+    expect(await mayResendTo('removed-1', 'removed-1')).toBe(true) // the row's own device
+  })
+
+  it('refuses a device it did not offer: unaccepted, a console, or with nothing gone', async () => {
+    const consoleKp = await generateKeyPair()
+    const stranger = { ...target, id: 'stranger' as EndpointId }
+    endpointList = [target, stranger, consoleEndpoint('con-1', consoleKp.publicKey)]
+    watch = acceptAll(endpointList.filter((e) => e.id !== 'stranger'))
+    expect(await mayResendTo('old-dia', 'stranger')).toBe(false)
+    expect(await mayResendTo('old-dia', 'con-1')).toBe(false)
+    expect(await mayResendTo('old-dia', 'self-1')).toBe(false)
+    // The device it was for is still here: no other device is a fair pick.
+    expect(await mayResendTo('target-1', 'con-1')).toBe(false)
+  })
+
+  it('counts nothing as gone with no watch of this pairing, as for held tabs', async () => {
+    watch = { ...acceptAll([target]), selfId: 'someone-else' }
+    expect(await resendChoices('old-dia')).toEqual({ gone: false, removedHere: false, choices: [] })
   })
 })

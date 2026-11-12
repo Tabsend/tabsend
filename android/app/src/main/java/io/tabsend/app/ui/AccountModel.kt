@@ -33,18 +33,31 @@ class AccountModel : ViewModel() {
     /** Told when [arrival] or [banner] changed, from the main thread; set while a screen is in front. */
     var onChange: (() -> Unit)? = null
 
-    /** Use a `/app-start` token: the account site hands back the group's first setup link. */
-    fun redeem(token: String, client: AccountSiteClient = AccountSiteClient()) {
+    /**
+     * Put a line on the first screen: now if a screen is in front, else when one comes back. The
+     * screen takes it and clears it.
+     */
+    fun tell(@StringRes line: Int) {
+        banner = line
+        onChange?.invoke()
+    }
+
+    /**
+     * Use a `/app-start` token: the account site hands back the group's first setup link. [number] is
+     * this phone's own number, which the site wants to see again before it gives anything to a link.
+     */
+    fun redeem(token: String, number: String, client: AccountSiteClient = AccountSiteClient()) {
         if (redeeming) return
         redeeming = true
         banner = null
         viewModelScope.launch {
-            val outcome = withContext(Dispatchers.IO) { RedeemOutcome.of { client.redeem(token) } }
+            val outcome = withContext(Dispatchers.IO) { RedeemOutcome.of { client.redeem(token, number) } }
             redeeming = false
             when (outcome) {
                 is RedeemOutcome.Arrived -> arrival = outcome.arrival
                 is RedeemOutcome.Failed -> banner = when (outcome.reason) {
                     RedeemOutcome.Reason.EXPIRED -> R.string.account_link_expired
+                    RedeemOutcome.Reason.OTHER_PHONE -> R.string.account_other_phone
                     RedeemOutcome.Reason.HAS_DEVICE -> R.string.account_link_has_device
                     RedeemOutcome.Reason.UNREACHABLE -> R.string.account_unreachable
                     RedeemOutcome.Reason.UNEXPECTED -> R.string.account_unexpected

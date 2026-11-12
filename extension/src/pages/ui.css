@@ -390,6 +390,9 @@
     background: transparent;
     border: 1.5px dotted var(--muted);
   }
+  .dot.broken {
+    background: var(--danger);
+  }
 
   /* ---- Device list (manage screen and Settings) ---------------------------- */
   .device-list {
@@ -418,6 +421,11 @@
   .dev-sub {
     font-size: 13px;
     color: var(--muted);
+  }
+  /* A phone Tabsend was uninstalled from (P-31 item 3). */
+  .dev-sub.broken {
+    color: var(--danger);
+    font-weight: 600;
   }
   .dev-actions {
     display: flex;

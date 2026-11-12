@@ -137,6 +137,13 @@
       #solo-notice { display: none; margin-bottom: 20px; padding: 12px 14px; background: var(--waiting-tint); border-radius: 10px; }
       #solo-notice.visible { display: block; }
       #new-devices { margin-bottom: 20px; }
+      #replace-offer { display: none; margin-bottom: 20px; padding: 14px 16px; font-size: 14px; }
+      #replace-offer.visible { display: block; }
+      .replace-title { margin: 0; font-weight: 700; font-size: 15px; }
+      .replace-body { margin: 4px 0 0; line-height: 1.5; }
+      .replace-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+      .replace-actions .btn-primary, .replace-actions .btn-secondary { margin-top: 0; }
+      .replace-note { margin: 8px 0 0; font-size: 12px; }
       #new-devices .notice { font-size: 14px; padding: 12px 14px; }
       .probe-row { display: flex; align-items: flex-start; gap: 10px; }
       #solo-notice svg { width: 18px; height: 18px; flex: none; margin-top: 1px; color: var(--waiting); }
@@ -246,6 +253,17 @@
         </h2>
         <p id="self-label-line" class="sub"></p>
         <p id="rename-note" class="hint" style="display: none; margin-bottom: 16px"></p>
+        <!-- "Is this browser replacing Dia?" (PLANS.md P-31 item 2): only right after
+             this browser paired, when an old offline copy of it is in the group. -->
+        <section id="replace-offer" class="notice accent" aria-labelledby="replace-title">
+          <p id="replace-title" class="replace-title"></p>
+          <p id="replace-body" class="replace-body"></p>
+          <div class="btn-row replace-actions">
+            <button type="button" class="btn-primary" id="replace-confirm"></button>
+            <button type="button" class="btn-secondary" id="replace-keep"></button>
+          </div>
+          <p id="replace-note" class="hint replace-note"></p>
+        </section>
         <p id="pin-note" data-i18n="firstrun.pin.body"></p>
 
         <!-- "New device: X. Was this you?" (PLANS.md P-10), one per unanswered device. -->

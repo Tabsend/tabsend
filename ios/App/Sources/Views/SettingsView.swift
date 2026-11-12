@@ -15,6 +15,9 @@ struct SettingsView: View {
     @State private var showDeleteAccount = false
     /// The account site's page open in a sheet (Manage account, or the last step of Delete account).
     @State private var accountPage: AccountPage?
+    /// The system share sheet (Help Tabsend > Share Tabsend, plain variant).
+    @State private var showShareSheet = false
+    @Environment(\.openURL) private var openURL
 
     /// What the info icon beside a Privacy switch explains (owner, 2026-11-04: the text
     /// sits behind the icon, not on the page). The delivery text must keep saying what
@@ -98,6 +101,8 @@ struct SettingsView: View {
 
                 actionsSection
 
+                helpSection
+
                 if showsAccountGroup {
                     accountSection
                 }
@@ -124,6 +129,10 @@ struct SettingsView: View {
         }
         .sheet(item: $shownInfo) { info in
             infoSheet(info)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ActivityView(text: InAppAsks.shareText)
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showRelayMove) {
             RelayMoveView(currentUrl: model.registration?.relayUrl ?? "")
@@ -268,6 +277,42 @@ struct SettingsView: View {
         Text(AppModel.buildInfo)
             .foregroundColor(Palette.muted)
             .padding(.top, 8)
+    }
+
+    // MARK: help Tabsend (P-22)
+
+    /// Share, rate and tell me. Share follows the same variant as the box on Home; Rate
+    /// stays hidden until `InAppAsks.reviewURL` is set.
+    private var helpSection: some View {
+        Section {
+            Button {
+                switch InAppAsks.variant(plan: model.servicePlan, accountDoor: model.accountSetupAvailable) {
+                case .credit: accountPage = .share
+                case .plain: showShareSheet = true
+                }
+            } label: {
+                TileLabel(title: "Share Tabsend", systemName: "square.and.arrow.up", tile: Palette.petrol)
+            }
+            .panelRow()
+            if let reviewURL = InAppAsks.reviewURL {
+                Button {
+                    openURL(reviewURL)
+                } label: {
+                    TileLabel(title: "Rate Tabsend", systemName: "star", tile: Palette.petrol)
+                }
+                .panelRow()
+            }
+            if let feedbackURL = InAppAsks.feedbackURL {
+                Button {
+                    openURL(feedbackURL)
+                } label: {
+                    TileLabel(title: "Something not working? Tell me", systemName: "envelope", tile: Palette.petrol)
+                }
+                .panelRow()
+            }
+        } header: {
+            PanelSectionHeader("Help Tabsend")
+        }
     }
 
     // MARK: account

@@ -126,6 +126,14 @@
          whole selection — this strip is the one thing that says so. Accent, not
          amber: it announces what a click will do, it isn't a problem. */
       #multi { color: var(--accent); font-weight: 600; }
+      /* P-22 share box: short text, Share, "Read more"; the x rests it for a year. */
+      #share-box { position: relative; margin: 0 14px 10px; padding: 10px 34px 10px 12px; border: 1px solid var(--line, #ddd); border-radius: 10px; font-size: 12.5px; }
+      #share-box p { margin: 4px 0 6px; color: var(--muted); }
+      #share-dismiss { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; padding: 0; }
+      #share-dismiss:hover { background: var(--accent-tint); }
+      #share-dismiss svg { width: 14px; height: 14px; }
+      .share-actions { display: flex; align-items: center; gap: 12px; }
+      #share-note { min-height: 0; margin: 4px 0 0; }
       #empty, #status {
         padding: 6px 16px 16px;
         color: var(--muted);
@@ -277,6 +285,9 @@
          the list it pushed the QR below the fold and read as part of the list.
          Everything but the box is hidden while it is open; Back returns. */
       body.pairing > :not(#pairing-box):not(script) { display: none; }
+      /* Cap the width: the long hint sentence (German especially) otherwise asks
+         for its full one-line width and Firefox widens the popup to fit it. */
+      body.pairing { max-width: 360px; }
       #pairing-box { padding: 0 14px 14px; }
       .pair-top {
         display: flex;
@@ -317,6 +328,21 @@
         <span data-i18n="common.addDevice"></span>
       </button>
     </header>
+    <section id="share-box" class="hidden" aria-labelledby="share-title">
+      <button type="button" id="share-dismiss" data-i18n-attrs="aria-label:share.dismiss">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+        </svg>
+      </button>
+      <strong id="share-title" data-i18n="share.title"></strong>
+      <p id="share-body"></p>
+      <div class="share-actions">
+        <button type="button" class="btn-secondary" id="share-go" data-i18n="share.button"></button>
+        <button type="button" class="linkish" id="share-more" aria-expanded="false"></button>
+      </div>
+      <p id="share-note" role="status"></p>
+    </section>
     <div id="confirm"></div>
     <div id="new-devices" class="hidden"></div>
     <div id="relay-down" class="notice waiting hidden" role="status"></div>

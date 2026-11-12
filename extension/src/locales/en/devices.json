@@ -39,6 +39,10 @@
     "message": "not connected",
     "description": "Small status text on a device's row in the list when the relay no longer has it. Lowercase, short."
   },
+  "devices.uninstalled.rowStatus": {
+    "message": "uninstalled",
+    "description": "Small status text on a device's row when Google or Apple reported that Tabsend was removed from that phone. Lowercase, short. Shown in red, next to the row's Remove."
+  },
   "devices.unreachable.tooltip": {
     "message": "{count, plural, one {{device} isn't connected any more. Open Tabsend to fix it.} other {# devices aren't connected any more. Open Tabsend to fix them.}}",
     "description": "Tooltip of the toolbar icon while it shows a warning mark. {count} is how many devices; {device} is the first one's name."

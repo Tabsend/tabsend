@@ -575,6 +575,40 @@
         }
       }
     },
+    "Built by a dad to support his family. If you like it, would you share it with a coworker or friend?" : {
+      "comment" : "Home, the box under Add a device, short text with no credit.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von einem Vater gebaut, um seine Familie zu unterstützen. Wenn es dir gefällt, teilst du es dann mit einem Kollegen oder Freund?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built by a dad to support his family. If you like it, would you share it with a coworker or friend?"
+          }
+        }
+      }
+    },
+    "Built by a dad to support his family. Share it, and get $5 off your next payment when a friend subscribes (once a year, however many friends join)." : {
+      "comment" : "Home, the box under Add a device, short text when sharing earns a credit. $5 is US dollars. Keep: it is once a year however many friends join.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von einem Vater gebaut, um seine Familie zu unterstützen. Teile es und erhalte 5 $ Rabatt auf deine nächste Zahlung, wenn ein Freund ein Abo abschließt (einmal im Jahr, egal wie viele Freunde mitmachen)."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built by a dad to support his family. Share it, and get $5 off your next payment when a friend subscribes (once a year, however many friends join)."
+          }
+        }
+      }
+    },
     "Can't reach your relay at %@. It last answered %@, and sends are being held until it's back." : {
       "comment" : "Standing notice on the home screen: the relay (the server that passes tabs between devices) is not answering. The first %@ is the relay address, the second is how long ago it last answered, such as \"5m ago\".",
       "localizations" : {
@@ -888,6 +922,23 @@
         }
       }
     },
+    "Is this phone replacing %@?" : {
+      "comment" : "Title of the question shown once, right after this phone pairs, when the group holds an old offline copy of it (Tabsend was reinstalled). %@ is the old device's name, such as \"iPhone\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ersetzt dieses Telefon %@?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Is this phone replacing %@?"
+          }
+        }
+      }
+    },
     "It joined %@ and is no longer in your list. Your relay may be hiding it. It could have read the links sent while it was listed. If you removed it yourself, you can dismiss this." : {
       "comment" : "Body of the card about a device that joined and then disappeared. \"It\" is the device named in the heading. %@ is how long ago it joined, such as \"3m ago\", \"just now\" or \"recently\". The relay is the server.",
       "localizations" : {
@@ -952,6 +1003,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "It was me"
+          }
+        }
+      }
+    },
+    "Keep both" : {
+      "comment" : "Button on the question shown right after pairing: closes it and keeps both this phone and the old offline copy in the group. Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beide behalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep both"
           }
         }
       }
@@ -1255,6 +1323,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Probably the same relay. It's too old to confirm, but it accepted this phone's login."
+          }
+        }
+      }
+    },
+    "Replace %@" : {
+      "comment" : "Button on the question shown right after pairing: removes the old offline copy of this phone and gives this phone its name. %@ is the old device's name, such as \"iPhone\". Keep it short.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ersetzen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replace %@"
           }
         }
       }
@@ -1630,6 +1715,23 @@
         }
       }
     },
+    "Tabsend sends a link from your computer to your phone, or the other way. https://tabsend.org" : {
+      "comment" : "The text a person shares with a friend from the system share sheet. Keep the web address at the end exactly as it is.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend schickt einen Link vom Computer aufs Smartphone oder umgekehrt. https://tabsend.org"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend sends a link from your computer to your phone, or the other way. https://tabsend.org"
+          }
+        }
+      }
+    },
     "Tabsend service" : {
       "comment" : "Heading of the small group on the home screen that shows the free trial. \"Tabsend service\" is Tabsend's own hosted server, as opposed to a server the person runs.",
       "localizations" : {
@@ -1643,6 +1745,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tabsend service"
+          }
+        }
+      }
+    },
+    "Tabsend was built by a dad to support his family. If you like it, would you share it with a coworker or friend? It's not for everyone, but I bet you have a good idea who else would find it useful." : {
+      "comment" : "Home, the box under Add a device, text after Read more, with no credit.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend wurde von einem Vater gebaut, um seine Familie zu unterstützen. Wenn es dir gefällt, teilst du es dann mit einem Kollegen oder Freund? Es ist nicht für jeden, aber du hast bestimmt eine gute Idee, wem es noch nützen könnte."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend was built by a dad to support his family. If you like it, would you share it with a coworker or friend? It's not for everyone, but I bet you have a good idea who else would find it useful."
+          }
+        }
+      }
+    },
+    "Tabsend was built by a dad to support his family. If you like it, would you share it with a coworker or friend? It's not for everyone, but I bet you have a good idea who else would find it useful. As a thank you, you'll get $5 off your next payment when a friend subscribes. That's once a year, however many friends join." : {
+      "comment" : "Home, the box under Add a device, text after Read more, when sharing earns a credit. $5 is US dollars. Keep: it is once a year however many friends join.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend wurde von einem Vater gebaut, um seine Familie zu unterstützen. Wenn es dir gefällt, teilst du es dann mit einem Kollegen oder Freund? Es ist nicht für jeden, aber du hast bestimmt eine gute Idee, wem es noch nützen könnte. Als Dankeschön erhältst du 5 $ Rabatt auf deine nächste Zahlung, wenn ein Freund ein Abo abschließt. Das gilt einmal im Jahr, egal wie viele Freunde mitmachen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend was built by a dad to support his family. If you like it, would you share it with a coworker or friend? It's not for everyone, but I bet you have a good idea who else would find it useful. As a thank you, you'll get $5 off your next payment when a friend subscribes. That's once a year, however many friends join."
+          }
+        }
+      }
+    },
+    "Tabsend was removed from %@, so this tab can't reach it. Remove %@ from your devices, or pair it again if you reinstalled Tabsend." : {
+      "comment" : "Explanation under a failed send: Google or Apple reported that Tabsend was removed from the receiving phone. Both %@ are the device name, or \"that device\". Same sentence as on Android and in the browser extension.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend wurde auf %1$@ deinstalliert, deshalb kann dieser Tab es nicht erreichen. Entferne %2$@ aus deinen Geräten oder koppele es erneut, falls du Tabsend neu installiert hast."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabsend was removed from %1$@, so this tab can't reach it. Remove %2$@ from your devices, or pair it again if you reinstalled Tabsend."
           }
         }
       }
@@ -1881,6 +2034,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This phone leaves its current device group. Every device you want to keep has to pair again on the new relay."
+          }
+        }
+      }
+    },
+    "This phone takes the name %@. The old one is removed from your devices." : {
+      "comment" : "Small line on the question shown right after pairing, saying what Replace does. %@ is the old device's full name.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Telefon übernimmt den Namen %@. Das alte wird aus deinen Geräten entfernt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This phone takes the name %@. The old one is removed from your devices."
           }
         }
       }
@@ -2619,6 +2789,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "your device"
+          }
+        }
+      }
+    },
+    "“%@” hasn't been online since %@. If Tabsend was reinstalled here, replace it so links come to this phone." : {
+      "comment" : "Message of the question shown right after this phone pairs, when the group holds an old offline copy of it. The first %@ is the old device's full name, in curly quotes; the second is the day it was last online, such as \"Oct 30\".",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%1$@“ war seit %2$@ nicht mehr online. Wenn Tabsend hier neu installiert wurde, ersetze es, damit Links an dieses Telefon gehen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%1$@” hasn't been online since %2$@. If Tabsend was reinstalled here, replace it so links come to this phone."
           }
         }
       }

@@ -135,7 +135,17 @@ export interface DeliveryBadge {
   note: string
 }
 
-export function deliveryBadge(entry: HistoryEntry, now: number = Date.now()): DeliveryBadge | null {
+/**
+ * `endpoints` is the group's current list. A tab that never arrived because its
+ * device has left the group (PLANS P-31 item 4: the relay ends the tabs still
+ * waiting for a device when it is removed) says so in its note. An empty list is
+ * one not loaded yet, and proves nothing.
+ */
+export function deliveryBadge(
+  entry: HistoryEntry,
+  now: number = Date.now(),
+  endpoints: readonly Endpoint[] = [],
+): DeliveryBadge | null {
   if (!entry.delivery) return null
   const state = deliveryState(entry.delivery, now)
   if (state === 'arrived') {
@@ -149,7 +159,10 @@ export function deliveryBadge(entry: HistoryEntry, now: number = Date.now()): De
     return {
       state,
       label: t('history.state.neverArrived'),
-      note: t('history.state.neverArrivedNote'),
+      note:
+        endpoints.length > 0 && !endpoints.some((e) => e.id === entry.targetEndpointId)
+          ? t('history.state.neverArrivedGoneNote', { device: entry.targetLabelAtSend })
+          : t('history.state.neverArrivedNote'),
     }
   }
   return {

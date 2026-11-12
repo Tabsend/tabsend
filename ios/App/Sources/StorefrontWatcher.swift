@@ -55,7 +55,9 @@ enum AccountSite {
         return AccountSetup.defaultSite
     }
 
+    /// The page's address, with this phone's number (AL1, AL3): every page that can lead to a
+    /// sign-in or a sign-up carries it, so the link the site emails opens on this phone only.
     static func url(for page: AccountSetup.Page) -> URL? {
-        AccountSetup.url(for: page, site: base)
+        AccountSetup.url(for: page, site: base, number: AccountSetup.phoneNumber())
     }
 }

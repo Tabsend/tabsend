@@ -57,6 +57,9 @@
   "chooser.row.spoken.online": {
     "message": "online"
   },
+  "chooser.row.spoken.uninstalled": {
+    "message": "Tabsend deinstalliert"
+  },
   "chooser.row.spoken.unknown": {
     "message": "Status unbekannt, zuletzt gesehen {ago}"
   },

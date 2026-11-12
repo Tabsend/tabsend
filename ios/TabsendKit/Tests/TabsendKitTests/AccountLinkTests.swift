@@ -5,6 +5,8 @@ import Testing
 /// The way back into the app after the account site's email link (docs/PLANS.md P-19).
 struct AccountLinkTests {
     private let token = "4KdfBlkSe2LuSNYTjnD_HXxaM78HDKiyIsAg_v5KfJY"
+    /// The phone's own number (AccountSetup.phoneNumber): 43 characters, as the app makes them.
+    private let number = "Xo7q2mP0Zk4VbN9sT1wRfH6cYdEaLgJuIiKt3AnBvM8"
 
     private func parse(_ link: String, site: String = AccountSetup.defaultSite) -> AccountLink? {
         URL(string: link).flatMap { AccountLink.parse($0, site: site) }
@@ -90,13 +92,21 @@ struct AccountLinkTests {
         #expect(parse("http://localhost:9999/app-start#t=\(token)", site: site) == nil)
     }
 
-    @Test func theSignInPageCarriesTheTokenInTheFragmentAndStaysInTheAppLook() {
+    @Test func theSignInPageCarriesTheTokenAndThePhonesNumberAndStaysInTheAppLook() {
         let link = AccountLink.signIn(token: token)
-        #expect(link.signInPage()?.absoluteString == "https://account.tabsend.org/signin?from=app#t=\(token)")
-        #expect(link.signInPage(site: "http://localhost:8790/")?.absoluteString
-            == "http://localhost:8790/signin?from=app#t=\(token)")
+        #expect(link.signInPage(number: number)?.absoluteString
+            == "https://account.tabsend.org/signin?from=app#t=\(token)&n=\(number)")
+        #expect(link.signInPage(number: number, site: "http://localhost:8790/")?.absoluteString
+            == "http://localhost:8790/signin?from=app#t=\(token)&n=\(number)")
         // A sign-up link has no sign-in page: the app finishes that one itself.
-        #expect(AccountLink.newAccount(token: token).signInPage() == nil)
+        #expect(AccountLink.newAccount(token: token).signInPage(number: number) == nil)
+    }
+
+    @Test func noSignInPageOpensWithoutANumberTheSiteWouldTake() {
+        let link = AccountLink.signIn(token: token)
+        for bad in ["", "short", "has spaces in it and is long enough!!", String(repeating: "x", count: 200)] {
+            #expect(link.signInPage(number: bad) == nil, "\(bad)")
+        }
     }
 
     // MARK: using a sign-up link
@@ -110,44 +120,61 @@ struct AccountLinkTests {
 
     @Test func aNewAccountAnswersItsSetupLinkAndTheTrialEnd() async throws {
         let sent = SentRequest()
-        let handBack = try await AccountSiteClient.redeem(token: token) { request in
+        let handBack = try await AccountSiteClient.redeem(token: token, number: number) { request in
             sent.record(request)
             let http = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Data(#"{"ok":true,"created":true,"setupLink":"https://app.tabsend.org/pair#c=66AS8CJJ","trialEndsAt":"2026-11-18T10:00:00.000Z"}"#.utf8), http)
+            return (Data(#"{"ok":true,"created":true,"setupLink":"https://app.tabsend.org/pair#c=66AS8CJJ","trialEndsAt":"2026-11-18T10:00:00.000Z","email":"b•••@example.org"}"#.utf8), http)
         }
         #expect(handBack.created)
         #expect(handBack.setupLink == "https://app.tabsend.org/pair#c=66AS8CJJ")
         #expect(handBack.trialEndsAt == Date(timeIntervalSince1970: 1_794_996_000))
-        // One JSON POST with the token and nothing else: no cookie, no account detail.
+        // The site says which account this was, with most of the address hidden.
+        #expect(handBack.maskedEmail == "b•••@example.org")
+        // One JSON POST with the token and the phone's number and nothing else: no cookie, no account detail.
         let request = try #require(sent.last)
         #expect(request.httpMethod == "POST")
         #expect(request.url?.absoluteString == "https://account.tabsend.org/api/app/redeem")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
-        #expect(String(data: request.httpBody ?? Data(), encoding: .utf8) == #"{"token":"\#(token)"}"#)
+        #expect(String(data: request.httpBody ?? Data(), encoding: .utf8)
+            == #"{"nonce":"\#(number)","token":"\#(token)"}"#)
     }
 
     @Test func aReturningPersonIsNotToldATrialStarted() async throws {
         let handBack = try await AccountSiteClient.redeem(
             token: token,
+            number: number,
             send: response(200, #"{"ok":true,"created":false,"setupLink":null,"trialEndsAt":null}"#)
         )
         #expect(!handBack.created)
         #expect(handBack.setupLink == nil)
         #expect(handBack.trialEndsAt == nil)
+        // A site that does not say which account it was: nothing to show, nothing invented.
+        #expect(handBack.maskedEmail == nil)
     }
 
     @Test func anOldOrUsedLinkIsExpired() async {
         await #expect(throws: AccountSiteError.linkExpired) {
             try await AccountSiteClient.redeem(
                 token: token,
+                number: number,
                 send: response(410, #"{"error":"expired","code":"link_expired"}"#)
+            )
+        }
+    }
+
+    @Test func aLinkAskedForByAnotherPhoneIsNotThisPhones() async {
+        await #expect(throws: AccountSiteError.otherPhone) {
+            try await AccountSiteClient.redeem(
+                token: token,
+                number: number,
+                send: response(403, #"{"error":"other phone","code":"link_other_phone"}"#)
             )
         }
     }
 
     @Test func aSiteThatCannotBeReachedIsUnreachable() async {
         await #expect(throws: AccountSiteError.unreachable) {
-            try await AccountSiteClient.redeem(token: token) { _ in throw URLError(.notConnectedToInternet) }
+            try await AccountSiteClient.redeem(token: token, number: number) { _ in throw URLError(.notConnectedToInternet) }
         }
     }
 
@@ -155,7 +182,7 @@ struct AccountLinkTests {
         for (status, json) in [(200, "not json"), (200, #"{"ok":true}"#), (500, "{}"),
                                (200, #"{"created":true,"setupLink":"not a setup link"}"#)] {
             await #expect(throws: AccountSiteError.unexpected, "\(status) \(json)") {
-                try await AccountSiteClient.redeem(token: token, send: response(status, json))
+                try await AccountSiteClient.redeem(token: token, number: number, send: response(status, json))
             }
         }
     }
@@ -163,12 +190,25 @@ struct AccountLinkTests {
     @Test func aTokenThatCannotBeOneIsNeverSent() async {
         let sent = SentRequest()
         await #expect(throws: AccountSiteError.unexpected) {
-            try await AccountSiteClient.redeem(token: "a b\"c") { request in
+            try await AccountSiteClient.redeem(token: "a b\"c", number: number) { request in
                 sent.record(request)
                 throw URLError(.cancelled)
             }
         }
         #expect(sent.last == nil)
+    }
+
+    @Test func aNumberThatCannotBeOneIsNeverSent() async {
+        for bad in ["", "short", "has spaces in it and is long enough!!", "a\"b" + String(repeating: "x", count: 30)] {
+            let sent = SentRequest()
+            await #expect(throws: AccountSiteError.unexpected, "\(bad)") {
+                try await AccountSiteClient.redeem(token: token, number: bad) { request in
+                    sent.record(request)
+                    throw URLError(.cancelled)
+                }
+            }
+            #expect(sent.last == nil, "\(bad)")
+        }
     }
 }
 

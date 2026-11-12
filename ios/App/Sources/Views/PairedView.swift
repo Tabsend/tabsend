@@ -19,6 +19,15 @@ struct PairedView: View {
     @State private var minted: AppModel.MintedPairing?
     /// The device the remove confirmation is asking about, from its row.
     @State private var removing: RemoveTarget?
+    /// The device the rename dialog is asking about, from its row's More menu.
+    @State private var renaming: RemoveTarget?
+    @State private var renameText = ""
+    /// The account site's Share page in a sheet (the credit variant of the share box).
+    @State private var accountPage: AccountPage?
+    /// The system share sheet (the plain variant).
+    @State private var showShareSheet = false
+    /// "Read more" on the share box.
+    @State private var shareBoxExpanded = false
 
     struct RemoveTarget: Identifiable {
         let id: String
@@ -231,6 +240,16 @@ struct PairedView: View {
                             .foregroundColor(.primary)
                     }
                 }
+
+                // P-22: one gentle ask to share, under the primary action. The rules for when
+                // it shows are `InAppAsks.shareBox`.
+                if let variant = model.shareBoxVariant {
+                    Section {
+                        shareBox(variant)
+                            .panelRow()
+                            .onAppear { model.shareBoxAppeared() }
+                    }
+                }
             }
         }
         .groupedListBackground()
@@ -245,7 +264,10 @@ struct PairedView: View {
         }
         // Local only (no network): picks up tabs that arrived while another screen
         // was showing, so the received rows are current whenever they are on screen.
-        .onAppear { model.refreshHistory() }
+        .onAppear {
+            model.refreshHistory()
+            model.noteHomeShown()
+        }
         // The same confirmation the extension and the console ask, word for word.
         .confirmationDialog(
             removing.map { target in
@@ -268,9 +290,104 @@ struct PairedView: View {
         } message: { target in
             Text("“\(target.label)” will stop receiving tabs and disappear from every device’s chooser. Any tabs still queued for it are dropped. It must be re-paired to rejoin.")
         }
+        .alert(
+            "Rename device",
+            isPresented: Binding(
+                get: { renaming != nil },
+                set: { if !$0 { renaming = nil } }
+            ),
+            presenting: renaming
+        ) { target in
+            TextField("Name", text: $renameText)
+            Button("Save") {
+                Task { await model.renameDevice(id: target.id, to: renameText) }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .sheet(item: $minted) { pairing in
             PairSheetView(pairing: pairing)
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $accountPage) { page in
+            if let url = page.url {
+                AccountSheet(url: url) { accountPage = nil }
+                    .ignoresSafeArea()
+                    .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ActivityView(text: InAppAsks.shareText)
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    // MARK: share box (P-22)
+
+    /// "Know someone who'd like Tabsend?" Short, with a Read more link. Share on the credit
+    /// variant opens the account site's Share page (the app never sees the personal link);
+    /// on the plain one it opens the system share sheet. Dismissing or sharing hides the box
+    /// for a year.
+    private func shareBox(_ variant: InAppAsks.Variant) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                Text("Know someone who'd like Tabsend?")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button {
+                    model.shareBoxHandled()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(Palette.muted)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .padding(.trailing, -12)
+                .padding(.top, -12)
+                .accessibilityLabel("Dismiss")
+            }
+            Text(shareBoxText(variant))
+                .font(.subheadline)
+                .foregroundColor(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button {
+                    model.shareBoxHandled()
+                    switch variant {
+                    case .credit: accountPage = .share
+                    case .plain: showShareSheet = true
+                    }
+                } label: {
+                    Text("Share Tabsend")
+                }
+                .buttonStyle(.bordered)
+                .tint(Palette.accent)
+                Spacer()
+                Button {
+                    shareBoxExpanded.toggle()
+                } label: {
+                    if shareBoxExpanded {
+                        Text("Show less")
+                    } else {
+                        Text("Read more")
+                    }
+                }
+                .font(.subheadline)
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func shareBoxText(_ variant: InAppAsks.Variant) -> String {
+        switch (variant, shareBoxExpanded) {
+        case (.credit, false): return InAppAsks.boxBodyCredit
+        case (.credit, true): return InAppAsks.expandedCredit
+        case (.plain, false): return InAppAsks.boxBodyPlain
+        case (.plain, true): return InAppAsks.expandedPlain
         }
     }
 
@@ -302,21 +419,51 @@ struct PairedView: View {
                     model.servicePlan,
                     kind: endpoint.kindWord,
                     isThisPhone: endpoint.id == selfId
-                )
+                ),
+                isUninstalled: endpoint.uninstalledAt != nil && endpoint.id != selfId
             )
-            // A visible Remove, so removing is never a hidden gesture or a tap on the name.
-            // Borderless, so only the button is a tap target and not the whole List row.
-            if endpoint.id != selfId {
-                Button("Remove", role: .destructive) {
+            // Google or Apple proved Tabsend uninstalled there (PLANS P-31 item 3): Remove is
+            // the one fix, so it sits on the row (owner's pick B, 2026-11-09). Asks first,
+            // like every other Remove.
+            if endpoint.uninstalledAt != nil && endpoint.id != selfId {
+                Button(role: nil) {
                     removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
+                } label: {
+                    // The same word, and catalog entry, as the row's other Removes.
+                    Text("Remove")
+                        .foregroundColor(Palette.danger)
+                        .frame(minHeight: 44)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Remove \(endpoint.label)")
+                .accessibilityLabel(
+                    String(
+                        localized: "Remove \(endpoint.label)",
+                        comment: "Spoken name of the Remove button on the row of a phone Tabsend was uninstalled from. %@ is the device name."
+                    )
+                )
             }
+            // One "More" menu on every row (Rename, and Remove for the other devices), so
+            // neither is a hidden gesture or a tap on the name. Borderless, so only the
+            // button is a tap target and not the whole List row.
+            Menu {
+                deviceActions(endpoint, selfId: selfId)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(
+                String(
+                    localized: "More for \(endpoint.label)",
+                    comment: "Spoken name of the More button on a device row, which opens Rename and Remove. %@ is the device name."
+                )
+            )
         }
         .panelRow()
         // Every other device can be removed from here; this phone leaves through Unpair
-        // instead. Swipe and long-press stay as shortcuts for the button above. Not
+        // instead. Swipe and long-press stay as shortcuts for the More menu above. Not
         // `role: .destructive`: that makes the List drop the row before the user confirms.
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if endpoint.id != selfId {
@@ -329,7 +476,23 @@ struct PairedView: View {
             }
         }
         .contextMenu {
-            if endpoint.id != selfId {
+            deviceActions(endpoint, selfId: selfId)
+        }
+    }
+
+    /// The actions of a device row, for its More menu and its long-press menu.
+    @ViewBuilder
+    private func deviceActions(_ endpoint: Endpoint, selfId: String) -> some View {
+        ForEach(DeviceRowActions.actions(isThisPhone: endpoint.id == selfId), id: \.self) { action in
+            switch action {
+            case .rename:
+                Button {
+                    renameText = endpoint.label
+                    renaming = RemoveTarget(id: endpoint.id, label: endpoint.label)
+                } label: {
+                    Label("Rename", systemImage: "pencil")
+                }
+            case .remove:
                 Button(role: .destructive) {
                     removing = RemoveTarget(id: endpoint.id, label: endpoint.label)
                 } label: {

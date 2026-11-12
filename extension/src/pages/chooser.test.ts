@@ -252,6 +252,30 @@ describe('the popup in English', () => {
     expect(rows[0]?.textContent).toContain('Main')
   })
 
+  it('says "uninstalled" in red for a phone Google or Apple reported gone (P-31 item 3)', async () => {
+    const v = view()
+    v.targets.push(
+      target('ep-s24', 'S24', 'mobile', {
+        endpoint: {
+          id: 'ep-s24',
+          label: 'S24',
+          kind: 'mobile',
+          presence: 'offline',
+          lastSeenAt: ago(60),
+          uninstalledAt: ago(30),
+        },
+      } as unknown as Partial<ChooserRow>),
+    )
+    answers.chooser = v
+    await openPopup()
+    const rows = buttonsIn('targets')
+    const s24 = rows[rows.length - 1] as FakeElement
+    expect(s24.getAttribute('aria-label')).toBe('Send to S24, Tabsend uninstalled')
+    expect(sub(s24)).toBe('Phone · uninstalled')
+    const status = s24.descendants().find((e) => e.classList.contains('last-seen'))
+    expect(status?.classList.contains('broken')).toBe(true)
+  })
+
   it('keeps the status as its own element, which a send swaps for "sending…"', async () => {
     await openPopup()
     answers.send = { ok: true, queued: false, offline: false, targetLabel: 'Arc' }

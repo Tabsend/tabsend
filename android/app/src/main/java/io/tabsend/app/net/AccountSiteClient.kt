@@ -1,6 +1,7 @@
 package io.tabsend.app.net
 
 import io.tabsend.app.logic.AccountLink
+import io.tabsend.app.logic.AccountSetup
 import io.tabsend.app.logic.AccountSite
 import io.tabsend.app.logic.Pairing
 import io.tabsend.app.logic.parseIsoMillis
@@ -30,6 +31,12 @@ data class AccountHandBack(
     val setupLink: String?,
     /** When the trial ends, in epoch milliseconds. Only for a [created] account. */
     val trialEndsAt: Long?,
+    /**
+     * The account's email address with most of it hidden (`m•••@example.org`), as the site masks it,
+     * for "Name this phone": a person who sees an address that is not theirs knows the link was not
+     * meant for this phone [review AL1]. Null when the site did not send one.
+     */
+    val maskedEmail: String? = null,
 )
 
 /** Why the account site's answer could not be used. */
@@ -37,6 +44,9 @@ class AccountSiteException(val kind: Kind) : IOException(kind.name) {
     enum class Kind {
         /** The link is old or was already used (the site answered 410). */
         LINK_EXPIRED,
+
+        /** The link was asked for by another phone (the site answered 403) [review AL1, AL3]. */
+        OTHER_PHONE,
 
         /** The site could not be reached. */
         UNREACHABLE,
@@ -49,15 +59,18 @@ class AccountSiteException(val kind: Kind) : IOException(kind.name) {
 /**
  * The one call the app makes to the account site: use a sign-up link (`POST /api/app/redeem`).
  * No cookie, no sign-in: the token in the emailed link is the credential, single use and good
- * for 15 minutes, exactly as when a web page posts it. Blocking: call off the main thread.
+ * for 15 minutes, exactly as when a web page posts it. The phone's own number goes with it, and
+ * the site refuses a link that was asked for by another phone (403). Blocking: call off the main thread.
  */
 class AccountSiteClient(
     private val site: () -> String = { AccountSite.base },
     private val http: OkHttpClient = shared,
 ) {
-    fun redeem(token: String): AccountHandBack {
-        if (!AccountLink.isPlausible(token)) throw AccountSiteException(AccountSiteException.Kind.UNEXPECTED)
-        val body = WireJson.encodeToString(RedeemRequest.serializer(), RedeemRequest(token)).toRequestBody(JSON)
+    fun redeem(token: String, number: String): AccountHandBack {
+        if (!AccountLink.isPlausible(token) || !AccountSetup.isPlausibleNumber(number)) {
+            throw AccountSiteException(AccountSiteException.Kind.UNEXPECTED)
+        }
+        val body = WireJson.encodeToString(RedeemRequest.serializer(), RedeemRequest(token, number)).toRequestBody(JSON)
         val request = try {
             Request.Builder().url("${site().trimEnd('/')}/api/app/redeem").post(body).build()
         } catch (_: IllegalArgumentException) {
@@ -73,6 +86,7 @@ class AccountSiteClient(
         } catch (_: IOException) {
             throw AccountSiteException(AccountSiteException.Kind.UNREACHABLE)
         }
+        if (status == 403) throw AccountSiteException(AccountSiteException.Kind.OTHER_PHONE)
         if (status == 410) throw AccountSiteException(AccountSiteException.Kind.LINK_EXPIRED)
         if (status != 200) throw AccountSiteException(AccountSiteException.Kind.UNEXPECTED)
         val answer = try {
@@ -88,20 +102,24 @@ class AccountSiteClient(
             created = answer.created,
             setupLink = answer.setupLink,
             trialEndsAt = answer.trialEndsAt?.let(::parseIsoMillis),
+            maskedEmail = answer.email?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_EMAIL },
         )
     }
 
     @Serializable
-    private data class RedeemRequest(val token: String)
+    private data class RedeemRequest(val token: String, val nonce: String)
 
     @Serializable
     private data class RedeemResponse(
         val created: Boolean,
         val setupLink: String? = null,
         val trialEndsAt: String? = null,
+        val email: String? = null,
     )
 
     private companion object {
+        /** An address longer than this is not shown: the site masks it, so a long one is not what it sent. */
+        const val MAX_EMAIL = 120
         val JSON = "application/json; charset=utf-8".toMediaType()
         val shared: OkHttpClient = OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)

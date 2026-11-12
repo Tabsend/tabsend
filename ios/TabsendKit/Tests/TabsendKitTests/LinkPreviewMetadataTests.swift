@@ -95,4 +95,13 @@ struct LinkPreviewMetadataTests {
             """)
         #expect(result["og:image"] == long)
     }
+
+    // No picture: the site's icon, asked for by the site's address alone, never the page's path or query.
+    @Test func siteIconsUseOnlyTheSite() {
+        #expect(LinkPreviewMetadata.siteIcons(for: URL(string: "https://OpenRouter.ai/activity?token=x")!).map(\.absoluteString) == [
+            "https://openrouter.ai/apple-touch-icon.png", "https://openrouter.ai/favicon.ico",
+        ])
+        #expect(LinkPreviewMetadata.siteIcons(for: URL(string: "https://printer.local/a")!).isEmpty)
+        #expect(LinkPreviewMetadata.siteIcons(for: URL(string: "http://example.com")!).isEmpty)
+    }
 }

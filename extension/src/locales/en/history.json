@@ -138,5 +138,21 @@
   "history.time.unknown": {
     "message": "unknown",
     "description": "Short relative time on a History entry when the time could not be read. Lowercase, one word."
+  },
+  "history.picturesAsk.title": {
+    "message": "Show a picture for every link?",
+    "description": "Heading of a one-time card on the History page offering to load each page's preview picture."
+  },
+  "history.picturesAsk.body": {
+    "message": "Tabsend would look up each page's picture, which needs your browser's permission. Some people keep this off for privacy.",
+    "description": "Body of the pictures card. Explains why the browser's permission prompt will appear."
+  },
+  "history.picturesAsk.allow": {
+    "message": "Turn on",
+    "description": "Button: opens the browser's permission prompt for loading pictures."
+  },
+  "history.picturesAsk.later": {
+    "message": "Not now",
+    "description": "Button: hides the pictures card for good."
   }
 }

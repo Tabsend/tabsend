@@ -8,8 +8,10 @@ import io.tabsend.app.logic.HistoryRow
 import io.tabsend.app.logic.LatestLine
 import io.tabsend.app.logic.Inbox
 import io.tabsend.app.logic.InboxItem
+import io.tabsend.app.logic.SendAgainTarget
 import io.tabsend.app.logic.parseIsoMillis
 import io.tabsend.app.wire.BatchInfo
+import io.tabsend.app.wire.Endpoint
 import io.tabsend.app.wire.GroupSealed
 import io.tabsend.app.wire.HistoryEntry
 import io.tabsend.app.wire.HistoryRecord
@@ -386,5 +388,42 @@ class HistoryTest {
         )
         val fromInbox = History.rows(emptyList(), listOf(projected), "self", now)
         assertEquals("https://cdn.example.com/b.jpg", fromInbox.single().image)
+    }
+
+    // PLANS P-31 item 4: Send again on a tab whose device has left the group.
+    private fun device(id: String, label: String) = Endpoint(
+        id = id, groupId = "g", kind = "extension", platform = "macos", label = label,
+        e2ePubkey = "k-$id", presence = "offline", lastSeenAt = "2026-11-07T00:00:00Z",
+        createdAt = "2026-11-01T00:00:00Z",
+    )
+
+    @Test
+    fun sendAgainGoesToTheSameDeviceWhileItIsInTheGroup() {
+        val dia = device("dia", "Dia")
+        val where = History.sendAgainTarget("dia", setOf("dia"), listOf(dia), listOf(dia))
+        assertEquals(SendAgainTarget.Same(dia), where)
+    }
+
+    @Test
+    fun sendAgainOffersTheChoicesByNameOnceTheDeviceIsGone() {
+        val pixel = device("pixel", "pixel 9")
+        val dia2 = device("dia-2", "Dia 2")
+        val where = History.sendAgainTarget("old-dia", setOf("pixel", "dia-2"), listOf(pixel, dia2), listOf(pixel, dia2))
+        assertEquals(SendAgainTarget.Gone(listOf(dia2, pixel)), where)
+    }
+
+    @Test
+    fun aDeviceTheRelayStillListsButThisPhoneRemovedIsGone() {
+        val old = device("old-dia", "Dia")
+        val dia2 = device("dia-2", "Dia 2")
+        // Listed, but not accepted (removed here, L3): never the same device again.
+        val where = History.sendAgainTarget("old-dia", setOf("dia-2"), listOf(old, dia2), listOf(dia2))
+        assertEquals(SendAgainTarget.Gone(listOf(dia2)), where)
+    }
+
+    @Test
+    fun withNothingAcceptedNothingCountsAsGone() {
+        val dia = device("dia", "Dia")
+        assertEquals(SendAgainTarget.Same(dia), History.sendAgainTarget("dia", emptySet(), listOf(dia), emptyList()))
     }
 }

@@ -60,6 +60,9 @@
   "devices.reset.title": {
     "message": "Jemand hat darum gebeten, alle deine Geräte zu entfernen"
   },
+  "devices.uninstalled.rowStatus": {
+    "message": "deinstalliert"
+  },
   "devices.unreachable.body": {
     "message": "Tabs, die du an dieses Gerät sendest, kommen nicht an. Das passiert, wenn Tabsend dort entfernt oder neu installiert wird oder wenn das Gerät aus deiner Geräteliste entfernt wurde. Koppel es erneut, um weiter dorthin zu senden."
   },

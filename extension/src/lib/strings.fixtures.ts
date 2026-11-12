@@ -18,7 +18,14 @@ import * as strings from './strings'
 export const NOW = Date.parse('2026-10-27T12:00:00Z')
 const iso = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60000).toISOString()
 
-const REASONS = ['unknown_target', 'expired_key', 'not_in_group', 'limit_reached', 'new_reason']
+const REASONS = [
+  'unknown_target',
+  'expired_key',
+  'not_in_group',
+  'limit_reached',
+  'target_uninstalled',
+  'new_reason',
+]
 const LIMITS: (GroupLimit | undefined)[] = [
   undefined,
   'sends_per_window',
@@ -188,6 +195,7 @@ export function collectStrings(): Record<string, string> {
   put('unreachableCopy.pairAgain', s.unreachableCopy.pairAgain('Pixel 9'))
   put('unreachableCopy.dismiss', s.unreachableCopy.dismiss)
   put('unreachableCopy.rowStatus', s.unreachableCopy.rowStatus)
+  put('unreachableCopy.uninstalledStatus', s.unreachableCopy.uninstalledStatus)
   put('unreachableCopy.tooltip/1', s.unreachableCopy.tooltip(['Pixel 9']))
   put('unreachableCopy.tooltip/2', s.unreachableCopy.tooltip(['Pixel 9', 'iPad']))
   put('unreachableCopy.tooltip/3', s.unreachableCopy.tooltip(['Pixel 9', 'iPad', 'Home PC']))

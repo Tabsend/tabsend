@@ -1,5 +1,6 @@
 import { t } from '../lib/i18n'
 import type { DeviceRow, RpcRequest } from '../lib/model'
+import { unreachableCopy } from '../lib/strings'
 
 /**
  * The group's device list, with Rename and Remove on each row. Shared by the
@@ -38,7 +39,12 @@ export function removeIfConfirmed(
   return { type: 'removeEndpoint', endpointId: dev.endpointId }
 }
 
-export function deviceSubline(dev: Pick<DeviceRow, 'isSelf' | 'presenceLabel'>): string {
+export function deviceSubline(
+  dev: Pick<DeviceRow, 'isSelf' | 'presenceLabel' | 'uninstalled'>,
+): string {
+  // Google or Apple proved Tabsend uninstalled there (P-31 item 3): said instead of
+  // presence, in red, beside the row's Remove (owner's pick B, 2026-11-09).
+  if (dev.uninstalled) return unreachableCopy.uninstalledStatus
   return dev.isSelf
     ? t('devices.list.thisBrowser', { presence: dev.presenceLabel })
     : dev.presenceLabel
@@ -54,7 +60,7 @@ export function renderDeviceList(
     const li = document.createElement('li')
 
     const dot = document.createElement('span')
-    dot.className = `dot ${!dev.presenceKnown ? 'unknown' : dev.online ? 'online' : 'offline'}`
+    dot.className = `dot ${dev.uninstalled ? 'broken' : !dev.presenceKnown ? 'unknown' : dev.online ? 'online' : 'offline'}`
     li.append(dot)
 
     const main = document.createElement('div')
@@ -63,7 +69,7 @@ export function renderDeviceList(
     label.className = 'dev-label'
     label.textContent = dev.label
     const sub = document.createElement('div')
-    sub.className = 'dev-sub'
+    sub.className = dev.uninstalled ? 'dev-sub broken' : 'dev-sub'
     sub.textContent = deviceSubline(dev)
     main.append(label, sub)
     li.append(main)

@@ -6,6 +6,7 @@ import { type Database, isPostgresUrl, legacyGroupDefaults } from './db'
 import type { EndpointRow } from './db/schema'
 import { newId, newPairingCode } from './ids'
 import { pairingLinks } from './pairing-links'
+import { endWaitingSends } from './removal'
 import { addMs, iso } from './time'
 
 /**
@@ -286,8 +287,9 @@ export async function mintFirstPairingForGroup(
 
 /**
  * Remove leftovers the way a device removal does (routes/endpoints.ts): a tombstone first,
- * so the device gets a definitive "removed" if it ever calls again, then the row and any
- * group-key copies to or from it. Inside the mint's transaction and group hold.
+ * so the device gets a definitive "removed" if it ever calls again, then the row, the
+ * tabs still waiting for it (`endWaitingSends`) and any group-key copies to or from it.
+ * Inside the mint's transaction and group hold.
  */
 async function removeLeftovers(
   trx: Transaction<Database>,
@@ -308,6 +310,7 @@ async function removeLeftovers(
     )
     .execute()
   await trx.deleteFrom('endpoints').where('id', 'in', ids).execute()
+  await endWaitingSends(trx, groupId, ids, iso(now))
   await trx
     .deleteFrom('group_keys')
     .where('group_id', '=', groupId)

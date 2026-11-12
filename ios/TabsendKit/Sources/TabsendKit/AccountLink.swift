@@ -62,12 +62,14 @@ public enum AccountLink: Equatable, Sendable {
     }
 
     /// The sign-in page the sheet opens for a `.signIn` link: the same token, in the fragment
-    /// as the account site always carries it, so the page signs in inside the sheet.
-    public func signInPage(site: String = AccountSetup.defaultSite) -> URL? {
-        guard case let .signIn(token) = self else { return nil }
+    /// as the account site always carries it, so the page signs in inside the sheet. `number` is
+    /// this phone's number (`AccountSetup.phoneNumber`); the site only signs in the phone that
+    /// asked for the link, so a link without a number this phone made gets no page (nil).
+    public func signInPage(number: String, site: String = AccountSetup.defaultSite) -> URL? {
+        guard case let .signIn(token) = self, AccountSetup.isPlausible(number: number) else { return nil }
         var base = site
         while base.hasSuffix("/") { base.removeLast() }
-        return URL(string: "\(base)/signin?from=app#t=\(token)")
+        return URL(string: "\(base)/signin?from=app#t=\(token)&n=\(number)")
     }
 
     /// The account site's tokens are long and made of letters, digits, `-` and `_`. Anything
@@ -90,17 +92,23 @@ public struct AccountHandBack: Equatable, Sendable {
     public var setupLink: String?
     /// When the trial ends. Only for a `created` account.
     public var trialEndsAt: Date?
+    /// The account's address with most of it hidden (`b•••@example.org`), so the person can see
+    /// which account the phone just joined. Nil from a site that does not say.
+    public var maskedEmail: String?
 
-    public init(created: Bool, setupLink: String?, trialEndsAt: Date?) {
+    public init(created: Bool, setupLink: String?, trialEndsAt: Date?, maskedEmail: String? = nil) {
         self.created = created
         self.setupLink = setupLink
         self.trialEndsAt = trialEndsAt
+        self.maskedEmail = maskedEmail
     }
 }
 
 public enum AccountSiteError: Error, Equatable, Sendable {
     /// The link is old or was already used (the site answered 410).
     case linkExpired
+    /// The link was asked for by another phone (the site answered 403). It still works there.
+    case otherPhone
     /// The site could not be reached.
     case unreachable
     /// The site answered something this app does not understand.
@@ -109,25 +117,29 @@ public enum AccountSiteError: Error, Equatable, Sendable {
 
 /// The one call the app makes to the account site: use a sign-up link (`POST /api/app/redeem`).
 /// No cookie, no sign-in: the token in the emailed link is the credential, single use and good
-/// for 15 minutes, exactly as when a web page posts it.
+/// for 15 minutes, together with this phone's number (`AccountSetup.phoneNumber`): the site
+/// only takes the link from the phone that asked for it.
 public enum AccountSiteClient {
     public typealias Send = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     public static func redeem(
         token: String,
+        number: String,
         site: String = AccountSetup.defaultSite,
         send: Send = { try await URLSession.shared.data(for: $0) }
     ) async throws -> AccountHandBack {
         var base = site
         while base.hasSuffix("/") { base.removeLast() }
-        guard AccountLink.isPlausible(token: token),
+        guard AccountLink.isPlausible(token: token), AccountSetup.isPlausible(number: number),
               let url = URL(string: "\(base)/api/app/redeem")
         else { throw AccountSiteError.unexpected }
 
         var request = URLRequest(url: url, timeoutInterval: 20)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try? JSONEncoder().encode(["token": token])
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        request.httpBody = try? encoder.encode(["token": token, "nonce": number])
 
         let data: Data
         let response: URLResponse
@@ -138,6 +150,7 @@ public enum AccountSiteClient {
         }
         guard let http = response as? HTTPURLResponse else { throw AccountSiteError.unexpected }
         if http.statusCode == 410 { throw AccountSiteError.linkExpired }
+        if http.statusCode == 403 { throw AccountSiteError.otherPhone }
         guard http.statusCode == 200,
               let body = try? JSONDecoder().decode(Body.self, from: data)
         else { throw AccountSiteError.unexpected }
@@ -146,7 +159,8 @@ public enum AccountSiteClient {
         return AccountHandBack(
             created: body.created,
             setupLink: body.setupLink,
-            trialEndsAt: body.trialEndsAt.flatMap(WireDate.date(from:))
+            trialEndsAt: body.trialEndsAt.flatMap(WireDate.date(from:)),
+            maskedEmail: body.email
         )
     }
 
@@ -154,5 +168,6 @@ public enum AccountSiteClient {
         var created: Bool
         var setupLink: String?
         var trialEndsAt: String?
+        var email: String?
     }
 }

@@ -30,6 +30,7 @@ class AccountFirstRunTest {
 
     private val token = "AbC-123_xyzAbC-123_xyzAbC-123_xyzAbC-123_xyz"
     private val setup = "https://app.tabsend.org/pair#c=ABCD2345"
+    private val phone = "PhoneNumber-0123456789_abcdefghijklmnopqrs"
 
     // --- the rule for the door -------------------------------------------------
 
@@ -87,6 +88,132 @@ class AccountFirstRunTest {
         assertEquals(
             "http://10.0.2.2:8790/start?from=app",
             AccountSetup.url(AccountSetup.Page.START, "http://10.0.2.2:8790/"),
+        )
+    }
+
+    // --- the number that ties a link to this phone (AL1, AL3) -------------------
+
+    @Test
+    fun `a new number is 43 URL-safe characters and never the same twice`() {
+        val first = AccountSetup.newNumber()
+        assertEquals(43, first.length)
+        assertTrue(first, AccountSetup.isPlausibleNumber(first))
+        assertTrue(first, first.all { it.isLetterOrDigit() || it == '-' || it == '_' })
+        assertTrue(first != AccountSetup.newNumber())
+    }
+
+    @Test
+    fun `only 22 to 128 letters, digits, dashes and underscores can be a number`() {
+        assertTrue(AccountSetup.isPlausibleNumber("a".repeat(22)))
+        assertTrue(AccountSetup.isPlausibleNumber("a-Z_9".repeat(25).take(128)))
+        assertFalse(AccountSetup.isPlausibleNumber("a".repeat(21)))
+        assertFalse(AccountSetup.isPlausibleNumber("a".repeat(129)))
+        for (bad in listOf("", "a".repeat(30) + "=", "a".repeat(30) + " ", "a".repeat(30) + "&", "a".repeat(30) + "#", "a".repeat(30) + "é")) {
+            assertFalse(bad, AccountSetup.isPlausibleNumber(bad))
+        }
+    }
+
+    @Test
+    fun `a number is live for a day, then gone, and not before it was made`() {
+        val at = 1_000_000_000L
+        assertEquals(phone, AccountSetup.liveNumber(phone, at, at))
+        assertEquals(phone, AccountSetup.liveNumber(phone, at, at + AccountSetup.PENDING_WINDOW_MS))
+        assertNull(AccountSetup.liveNumber(phone, at, at + AccountSetup.PENDING_WINDOW_MS + 1))
+        // A clock set back is not live either.
+        assertNull(AccountSetup.liveNumber(phone, at, at - 1))
+        assertNull(AccountSetup.liveNumber(null, at, at))
+        assertNull(AccountSetup.liveNumber(phone, null, at))
+        assertNull(AccountSetup.liveNumber("short", at, at))
+    }
+
+    @Test
+    fun `the store makes one number, reuses it, and moves its day on each time a sheet asks`() {
+        val store = Store.over(MemoryPrefs())
+        val start = 1_000_000_000L
+        assertNull(store.livePhoneNumber(start))
+        val first = store.phoneNumber(start)
+        assertTrue(first, AccountSetup.isPlausibleNumber(first))
+        assertEquals(first, store.livePhoneNumber(start))
+        // Asking again later hands out the same number.
+        val dayLater = start + AccountSetup.PENDING_WINDOW_MS - 1
+        assertEquals(first, store.phoneNumber(dayLater))
+        // ...and its day starts again from there: still live past the first day.
+        assertEquals(first, store.livePhoneNumber(start + AccountSetup.PENDING_WINDOW_MS + 60_000))
+        // Left alone for more than a day it is gone, and the next sheet makes a new one.
+        val afterLonely = dayLater + AccountSetup.PENDING_WINDOW_MS + 1
+        assertNull(store.livePhoneNumber(afterLonely))
+        val second = store.phoneNumber(afterLonely)
+        assertTrue(first != second)
+        assertEquals(second, store.livePhoneNumber(afterLonely))
+    }
+
+    @Test
+    fun `reading the number never makes one, and a clock set back reads as none`() {
+        val store = Store.over(MemoryPrefs())
+        val start = 1_000_000_000L
+        assertNull(store.livePhoneNumber(start))
+        assertNull(store.livePhoneNumber(start))
+        val number = store.phoneNumber(start)
+        assertEquals(number, store.livePhoneNumber(start + 1))
+        assertNull(store.livePhoneNumber(start - 1))
+    }
+
+    @Test
+    fun `finishing the pairing and unpairing both forget the number`() {
+        val store = Store.over(MemoryPrefs())
+        store.phoneNumber(1_000L)
+        store.forgetPhoneNumber()
+        assertNull(store.livePhoneNumber(1_000L))
+        store.phoneNumber(1_000L)
+        store.clear()
+        assertNull(store.livePhoneNumber(1_000L))
+    }
+
+    @Test
+    fun `a stored number that was damaged is no number`() {
+        val prefs = MemoryPrefs()
+        prefs.values["account.phoneNumber"] = "not a number!"
+        prefs.values["account.phoneNumberAt"] = 1_000L
+        assertNull(Store.over(prefs).livePhoneNumber(1_000L))
+    }
+
+    @Test
+    fun `every sheet carries the number in its fragment, and the delete page keeps its own marker first`() {
+        assertEquals(
+            "https://account.tabsend.org/start?from=app#n=$phone",
+            AccountSetup.url(AccountSetup.Page.START, number = phone),
+        )
+        assertEquals(
+            "https://account.tabsend.org/account?from=app#n=$phone",
+            AccountSetup.url(AccountSetup.Page.ACCOUNT, number = phone),
+        )
+        assertEquals(
+            "https://account.tabsend.org/share?from=app#n=$phone",
+            AccountSetup.url(AccountSetup.Page.SHARE, number = phone),
+        )
+        assertEquals(
+            "https://account.tabsend.org/account?from=app#danger&n=$phone",
+            AccountSetup.url(AccountSetup.Page.DELETE, number = phone),
+        )
+        assertEquals(
+            "http://10.0.2.2:8790/start?from=app#n=$phone",
+            AccountSetup.url(AccountSetup.Page.START, "http://10.0.2.2:8790/", phone),
+        )
+    }
+
+    @Test
+    fun `a number that cannot be one is left out of the address`() {
+        for (bad in listOf("", "short", "has space ${"a".repeat(30)}")) {
+            assertEquals("https://account.tabsend.org/start?from=app", AccountSetup.url(AccountSetup.Page.START, number = bad))
+        }
+    }
+
+    @Test
+    fun `Google's token goes in ahead of the number, which stays in the fragment`() {
+        val url = AccountSetup.url(AccountSetup.Page.START, number = phone)
+        assertEquals(
+            "https://account.tabsend.org/start?from=app&gpt=TOKEN#n=$phone",
+            io.tabsend.app.logic.LinkOut.withToken(url, "TOKEN"),
         )
     }
 
@@ -180,10 +307,21 @@ class AccountFirstRunTest {
     }
 
     @Test
-    fun `a sign-in link opens the sheet on the sign-in page with the same token`() {
+    fun `a sign-in link opens the sheet on the sign-in page with the same token and this phone's number`() {
         val link = AccountLink.SignIn(token)
-        assertEquals("https://account.tabsend.org/signin?from=app#t=$token", AccountLink.signInPage(link))
-        assertEquals("http://10.0.2.2:8790/signin?from=app#t=$token", AccountLink.signInPage(link, "http://10.0.2.2:8790/"))
+        assertEquals("https://account.tabsend.org/signin?from=app#t=$token&n=$phone", AccountLink.signInPage(link, phone))
+        assertEquals(
+            "http://10.0.2.2:8790/signin?from=app#t=$token&n=$phone",
+            AccountLink.signInPage(link, phone, "http://10.0.2.2:8790/"),
+        )
+    }
+
+    @Test
+    fun `a sign-in page is not made from a number that cannot be one`() {
+        val link = AccountLink.SignIn(token)
+        for (bad in listOf("", "short", "has space ${"a".repeat(30)}", "a".repeat(129), "${"a".repeat(30)}&t=x", "${"a".repeat(30)}#x")) {
+            assertNull(bad, AccountLink.signInPage(link, bad))
+        }
     }
 
     // --- the plan words -------------------------------------------------------
@@ -252,21 +390,21 @@ class AccountFirstRunTest {
     fun `redeem posts the token and reads the hand-back of a new account`() {
         val answer = """{"created":true,"setupLink":"$setup","trialEndsAt":"2026-11-18T14:00:00.000Z"}"""
         OneShot(200, answer).use { server ->
-            val back = AccountSiteClient({ server.url }).redeem(token)
+            val back = AccountSiteClient({ server.url }).redeem(token, phone)
             assertTrue(back.created)
             assertEquals(setup, back.setupLink)
             assertEquals(java.time.Instant.parse("2026-11-18T14:00:00.000Z").toEpochMilli(), back.trialEndsAt)
             val head = requireNotNull(server.request)
             assertTrue(head, head.startsWith("POST /api/app/redeem "))
             assertTrue(head, head.contains("application/json"))
-            assertEquals("""{"token":"$token"}""", server.body)
+            assertEquals("""{"token":"$token","nonce":"$phone"}""", server.body)
         }
     }
 
     @Test
     fun `a returning account has no trial date, and a group with a device has no setup link`() {
         OneShot(200, """{"created":false,"setupLink":null,"trialEndsAt":null}""").use { server ->
-            val back = AccountSiteClient({ server.url }).redeem(token)
+            val back = AccountSiteClient({ server.url }).redeem(token, phone)
             assertFalse(back.created)
             assertNull(back.setupLink)
             assertNull(back.trialEndsAt)
@@ -276,33 +414,67 @@ class AccountFirstRunTest {
     @Test
     fun `an old or used link is 410 and says so`() {
         OneShot(410, """{"error":"gone"}""").use { server ->
-            assertKind(AccountSiteException.Kind.LINK_EXPIRED) { AccountSiteClient({ server.url }).redeem(token) }
+            assertKind(AccountSiteException.Kind.LINK_EXPIRED) { AccountSiteClient({ server.url }).redeem(token, phone) }
+        }
+    }
+
+    @Test
+    fun `a link asked for by another phone is 403 and says so`() {
+        OneShot(403, """{"error":"link_other_phone"}""").use { server ->
+            assertKind(AccountSiteException.Kind.OTHER_PHONE) { AccountSiteClient({ server.url }).redeem(token, phone) }
+        }
+    }
+
+    @Test
+    fun `the hand-back carries the masked email, and one that is not an address is dropped`() {
+        val answer = """{"created":true,"setupLink":"$setup","trialEndsAt":null,"email":"m•••@example.org"}"""
+        OneShot(200, answer).use { server ->
+            assertEquals("m•••@example.org", AccountSiteClient({ server.url }).redeem(token, phone).maskedEmail)
+        }
+        OneShot(200, """{"created":true,"setupLink":"$setup","email":"   "}""").use { server ->
+            assertNull(AccountSiteClient({ server.url }).redeem(token, phone).maskedEmail)
+        }
+        OneShot(200, """{"created":true,"setupLink":"$setup","email":"${"x".repeat(121)}"}""").use { server ->
+            assertNull(AccountSiteClient({ server.url }).redeem(token, phone).maskedEmail)
+        }
+        OneShot(200, """{"created":true,"setupLink":"$setup"}""").use { server ->
+            assertNull(AccountSiteClient({ server.url }).redeem(token, phone).maskedEmail)
+        }
+    }
+
+    @Test
+    fun `a number that cannot be one is never sent`() {
+        OneShot(200).use { server ->
+            for (bad in listOf("", "short", "has space ${"a".repeat(30)}")) {
+                assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem(token, bad) }
+            }
+            assertNull(server.request)
         }
     }
 
     @Test
     fun `any other answer, and an answer that cannot be read, is unexpected`() {
         OneShot(500, "boom").use { server ->
-            assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem(token) }
+            assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem(token, phone) }
         }
         OneShot(200, "not json").use { server ->
-            assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem(token) }
+            assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem(token, phone) }
         }
         OneShot(200, """{"created":true,"setupLink":"not a setup link"}""").use { server ->
-            assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem(token) }
+            assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem(token, phone) }
         }
     }
 
     @Test
     fun `an unreachable site is unreachable`() {
         val closed = OneShot(200).let { it.close(); it.url }
-        assertKind(AccountSiteException.Kind.UNREACHABLE) { AccountSiteClient({ closed }).redeem(token) }
+        assertKind(AccountSiteException.Kind.UNREACHABLE) { AccountSiteClient({ closed }).redeem(token, phone) }
     }
 
     @Test
     fun `a token that cannot be one is never sent`() {
         OneShot(200).use { server ->
-            assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem("bad token!") }
+            assertKind(AccountSiteException.Kind.UNEXPECTED) { AccountSiteClient({ server.url }).redeem("bad token!", phone) }
             assertNull(server.request)
         }
     }
@@ -313,6 +485,15 @@ class AccountFirstRunTest {
     fun `a new account goes on to Name this phone with the trial date`() {
         val outcome = RedeemOutcome.of { AccountHandBack(created = true, setupLink = setup, trialEndsAt = 5L) }
         assertEquals(RedeemOutcome.Arrived(AccountArrival(setup, created = true, trialEndsAt = 5L)), outcome)
+    }
+
+    @Test
+    fun `the masked email goes on to Name this phone`() {
+        val outcome = RedeemOutcome.of { AccountHandBack(created = false, setupLink = setup, trialEndsAt = null, maskedEmail = "m•••@example.org") }
+        assertEquals(
+            RedeemOutcome.Arrived(AccountArrival(setup, created = false, trialEndsAt = null, maskedEmail = "m•••@example.org")),
+            outcome,
+        )
     }
 
     @Test
@@ -333,6 +514,7 @@ class AccountFirstRunTest {
         fun failure(kind: AccountSiteException.Kind) =
             RedeemOutcome.of { throw AccountSiteException(kind) }
         assertEquals(RedeemOutcome.Failed(RedeemOutcome.Reason.EXPIRED), failure(AccountSiteException.Kind.LINK_EXPIRED))
+        assertEquals(RedeemOutcome.Failed(RedeemOutcome.Reason.OTHER_PHONE), failure(AccountSiteException.Kind.OTHER_PHONE))
         assertEquals(RedeemOutcome.Failed(RedeemOutcome.Reason.UNREACHABLE), failure(AccountSiteException.Kind.UNREACHABLE))
         assertEquals(RedeemOutcome.Failed(RedeemOutcome.Reason.UNEXPECTED), failure(AccountSiteException.Kind.UNEXPECTED))
     }

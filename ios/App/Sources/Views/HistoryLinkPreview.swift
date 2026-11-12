@@ -11,6 +11,8 @@ struct LinkPreviewState {
         /// Still asking. A plain tile; the row is already usable.
         case loading
         case picture(UIImage)
+        /// No picture, but the site's own icon: shown small in the middle of the tile.
+        case icon(UIImage)
         /// No picture, a failed one, or Website images off: the site's first letter.
         case letter
     }
@@ -43,7 +45,7 @@ struct LinkPreviewReader<Content: View>: View {
         guard requests else { return LinkPreviewState(slot: .letter) }
         let title = preview?.title.flatMap { $0.isEmpty ? nil : $0 }
         if let image = preview?.image {
-            return LinkPreviewState(pageTitle: title, slot: .picture(image))
+            return LinkPreviewState(pageTitle: title, slot: preview?.isIcon == true ? .icon(image) : .picture(image))
         }
         return LinkPreviewState(pageTitle: title, slot: finished ? .letter : .loading)
     }
@@ -79,6 +81,12 @@ struct SitePicture: View {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
+                case .icon(let image):
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 case .letter:
                     Text(letter)
                         .font(letterFont)

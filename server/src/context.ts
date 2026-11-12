@@ -53,7 +53,9 @@ export async function authenticateToken(ctx: AppContext, token: string): Promise
   const seenAt = iso(ctx.now())
   const touched = await ctx.db
     .updateTable('endpoints')
-    .set({ last_seen_at: seenAt })
+    // A device that can call at all is installed, whatever its push service said
+    // earlier (PLANS P-31 item 3): any authenticated call clears the mark.
+    .set({ last_seen_at: seenAt, uninstalled_at: null })
     .where('id', '=', row.id)
     .executeTakeFirst()
   // Gone between the read and this write: removed, or deleted with its whole group
@@ -62,7 +64,7 @@ export async function authenticateToken(ctx: AppContext, token: string): Promise
   // register a socket for a tenancy the control plane had just been told was gone.
   if (Number(touched.numUpdatedRows ?? 0n) === 0) return refuseUnknownToken(ctx, token)
 
-  return { ...row, last_seen_at: seenAt }
+  return { ...row, last_seen_at: seenAt, uninstalled_at: null }
 }
 
 /**

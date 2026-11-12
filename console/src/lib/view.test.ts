@@ -174,6 +174,25 @@ describe('deliveryBadge', () => {
     )
   })
 
+  // PLANS P-31 item 4: the relay ends a tab waiting for a device the moment it leaves.
+  it('says why a tab never arrived when its device has left the group', () => {
+    const never = {
+      createdAt: new Date(NOW - 1000).toISOString(),
+      expiresAt: new Date(NOW - 500).toISOString(),
+      deliveredAt: null,
+      ackedAt: null,
+    }
+    const gone = entry(never)
+    const others = [makeEndpoint({ id: 'still-here' as EndpointId })]
+    expect(deliveryBadge(gone, NOW, others)?.label).toBe('Never arrived')
+    expect(deliveryBadge(gone, NOW, others)?.note).toBe(
+      `${gone.targetLabelAtSend} is no longer in your group, so this tab can't arrive.`,
+    )
+    // Still in the group, or a list not loaded yet: the plain note.
+    const here = [makeEndpoint({ id: gone.targetEndpointId as EndpointId })]
+    expect(deliveryBadge(gone, NOW, here)?.note).toBe(deliveryBadge(gone, NOW)?.note)
+  })
+
   it('says nothing at all about an ADR-0010 copy, which carries no delivery facts', () => {
     // A copy proves a send was made. Rendering "waiting" there would be inventing
     // a fact the console does not have.

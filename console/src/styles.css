@@ -449,6 +449,10 @@ code {
   color: var(--amber);
   border-color: color-mix(in srgb, var(--amber) 35%, var(--border));
 }
+.tag-broken {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
 
 /* history */
 .history-list {
@@ -686,4 +690,49 @@ a.entry-title:hover {
   justify-content: center;
   gap: 9px;
   margin-top: 4px;
+}
+
+/* P-22: the share box under "Add a device" and the Help Tabsend rows. */
+.share-box {
+  position: relative;
+  margin: 12px 0;
+  padding: 12px 40px 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+}
+.share-box p {
+  margin: 4px 0 10px;
+}
+.share-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.share-dismiss:hover {
+  background: var(--border);
+}
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+.linkish {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
 }

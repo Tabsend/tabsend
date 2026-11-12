@@ -75,6 +75,10 @@
     "message": "The receiving device never confirmed this tab, and the relay has stopped holding it.",
     "description": "Tooltip on the “Never arrived” label. The “receiving device” is the device the tab was sent to."
   },
+  "history.state.neverArrivedGoneNote": {
+    "message": "{device} is no longer in your group, so this tab can't arrive.",
+    "description": "Tooltip on the “Never arrived” label when the device the tab was sent to has since left the group (removed, or replaced by a new pairing). {device} is that device's name."
+  },
   "history.sealed.title": {
     "message": "Waiting for the key that opens this one",
     "description": "Quiet line in place of a history entry's title when this console cannot read the entry because it lacks the group's encryption key. Same words as in the browser extension."

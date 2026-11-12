@@ -340,6 +340,34 @@
                 android:textAppearance="@style/TextAppearance.Tabsend.RowDetail"
                 android:textSize="16sp" />
 
+            <!-- Whose account this phone is about to join, with most of the address hidden. Hidden
+                 when the account site sent none. -->
+            <LinearLayout
+                android:id="@+id/arrivalAccount"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_mail"
+                    app:tint="?attr/colorOnSurfaceVariant" />
+
+                <TextView
+                    android:id="@+id/arrivalAccountText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:textAppearance="@style/TextAppearance.Tabsend.RowTitle"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
             <com.google.android.material.textfield.TextInputLayout
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
@@ -685,6 +713,77 @@
                                 android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
                         </LinearLayout>
 
+                        <!-- ===== Share box (P-22) =====
+                             Under the device list, so under "Add a device". A small card:
+                             a short text, "Read more", a button, and an X. Filled and shown by
+                             MainActivity.renderShareBox, only when InAppAsks.shareBox says so. -->
+                        <LinearLayout
+                            android:id="@+id/shareBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="28dp"
+                            android:background="@drawable/bg_panel"
+                            android:orientation="vertical"
+                            android:paddingStart="16dp"
+                            android:paddingTop="8dp"
+                            android:paddingEnd="4dp"
+                            android:paddingBottom="12dp"
+                            android:visibility="gone">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:accessibilityHeading="true"
+                                    android:text="@string/share_box_title"
+                                    android:textAppearance="@style/TextAppearance.Tabsend.RowTitle" />
+
+                                <ImageButton
+                                    android:id="@+id/shareBoxDismiss"
+                                    android:layout_width="48dp"
+                                    android:layout_height="48dp"
+                                    android:background="?attr/selectableItemBackgroundBorderless"
+                                    android:contentDescription="@string/share_box_dismiss"
+                                    android:src="@drawable/ic_close"
+                                    app:tint="@color/ts_phone_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/shareBoxBody"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="12dp"
+                                android:textAppearance="@style/TextAppearance.Tabsend.RowDetail" />
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/shareBoxButton"
+                                    style="@style/Widget.Tabsend.Button.Tonal"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/share_tabsend" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/shareBoxMore"
+                                    style="@style/Widget.Tabsend.Button.Tertiary"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/share_box_read_more" />
+                            </LinearLayout>
+                        </LinearLayout>
+
                     </LinearLayout>
                 </androidx.core.widget.NestedScrollView>
 
@@ -968,6 +1067,50 @@
                                 android:layout_height="wrap_content"
                                 android:text="@string/account_delete"
                                 android:textColor="@color/ts_danger"
+                                app:icon="@drawable/ic_open_in_new"
+                                app:iconGravity="end"
+                                app:iconTint="@color/ts_phone_muted" />
+                        </LinearLayout>
+
+                        <!-- ===== Help Tabsend (P-22) =====
+                             Share always shows; Rate only once HelpTabsend.REVIEW_URL is set. -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="28dp"
+                                android:accessibilityHeading="true"
+                                android:text="@string/section_help_tabsend"
+                                android:textAppearance="@style/TextAppearance.Tabsend.Subheader" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/helpShareButton"
+                                style="@style/Widget.Tabsend.Button.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/share_tabsend" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/helpRateButton"
+                                style="@style/Widget.Tabsend.Button.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/rate_tabsend"
+                                android:visibility="gone"
+                                app:icon="@drawable/ic_open_in_new"
+                                app:iconGravity="end"
+                                app:iconTint="@color/ts_phone_muted" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/helpFeedbackButton"
+                                style="@style/Widget.Tabsend.Button.Row"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="@string/feedback_row"
                                 app:icon="@drawable/ic_open_in_new"
                                 app:iconGravity="end"
                                 app:iconTint="@color/ts_phone_muted" />

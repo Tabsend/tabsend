@@ -69,6 +69,9 @@
   "send.failure.relayUnreachablePage": {
     "message": "{count, plural, one {Dein Relay ist nicht erreichbar. Der Tab bleibt hier gespeichert und wird automatisch gesendet, sobald das Relay wieder antwortet.} other {Dein Relay ist nicht erreichbar. Die Tabs bleiben hier gespeichert und werden automatisch gesendet, sobald das Relay wieder antwortet.}}"
   },
+  "send.failure.targetUninstalled": {
+    "message": "{count, plural, one {Tabsend wurde auf {device} deinstalliert, deshalb kann dieser Tab es nicht erreichen. Entferne {device} aus deinen Geräten oder koppele es erneut, falls du Tabsend neu installiert hast.} other {Tabsend wurde auf {device} deinstalliert, deshalb können diese Tabs es nicht erreichen. Entferne {device} aus deinen Geräten oder koppele es erneut, falls du Tabsend neu installiert hast.}}"
+  },
   "send.failure.unauthorized": {
     "message": "Dein Relay erkennt diesen Browser nicht mehr. Richte Tabsend hier erneut ein, damit du wieder senden kannst."
   },

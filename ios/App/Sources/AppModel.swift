@@ -81,6 +81,10 @@ final class AppModel: ObservableObject {
     @Published var pendingReset: GroupResetState?
     /// True while "Stop the reset" is on its way to the relay.
     @Published var stoppingReset = false
+    /// An old offline copy of THIS phone found right after it paired (a reinstall), offered
+    /// for replacing (docs/PLANS.md P-31 item 2). Set only by `join`, never stored, so it shows
+    /// during this phone's own setup and never on a later launch or another device.
+    @Published var replacingOffer: Endpoint?
 
     private init() {
         registration = store.registration
@@ -154,17 +158,28 @@ final class AppModel: ObservableObject {
     func openAccountLink(_ link: AccountLink) async {
         switch link {
         case .signIn:
-            accountSignInURL = link.signInPage(site: AccountSite.base)
+            // Only the phone that asked for a sign-in link takes it: a link forwarded from
+            // someone else's email would sign this phone in as them (review AL3). The site
+            // checks the number too; a phone that made none has no page to open.
+            guard let number = AccountSetup.livePhoneNumber() else {
+                banner = Self.linkForAnotherPhoneLine
+                return
+            }
+            accountSignInURL = link.signInPage(number: number, site: AccountSite.base)
         case .newAccount(let token):
             // A phone that is paired has its group; a second one is not made here. And only a
             // phone that asked for a sign-up takes the link: one that arrives cold, from someone
             // else's email, would put this phone in a stranger's group (review AL1).
-            guard registration == nil, !redeemingAccountLink, AccountSetup.isPending() else { return }
+            guard registration == nil, !redeemingAccountLink else { return }
+            guard AccountSetup.isPending(), let number = AccountSetup.livePhoneNumber() else {
+                banner = Self.linkForAnotherPhoneLine
+                return
+            }
             banner = nil
             redeemingAccountLink = true
             defer { redeemingAccountLink = false }
             do {
-                let handBack = try await AccountSiteClient.redeem(token: token, site: AccountSite.base)
+                let handBack = try await AccountSiteClient.redeem(token: token, number: number, site: AccountSite.base)
                 guard let setupLink = handBack.setupLink else {
                     banner = String(
                         localized: "This account already has a device. On a paired device, choose Add a device, then scan its code here.",
@@ -175,8 +190,11 @@ final class AppModel: ObservableObject {
                 accountArrival = AccountArrival(
                     link: setupLink,
                     accountCreated: handBack.created,
-                    trialEndsAt: handBack.trialEndsAt
+                    trialEndsAt: handBack.trialEndsAt,
+                    maskedEmail: handBack.maskedEmail
                 )
+            } catch AccountSiteError.otherPhone {
+                banner = Self.linkForAnotherPhoneLine
             } catch AccountSiteError.linkExpired {
                 banner = String(
                     localized: "That sign-in link has expired or was already used. Set up an account again to get a new one.",
@@ -194,6 +212,15 @@ final class AppModel: ObservableObject {
                 )
             }
         }
+    }
+
+    /// The line for an account link this phone did not ask for: the site said so, or this phone
+    /// has no sign-in or sign-up of its own waiting (review AL1, AL3).
+    private static var linkForAnotherPhoneLine: String {
+        String(
+            localized: "This link only works on the phone that asked for it. Ask for a new one in this app.",
+            comment: "Banner when an emailed account link is opened on a phone other than the one that asked for it (for example a link forwarded to someone else), or on a phone with no sign-in or sign-up waiting. The person is told to ask for a new link inside the app."
+        )
     }
 
     // MARK: the reset that waits (PLANS.md P-18 item 12)
@@ -396,12 +423,46 @@ final class AppModel: ObservableObject {
         // The button is hidden for a link that fails the open check; this refuses
         // it too, so no other path can re-send one (`History.sendAgainPayload`).
         guard let again = History.sendAgainPayload(item), let api else { return Feedback.sendFailed }
-        guard let target = endpoints.first(where: { $0.id == item.targetEndpointId }) else {
+        // A device that has left the group is offered a choice instead
+        // (`sendAgainChoices`); this is the same device again.
+        guard heldTargets.sendAgainChoices(for: item.targetEndpointId) == nil,
+              let target = endpoints.first(where: { $0.id == item.targetEndpointId }) else {
             return String(
                 localized: "That device isn't in your group any more.",
                 comment: "Message on the History screen after Send again, when the device the tab was meant for has left the group."
             )
         }
+        let result = await Sender.send(payload: again, to: target, store: store, api: api)
+        refreshSendState()
+        if result.ok && !result.queued { considerReviewAsk(sendJustSucceeded: true) }
+        return result.banner.headline
+    }
+
+    /// What "Send again" offers for a tab whose device may have left the group
+    /// (PLANS P-31 item 4): nil for the same device, else the devices to pick from.
+    func sendAgainChoices(_ item: HistoryItem) -> [Endpoint]? {
+        heldTargets.sendAgainChoices(for: item.targetEndpointId)
+    }
+
+    /// The title of that choice: "Dia is no longer in your group." "Was removed"
+    /// only when this phone removed it, as for a held tab.
+    func sendAgainGoneLine(_ item: HistoryItem) -> String {
+        GoneTargetCopy.removedLine(
+            item.targetLabel,
+            removedHere: heldTargets.removedIds.contains(item.targetEndpointId)
+        )
+    }
+
+    /// "Send again" to the device picked instead of one that has left the group.
+    /// The pick is checked again against the store, so a list that changed while
+    /// the choice was open cannot carry the tab somewhere else.
+    @discardableResult
+    func sendAgain(_ item: HistoryItem, to picked: Endpoint) async -> String {
+        guard let again = History.sendAgainPayload(item), let api else { return Feedback.sendFailed }
+        let current = HeldTargets(store: store)
+        guard let target = current.sendAgainChoices(for: item.targetEndpointId)?
+            .first(where: { $0.id == picked.id })
+        else { return Feedback.sendFailed }
         let result = await Sender.send(payload: again, to: target, store: store, api: api)
         refreshSendState()
         return result.banner.headline
@@ -540,8 +601,77 @@ final class AppModel: ObservableObject {
             await heartbeat()
             refreshSendState()
             refreshHistory()
+            considerReviewAsk()
         }
         BackgroundRefresh.schedule()
+    }
+
+    // MARK: the in-app asks (P-22)
+
+    /// Bumped when Apple's review pop-up should be requested; the tab view watches it.
+    @Published private(set) var reviewRequest = 0
+    /// Set while the share box is on Home, so no review ask follows it in the same session.
+    private(set) var shareBoxShownThisSession = false
+    private var reviewAskedThisSession = false
+    /// Changes when the box is dismissed or Share is tapped, so Home redraws.
+    @Published private(set) var shareBoxHandledAt: Date? = InAppAsks.shareBoxHandledAt()
+
+    /// Home was drawn: starts the clock the 7 and 30 day rules count from.
+    func noteHomeShown() {
+        InAppAsks.noteHomeShown()
+    }
+
+    /// The box's variant now, or nil. Not shown to a phone whose Home was never drawn.
+    var shareBoxVariant: InAppAsks.Variant? {
+        InAppAsks.shareBox(
+            plan: servicePlan,
+            accountDoor: accountSetupAvailable,
+            firstHomeAt: InAppAsks.firstHomeAt(),
+            deviceCount: endpoints.count,
+            handledAt: shareBoxHandledAt,
+            lastReviewAskAt: InAppAsks.reviewAskDates().max(),
+            reviewAskedThisSession: reviewAskedThisSession,
+            relayIsHosted: InAppAsks.isHostedRelay(registration?.relayUrl ?? ""),
+            now: Date()
+        )
+    }
+
+    func shareBoxAppeared() { shareBoxShownThisSession = true }
+
+    /// Dismissed, or Share tapped in the box: gone for a year.
+    func shareBoxHandled() {
+        InAppAsks.markShareBoxHandled()
+        shareBoxHandledAt = Date()
+    }
+
+    /// Asks Apple for the review pop-up when the rules say it is a good moment. `sendJustSucceeded`
+    /// is true right after a send from this app; otherwise the newest tab this phone sent is
+    /// read from the history (the share sheet sends from another process).
+    func considerReviewAsk(sendJustSucceeded: Bool = false) {
+        guard let reg = registration else { return }
+        let now = Date()
+        var sentAt: Date? = sendJustSucceeded ? now : nil
+        if sentAt == nil {
+            sentAt = historyGroups.flatMap { $0.items }
+                .filter { $0.sourceEndpointId == reg.endpointId }
+                .compactMap { WireDate.date(from: $0.createdAt) }
+                .max()
+        }
+        let errorShowing = banner != nil || relayOutage != nil || !heldTabs.isEmpty
+        guard InAppAsks.reviewAsk(
+            lastSuccessfulSendAt: sentAt,
+            firstHomeAt: InAppAsks.firstHomeAt(),
+            deviceCount: endpoints.count,
+            askDates: InAppAsks.reviewAskDates(),
+            shareBoxHandledAt: shareBoxHandledAt,
+            shareBoxShownThisSession: shareBoxShownThisSession,
+            reviewAskedThisSession: reviewAskedThisSession,
+            errorShowing: errorShowing,
+            now: now
+        ) else { return }
+        reviewAskedThisSession = true
+        InAppAsks.recordReviewAsk(now: now)
+        reviewRequest += 1
     }
 
     func appWentToBackground() {
@@ -597,6 +727,8 @@ final class AppModel: ObservableObject {
             RemoteNotifications.registerIfEnabled()
             refreshWakeState()
             appBecameActive()
+            // After the notification question, so the two do not cover each other.
+            Task { await offerReplacing() }
         } catch let Registrar.JoinError.protocolBlocked(message) {
             banner = message
         } catch let Registrar.JoinError.api(error) {
@@ -633,6 +765,7 @@ final class AppModel: ObservableObject {
         RelayHealthTracker.shared.reset()
         AccountSetup.clear()
         GroupService.clear()
+        InAppAsks.clear()
         servicePlan = nil
         accountArrival = nil
         registration = nil
@@ -654,6 +787,47 @@ final class AppModel: ObservableObject {
         // have nothing to mint a wake token from until the app was relaunched.
         RemoteNotifications.registerIfEnabled()
         refreshWakeState()
+    }
+
+    // MARK: replacing an old copy of this phone (P-31 item 2)
+
+    /// Right after this phone paired: is an old offline copy of it still in the group?
+    /// Silent on any failure; the offer is a convenience, not a step of the setup.
+    private func offerReplacing() async {
+        guard let api, let selfId = registration?.endpointId,
+              let list = try? await api.listEndpoints()
+        else { return }
+        replacingOffer = Replacing.findReplacedSelf(
+            selfId: selfId, list: list, removed: removedHere(), nowMs: Self.nowMs()
+        )
+    }
+
+    /// "Replace": check again, remove the old entry the way the device list's Remove does
+    /// (recorded in the watch, so the group key rotates), and only then take its name. Never
+    /// answers or accepts any device (SECURITY_REVIEW.md L1).
+    func replaceOldCopy(_ offered: Endpoint) async {
+        replacingOffer = nil
+        guard let api, let selfId = registration?.endpointId else { return }
+        let outcome = await Replacing.replace(
+            selfId: selfId,
+            offeredId: offered.id,
+            fetchList: { try await api.listEndpoints() },
+            removed: { self.removedHere() },
+            nowMs: { Self.nowMs() },
+            remove: { await self.removeDevice(id: $0) },
+            rename: { await self.renameDevice(id: selfId, to: $0) }
+        )
+        if outcome == .listFailed { banner = relayUnreachableBanner() }
+        // `removeDevice` has already put the reason in `banner` when it failed.
+    }
+
+    /// The devices this phone removed, from its new-device watch.
+    private func removedHere() -> [String] {
+        NewDevices.current(store: store)?.removed ?? []
+    }
+
+    private static func nowMs() -> Int64 {
+        Int64((Date().timeIntervalSince1970 * 1000).rounded(.down))
     }
 
     // MARK: paired actions
@@ -685,16 +859,29 @@ final class AppModel: ObservableObject {
         refreshWakeState()
     }
 
+    /// Rename this phone (Settings).
     func rename(to newLabel: String) async {
-        guard let api, let reg = registration else { return }
-        let label = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !label.isEmpty else { return }
+        guard let reg = registration else { return }
+        await renameDevice(id: reg.endpointId, to: newLabel)
+    }
+
+    /// Rename any device in the group, from its row. The relay keeps names apart inside a
+    /// group and may add a suffix to what was typed, so what it stored is what shows.
+    func renameDevice(id: String, to newLabel: String) async {
+        guard let api, let reg = registration,
+              let label = DeviceRowActions.cleanedName(newLabel) else { return }
         do {
-            _ = try await api.rename(endpointId: reg.endpointId, label: label)
-            var updated = reg
-            updated.label = label
-            store.registration = updated
-            registration = updated
+            let stored = try await api.rename(endpointId: id, label: label)
+            if id == reg.endpointId {
+                var updated = reg
+                updated.label = stored.label
+                store.registration = updated
+                registration = updated
+            } else if let index = endpoints.firstIndex(where: { $0.id == id }) {
+                // Show it now, even if the list fetch below fails.
+                endpoints[index].label = stored.label
+                store.cachedEndpoints = endpoints
+            }
             await refreshEndpoints()
         } catch let error as ApiError {
             banner = RelayErrorText.line(error, during: .renameDevice)
@@ -947,4 +1134,8 @@ struct AccountArrival: Equatable {
     var accountCreated: Bool
     /// When the trial ends, from the account site, for the notice.
     var trialEndsAt: Date?
+    /// The account's email with most of its letters hidden (`m•••@example.org`), shown under the
+    /// title so a person sees whose account this phone is about to join. Nil when the site did
+    /// not send one.
+    var maskedEmail: String? = nil
 }

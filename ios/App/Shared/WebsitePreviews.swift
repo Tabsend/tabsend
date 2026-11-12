@@ -6,20 +6,38 @@ import Darwin
 
 // Reading websites for pictures, compiled into both the app (to show them) and the
 // share extension (to pass the address along). Requests go straight to the site, never
-// through the relay, with no cookies, no credentials and no redirects
-// (docs/HISTORY_PREVIEWS_PLAN.md).
+// through the relay, with no cookies and no credentials. Redirects are followed a few
+// hops at most, each checked like the first request (docs/HISTORY_PREVIEWS_PLAN.md).
 
 struct WebsitePreview: @unchecked Sendable {
     var title: String?
     var image: UIImage?
+    /// `image` is the site's own icon, not a picture of the page: shown small.
+    var isIcon = false
 }
 
+/// Many sites and picture hosts answer with a redirect first; refusing them all left most
+/// tiles without a picture (owner, 2026-11-06). Every hop must meet the first request's
+/// rule: a public HTTPS site, and for a page no query string (review HP3).
 private final class PreviewRedirectPolicy: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let page: Bool
+    private let lock = NSLock()
+    private var hops = 0
+
+    init(page: Bool) { self.page = page }
+
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest,
                     completionHandler: @escaping (URLRequest?) -> Void) {
-        completionHandler(nil)
+        lock.lock()
+        hops += 1
+        let tooMany = hops > LinkPreviewMetadata.maxRedirects
+        lock.unlock()
+        guard !tooMany, let url = request.url, let host = url.host,
+              page ? LinkPreviewMetadata.mayRequestPage(url) : LinkPreviewMetadata.eligible(url)
+        else { return completionHandler(nil) }
+        Task { completionHandler(await PreviewRequests.resolvesPublicly(host) ? request : nil) }
     }
 }
 
@@ -31,10 +49,10 @@ private enum PreviewRequests {
         config.urlCredentialStorage = nil
         config.urlCache = nil
         config.timeoutIntervalForResource = 8
-        return URLSession(configuration: config, delegate: PreviewRedirectPolicy(), delegateQueue: nil)
+        return URLSession(configuration: config)
     }
 
-    private static func resolvesPublicly(_ host: String) async -> Bool {
+    static func resolvesPublicly(_ host: String) async -> Bool {
         await Task.detached(priority: .utility) {
             var result: UnsafeMutablePointer<addrinfo>?
             guard getaddrinfo(host, nil, nil, &result) == 0, let first = result else { return false }
@@ -71,7 +89,8 @@ private enum PreviewRequests {
         var request = URLRequest(url: url)
         request.timeoutInterval = 8
         request.setValue(image ? "image/*" : "text/html", forHTTPHeaderField: "Accept") // l10n-ignore: HTTP header
-        let (bytes, response) = try await session.bytes(for: request)
+        let (bytes, response) = try await session.bytes(for: request, delegate: PreviewRedirectPolicy(page: !image))
+        // A redirect the policy refused arrives here as the redirect itself, and fails below.
         guard let response = response as? HTTPURLResponse, response.statusCode == 200,
               let type = response.mimeType,
               image ? type.hasPrefix("image/") : type == "text/html"
@@ -217,17 +236,34 @@ actor WebsitePreviewLoader {
                 imageURL = LinkPreviewMetadata.pictureAddress(in: meta, page: page).flatMap(URL.init(string:))
             }
         }
-        if let imageURL,
-           let data = try? await PreviewRequests.fetch(imageURL, session: session, image: true),
-           let source = CGImageSourceCreateWithData(data as CFData, nil),
-           withinPixelLimit(source),
-           let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceThumbnailMaxPixelSize: 512,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-           ] as CFDictionary) {
-            value.image = UIImage(cgImage: thumbnail)
+        if let imageURL {
+            value.image = await picture(at: imageURL, session: session)
+        }
+        // No picture: the site's own icon, before the letter.
+        if value.image == nil {
+            for icon in LinkPreviewMetadata.siteIcons(for: page) {
+                try Task.checkCancellation()
+                if let image = await picture(at: icon, session: session),
+                   image.size.width >= 8, image.size.height >= 8 {
+                    value.image = image
+                    value.isIcon = true
+                    break
+                }
+            }
         }
         return value
+    }
+
+    private static func picture(at url: URL, session: URLSession) async -> UIImage? {
+        guard let data = try? await PreviewRequests.fetch(url, session: session, image: true),
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              withinPixelLimit(source),
+              let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 512,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+              ] as CFDictionary)
+        else { return nil }
+        return UIImage(cgImage: thumbnail)
     }
 }

@@ -81,6 +81,21 @@
   "firstrun.rename.duplicate": {
     "message": "Auf „{device}“ gab es bereits „{wanted}“, daher heißt dieser Browser „{actual}“. Du kannst ihn unten jederzeit umbenennen."
   },
+  "firstrun.replace.body": {
+    "message": "„{old}“ war seit {date} nicht mehr online. Wenn Tabsend hier neu installiert wurde, ersetze es, damit Links an diesen Browser gehen."
+  },
+  "firstrun.replace.confirm": {
+    "message": "{app} ersetzen"
+  },
+  "firstrun.replace.keep": {
+    "message": "Beide behalten"
+  },
+  "firstrun.replace.note": {
+    "message": "Dieser Browser übernimmt den Namen {app}. Der alte wird aus deinen Geräten entfernt."
+  },
+  "firstrun.replace.title": {
+    "message": "Ersetzt dieser Browser {app}?"
+  },
   "firstrun.settings.open": {
     "message": "Tabsend-Einstellungen öffnen"
   },

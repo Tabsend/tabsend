@@ -51,6 +51,7 @@ export function registerConfigRoute(app: FastifyInstance, ctx: AppContext): void
       // unaffected either way. The URL itself never appears: which forwarder a relay
       // rings is its operator's business, and this route is unauthenticated.
       ...(ctx.config.wakeForwarderUrl ? { wakeForwarder: true } : {}),
+      goodbyePage: true,
     }
     return response
   })

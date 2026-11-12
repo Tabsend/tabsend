@@ -127,7 +127,7 @@ describe('ring style at rest', () => {
         after.close()
       }
       const check = new SQLite(databasePath)
-      expect(check.pragma('user_version', { simple: true })).toBe(4)
+      expect(check.pragma('user_version', { simple: true })).toBe(5)
       check.close()
     } finally {
       rmSync(dir, { recursive: true, force: true })

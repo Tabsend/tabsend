@@ -83,6 +83,10 @@
     "message": "{count, plural, one {Your relay doesn't know {device} any more. Pair it again, then send this tab a second time.} other {Your relay doesn't know {device} any more. Pair it again, then send these tabs a second time.}}",
     "description": "The relay refused because it no longer knows the target device. {device} is the device's name or “that device”; {count} is the number of tabs."
   },
+  "send.failure.targetUninstalled": {
+    "message": "{count, plural, one {Tabsend was removed from {device}, so this tab can't reach it. Remove {device} from your devices, or pair it again if you reinstalled Tabsend.} other {Tabsend was removed from {device}, so these tabs can't reach it. Remove {device} from your devices, or pair it again if you reinstalled Tabsend.}}",
+    "description": "The relay refused because Google or Apple reported that Tabsend was uninstalled from the target phone. {device} is the device's name or “that device”; {count} is the number of tabs. Same sentence as on Android and iOS."
+  },
   "send.failure.expiredKey": {
     "message": "The keys on {device} have changed since this browser last saw them. Open the Tabsend list once to pick up the new ones, then send again.",
     "description": "The target device's encryption keys changed. {device} is the device's name or “that device”. “Tabsend list” means the popup's list of devices."

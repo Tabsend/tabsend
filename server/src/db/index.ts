@@ -283,6 +283,10 @@ export async function migrate(db: Kysely<Database>): Promise<void> {
   // an existing relay; NOT NULL DEFAULT 0 backfills every pre-existing row to zero.
   await ensureColumn(db, 'endpoints', 'push_failures', 'integer', 0)
 
+  // ADDITIVE migration [P-31 item 3]: `endpoints.uninstalled_at`, nullable: null is
+  // "not proved uninstalled", which is every existing row.
+  await ensureColumn(db, 'endpoints', 'uninstalled_at', 'text')
+
   // ADDITIVE migration [0028]: `messages.history_blob`. The group-history copy
   // rides the routing row it describes rather than living in its own table, so
   // there is one row, one lifetime, and no join to dangle. Nullable, so every
@@ -395,6 +399,29 @@ export async function migrate(db: Kysely<Database>): Promise<void> {
     .ifNotExists()
     .addColumn('key', 'text', (c) => c.primaryKey())
     .addColumn('group_id', 'text', (c) => c.notNull())
+    .addColumn('created_at', 'text', (c) => c.notNull())
+    .execute()
+
+  // ADDITIVE [PLANS P-31 item 1]: `endpoints.leave_token_hash`, the single-purpose token
+  // the `/goodbye` page uses to remove a browser after its extension was uninstalled.
+  // Nullable, so every pre-existing endpoint simply has none until it asks. Unique, so a
+  // token names one endpoint; both dialects allow many NULLs under a unique index.
+  await ensureColumn(db, 'endpoints', 'leave_token_hash', 'text')
+  await db.schema
+    .createIndex('endpoints_leave_token_hash_idx')
+    .ifNotExists()
+    .unique()
+    .on('endpoints')
+    .column('leave_token_hash')
+    .execute()
+
+  // ADDITIVE [PLANS P-31 item 1]: optional notes from the hosted `/goodbye` page. Tied to
+  // nothing (no group, no endpoint, no address) on purpose.
+  await db.schema
+    .createTable('goodbye_notes')
+    .ifNotExists()
+    .addColumn('id', 'text', (c) => c.primaryKey())
+    .addColumn('note', 'text', (c) => c.notNull())
     .addColumn('created_at', 'text', (c) => c.notNull())
     .execute()
 }

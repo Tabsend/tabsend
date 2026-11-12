@@ -83,7 +83,9 @@ export function isOpenableWebUrl(value: unknown): value is string {
  * a remote favicon is a tracking pixel a planted row fires whenever History is
  * opened, and even an honest one tells that site what another device sent. The
  * console has always held this line; the extension page did not (review
- * 2026-10-13).
+ * 2026-10-13). With Website images on, the history page does show the site's icon
+ * from the web (owner, 2026-11-06), on the same terms as a picture: see
+ * `siteIconAddresses` in link-preview.ts. This rule is what holds with them off.
  */
 export function isEmbeddedFavicon(value: unknown): value is string {
   return typeof value === 'string' && /^data:image\//i.test(value)

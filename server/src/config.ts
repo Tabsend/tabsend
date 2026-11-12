@@ -108,6 +108,13 @@ export interface Config {
   /** Consecutive 404/410 push failures before a subscription is treated as dead
    *  (wakes skipped until the client rotates a fresh one via heartbeat). Default 3. */
   pushDeadThreshold: number
+  /**
+   * How long after ringing a phone through the wake-up forwarder the relay asks the
+   * forwarder whether Apple or Google proved the app uninstalled (PLANS P-31 item 3,
+   * forwarder `PROTOCOL.md` §3.5). Long enough for the forwarder's random delay (up to
+   * half a second) and the provider's answer. Not an environment setting; tests shorten it.
+   */
+  wakeGoneCheckDelayMs: number
   /** Permit Web Push to private/local destinations. Off by default because a
    *  client-controlled endpoint is otherwise an SSRF path. Self-hosters with a
    *  private UnifiedPush distributor may opt in deliberately. */
@@ -689,6 +696,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     rateLimit,
     caps,
     pushDeadThreshold,
+    wakeGoneCheckDelayMs: 20_000,
     pushAllowPrivateEndpoints,
     ...(wakeForwarderUrl ? { wakeForwarderUrl } : {}),
     groupCreation,

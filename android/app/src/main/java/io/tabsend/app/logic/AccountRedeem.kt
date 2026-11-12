@@ -17,6 +17,8 @@ data class AccountArrival(
     val created: Boolean,
     /** When the trial ends, in epoch milliseconds, from the account site. For the notice. */
     val trialEndsAt: Long?,
+    /** The account's email address, mostly hidden, as the site sent it; shown on "Name this phone". */
+    val maskedEmail: String? = null,
 )
 
 /** What came of using a sign-up link: the phone can go on to "Name this phone", or it cannot, and why. */
@@ -27,6 +29,9 @@ sealed interface RedeemOutcome {
     enum class Reason {
         /** The link is old (it lasts 15 minutes) or was already used. */
         EXPIRED,
+
+        /** The link was asked for by another phone, so it does not work on this one [review AL1]. */
+        OTHER_PHONE,
 
         /** The account's group already has a device, so there is no first setup link to hand out. */
         HAS_DEVICE,
@@ -46,12 +51,13 @@ sealed interface RedeemOutcome {
             if (link == null) {
                 Failed(Reason.HAS_DEVICE)
             } else {
-                Arrived(AccountArrival(link, back.created, if (back.created) back.trialEndsAt else null))
+                Arrived(AccountArrival(link, back.created, if (back.created) back.trialEndsAt else null, back.maskedEmail))
             }
         } catch (e: AccountSiteException) {
             Failed(
                 when (e.kind) {
                     AccountSiteException.Kind.LINK_EXPIRED -> Reason.EXPIRED
+                    AccountSiteException.Kind.OTHER_PHONE -> Reason.OTHER_PHONE
                     AccountSiteException.Kind.UNREACHABLE -> Reason.UNREACHABLE
                     AccountSiteException.Kind.UNEXPECTED -> Reason.UNEXPECTED
                 },

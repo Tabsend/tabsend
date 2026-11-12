@@ -56,6 +56,9 @@ const KEYS = {
   historyAnnounced: 'historyAnnounced',
   historyUnsupportedAt: 'historyUnsupportedAt',
   unreachableDevices: 'unreachableDevices',
+  picturesAskClosed: 'picturesAskClosed',
+  shareFirstHomeAt: 'shareFirstHomeAt',
+  shareDismissedAt: 'shareDismissedAt',
 } as const
 
 /** Keep opened-message ids around for twice the default TTL, then prune. */
@@ -77,6 +80,8 @@ async function remove(keys: string[]): Promise<void> {
 export const getIdentity = () => get<Identity>(KEYS.identity)
 export const setIdentity = (v: Identity) => set(KEYS.identity, v)
 
+/** The storage key the registration lives under, for code that watches it change. */
+export const REGISTRATION_KEY = KEYS.registration
 export const getRegistration = () => get<Registration>(KEYS.registration)
 export const setRegistration = (v: Registration) => set(KEYS.registration, v)
 
@@ -156,6 +161,10 @@ export const setAnnouncedHistory = (v: string[]) => set(KEYS.historyAnnounced, v
  * itself and the relay is updated by hand some time later, so this backs the
  * probing off rather than giving up. Cleared by the first call that works.
  */
+/** The History page's "Show pictures for every link" card was answered or closed. */
+export const getPicturesAskClosed = () => get<boolean>(KEYS.picturesAskClosed)
+export const setPicturesAskClosed = () => set(KEYS.picturesAskClosed, true)
+
 export const getHistoryUnsupportedAt = () => get<number>(KEYS.historyUnsupportedAt)
 export const setHistoryUnsupportedAt = (v: number) => set(KEYS.historyUnsupportedAt, v)
 export const clearHistoryUnsupportedAt = () => remove([KEYS.historyUnsupportedAt])
@@ -501,3 +510,12 @@ export async function clearRegistrationState(): Promise<void> {
     KEYS.unreachableDevices,
   ])
 }
+
+/**
+ * P-22 share box. When the paired Home was first drawn, and when the box was last
+ * dismissed (or Share was tapped), both in epoch ms.
+ */
+export const getShareFirstHomeAt = () => get<number>(KEYS.shareFirstHomeAt)
+export const setShareFirstHomeAt = (v: number) => set(KEYS.shareFirstHomeAt, v)
+export const getShareDismissedAt = () => get<number>(KEYS.shareDismissedAt)
+export const setShareDismissedAt = (v: number) => set(KEYS.shareDismissedAt, v)

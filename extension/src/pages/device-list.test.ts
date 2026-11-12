@@ -17,6 +17,12 @@ describe('device list rows', () => {
     )
   })
 
+  it('says "uninstalled" for a phone Google or Apple reported gone, and keeps Remove (P-31)', () => {
+    const dev = { isSelf: false, presenceLabel: 'last seen 3d ago', uninstalled: true }
+    expect(deviceSubline(dev)).toBe('uninstalled')
+    expect(deviceRowActions(dev)).toContain('remove')
+  })
+
   it('removes through the request that records the removal, and only once confirmed (X13)', () => {
     const asked: string[] = []
     const dev = { endpointId: 'ep-phone', label: 'Pixel 8' }

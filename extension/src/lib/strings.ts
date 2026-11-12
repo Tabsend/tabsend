@@ -197,6 +197,8 @@ function rejectionLine(
       return t('send.failure.notInGroup', { device })
     case 'limit_reached':
       return capHeldLine(limit, count)
+    case 'target_uninstalled':
+      return t('send.failure.targetUninstalled', { count, device })
     default:
       return unexplainedLine()
   }
@@ -409,6 +411,10 @@ export const unreachableCopy = {
     return t('devices.unreachable.body')
   },
   pairAgain: (label: string): string => t('devices.unreachable.pairAgain', { device: label }),
+  /** Row status for a phone whose push service proved Tabsend uninstalled (P-31 item 3). */
+  get uninstalledStatus(): string {
+    return t('devices.uninstalled.rowStatus')
+  },
   get dismiss(): string {
     return t('common.dismiss')
   },

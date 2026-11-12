@@ -1,23 +1,29 @@
 package io.tabsend.app.ui
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.net.Uri
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,12 +51,16 @@ import io.tabsend.app.R
 import io.tabsend.app.databinding.ActivityMainBinding
 import io.tabsend.app.databinding.SheetPairingHelpBinding
 import io.tabsend.app.logic.Chooser
+import io.tabsend.app.logic.DeviceRowAction
+import io.tabsend.app.logic.DeviceRowActions
 import io.tabsend.app.logic.Feedback
 import io.tabsend.app.logic.GroupResets
 import io.tabsend.app.logic.GoneTargetCopy
 import io.tabsend.app.logic.GroupService
 import io.tabsend.app.logic.History
 import io.tabsend.app.logic.JoinErrors
+import io.tabsend.app.logic.HelpTabsend
+import io.tabsend.app.logic.InAppAsks
 import io.tabsend.app.logic.Labels
 import io.tabsend.app.logic.NewDeviceNotice
 import io.tabsend.app.logic.NewDevices
@@ -61,6 +71,7 @@ import io.tabsend.app.logic.Pairing
 import io.tabsend.app.logic.Protocol
 import io.tabsend.app.logic.RelayErrorText
 import io.tabsend.app.logic.RelayMove
+import io.tabsend.app.logic.Replacing
 import io.tabsend.app.logic.ServicePlan
 import io.tabsend.app.logic.isRelayDown
 import io.tabsend.app.logic.minutesSinceLastOk
@@ -110,6 +121,19 @@ class MainActivity : AppCompatActivity() {
 
     /** The bottom tab showing, by its menu id. */
     private var currentTab = R.id.tabHome
+
+    /**
+     * Set by this phone's own pairing and spent by the first device list after it: the
+     * one moment "Is this phone replacing …?" may be asked (P-31 item 2). Never stored,
+     * so no later start of the app and no other device asks it.
+     */
+    private var replaceOfferPending = false
+
+    /** The share box's longer text is showing ("Read more"). */
+    private var shareBoxExpanded = false
+
+    /** Google's review card; nothing until the Play review library is added ([ReviewLauncher]). */
+    private val reviewLauncher: ReviewLauncher = NoReviewLauncher
 
     /** What the first-run screens hold between the emailed link and the pairing (P-19). */
     private val accountModel by lazy { ViewModelProvider(this)[AccountModel::class.java] }
@@ -195,7 +219,27 @@ class MainActivity : AppCompatActivity() {
             },
         )
         binding.addDeviceButton.setOnClickListener { mintLink() }
-        binding.renameButton.setOnClickListener { promptRename() }
+        binding.shareBoxDismiss.setOnClickListener {
+            store.shareBoxDismissedAt = System.currentTimeMillis()
+            renderShareBox()
+        }
+        binding.shareBoxMore.setOnClickListener {
+            shareBoxExpanded = !shareBoxExpanded
+            renderShareBox()
+        }
+        binding.shareBoxButton.setOnClickListener {
+            // Tapping Share counts as an answer, like the X: the box rests for a year.
+            store.shareBoxDismissedAt = System.currentTimeMillis()
+            renderShareBox()
+            shareTabsend()
+        }
+        binding.helpShareButton.setOnClickListener { shareTabsend() }
+        binding.helpRateButton.visibility = if (HelpTabsend.showsRateRow) View.VISIBLE else View.GONE
+        binding.helpRateButton.setOnClickListener { rateTabsend() }
+        binding.helpFeedbackButton.setOnClickListener { writeFeedback() }
+        binding.renameButton.setOnClickListener {
+            store.registration?.let { promptRename(it.endpointId, it.label, isThisPhone = true) }
+        }
         binding.relayMoveButton.setOnClickListener { promptMoveRelay() }
         binding.refreshButton.setOnClickListener { render(); heartbeatNow() }
         binding.unpairButton.setOnClickListener { confirmUnpair() }
@@ -399,9 +443,109 @@ class MainActivity : AppCompatActivity() {
         renderNewDevices()
         account.renderPaired()
         showTab(currentTab)
+        renderShareBox()
+        maybeAskForReview()
         // After a restore or a notice that named a tab. Calls showTab again, harmlessly.
         if (binding.bottomTabs.selectedItemId != currentTab) binding.bottomTabs.selectedItemId = currentTab
         loadDevices()
+    }
+
+    // --- Help Tabsend [P-22] ---------------------------------------------------------
+
+    /** Draw or hide the share box on Home. One rule, [InAppAsks.shareBox]; it also notes the first paired Home. */
+    private fun renderShareBox() {
+        val onHome = store.isRegistered && currentTab == R.id.tabHome
+        val now = System.currentTimeMillis()
+        if (onHome && store.firstHomeAt == null) store.firstHomeAt = now
+        val variant = if (!onHome) null else InAppAsks.shareBox(
+            now = now,
+            plan = GroupService.plan(store.groupService),
+            accountDoorAllowed = account.accountDoorAllowed(),
+            firstHomeAt = store.firstHomeAt,
+            deviceCount = store.cachedEndpoints.size,
+            dismissedAt = store.shareBoxDismissedAt,
+            lastReviewAskAt = store.reviewAskTimes.maxOrNull(),
+            reviewAskedThisSession = reviewAskedThisSession,
+            relayIsHosted = InAppAsks.isHostedRelay(store.registration?.relayUrl.orEmpty()),
+        )
+        if (variant == null) {
+            binding.shareBox.visibility = View.GONE
+            return
+        }
+        shareBoxShownThisSession = true
+        val credit = variant == InAppAsks.ShareVariant.Credit
+        binding.shareBox.visibility = View.VISIBLE
+        binding.shareBoxBody.setText(
+            when {
+                shareBoxExpanded && credit -> R.string.share_box_more_credit
+                shareBoxExpanded -> R.string.share_box_more_plain
+                credit -> R.string.share_box_body_credit
+                else -> R.string.share_box_body_plain
+            },
+        )
+        binding.shareBoxMore.setText(if (shareBoxExpanded) R.string.share_box_show_less else R.string.share_box_read_more)
+    }
+
+    /**
+     * Google's review card, after a send that worked (never at launch). The policy decides; a
+     * build without the Play review library asks for nothing and records nothing.
+     */
+    private fun maybeAskForReview() {
+        if (!store.reviewMoment) return
+        if (!store.isRegistered || currentTab != R.id.tabHome) return
+        store.reviewMoment = false
+        val now = System.currentTimeMillis()
+        val health = RelayHealthTracker.current(this)
+        val errorShowing = (health != null && isRelayDown(health, now)) ||
+            store.outbound.isNotEmpty() || binding.relayOutage.visibility == View.VISIBLE
+        val may = InAppAsks.mayAskForReview(
+            now = now,
+            firstHomeAt = store.firstHomeAt,
+            deviceCount = store.cachedEndpoints.size,
+            askTimes = store.reviewAskTimes,
+            shareDismissedAt = store.shareBoxDismissedAt,
+            shareBoxShownThisSession = shareBoxShownThisSession,
+            lastSendSucceeded = store.lastSendSucceeded,
+            errorShowing = errorShowing,
+        )
+        if (may && reviewLauncher.launch(this)) {
+            reviewAskedThisSession = true
+            store.reviewAskTimes = store.reviewAskTimes + now
+        }
+    }
+
+    /** Share: the account site's Share page for the credit variant, the system share sheet otherwise. */
+    private fun shareTabsend() {
+        if (account.shareVariant() == InAppAsks.ShareVariant.Credit) {
+            account.openSharePage()
+            return
+        }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, getString(R.string.share_text_plain))
+        }
+        startActivity(Intent.createChooser(send, getString(R.string.share_sheet_title)))
+    }
+
+    private fun rateTabsend() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(HelpTabsend.REVIEW_URL)))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.rate_page_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun writeFeedback() {
+        val mail = Intent(Intent.ACTION_SENDTO).apply {
+            data = Uri.parse("mailto:")
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(HelpTabsend.FEEDBACK_ADDRESS))
+            putExtra(Intent.EXTRA_SUBJECT, HelpTabsend.FEEDBACK_SUBJECT)
+        }
+        try {
+            startActivity(mail)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.feedback_no_mail_app, Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Show one bottom tab. Pictures are asked for only on the tab in front. */
@@ -426,6 +570,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (leftHistory) history.stop()
         renderTimeline()
+        renderShareBox()
     }
 
     /** Whichever of the two timeline views is showing. Each skips a redraw that changes nothing. */
@@ -864,6 +1009,8 @@ class MainActivity : AppCompatActivity() {
                 // the fact — the advisory rides along with success, never instead of it.
                 val linked = Protocol.message(texts(), compat) ?: getString(R.string.join_linked)
                 Toast.makeText(this@MainActivity, linked, Toast.LENGTH_LONG).show()
+                // The first device list after this asks about an old copy of this phone.
+                replaceOfferPending = true
                 render()
             } catch (e: ApiException) {
                 // The relay's own `message` is English and written for a log, so the screen
@@ -901,18 +1048,27 @@ class MainActivity : AppCompatActivity() {
         val cached = store.cachedEndpoints
         if (cached.isNotEmpty()) renderDevices(cached, reg.endpointId) else binding.devicesList.removeAllViews()
         lifecycleScope.launch {
+            var fetched = true
             val endpoints = try {
                 withContext(Dispatchers.IO) {
                     ApiClient.forRegistration(reg).listEndpoints(reg.deviceToken)
                         .also { NewDeviceWatcher.record(applicationContext, it) }
                 }
             } catch (e: IOException) {
+                fetched = false
                 store.cachedEndpoints
             }
             // The device list just changed on screen; the share sheet's Direct
             // Share row is built from the same list, so it changes with it.
             ShareShortcuts.sync(this@MainActivity, endpoints)
             renderDevices(endpoints, reg.endpointId)
+            renderShareBox()
+            // Right after this phone paired, and only then: an old copy of it (P-31).
+            // Spent by the first list whether or not it came, so it is asked once at most.
+            if (replaceOfferPending) {
+                replaceOfferPending = false
+                if (fetched) offerReplace(endpoints, reg)
+            }
             // Wherever the device list is asked for, the reset that waits is too
             // [P-18 item 12]. Best effort: it keeps the last answer when offline.
             withContext(Dispatchers.IO) {
@@ -946,6 +1102,9 @@ class MainActivity : AppCompatActivity() {
             val (status, color) = when {
                 paused -> getString(R.string.device_status_paused) to R.color.ts_phone_muted
                 ep.id == selfId -> getString(R.string.device_this_phone) to R.color.ts_phone_muted
+                // Google or Apple proved Tabsend uninstalled there (P-31 item 3). Red, and a
+                // Remove right on the row (owner's pick B, 2026-11-09): sends to it are refused.
+                ep.uninstalledAt != null -> getString(R.string.device_status_uninstalled) to R.color.ts_danger
                 !known -> getString(R.string.device_status_unknown) to R.color.ts_phone_muted
                 ep.presence == "online" -> getString(R.string.device_status_online) to R.color.ts_success
                 else -> getString(R.string.device_status_offline) to R.color.ts_phone_muted
@@ -964,22 +1123,67 @@ class MainActivity : AppCompatActivity() {
                     DeviceRows.detail(this, ep.kind, status, color)
                 },
             )
-            // Every other device can be removed from here [P-10], with its own
-            // Remove button rather than a tap on the row: tapping a name should
-            // not be what asks to remove it. This phone leaves with Unpair
-            // instead, which also wipes what it holds.
-            if (ep.id != selfId) {
-                row.addView(
-                    cardButton(getString(R.string.review_remove), getColor(R.color.ts_danger)) {
-                        confirmRemove(ep.id, ep.label)
-                    }.apply {
-                        // So a screen reader says which device, not "Remove, Remove".
-                        contentDescription = getString(R.string.review_remove_for, ep.label)
-                    },
-                )
-            }
+            // Every device has a More menu: Rename for all, Remove for every device but this
+            // phone [P-10]. Remove sits behind a menu rather than a tap on the row, because
+            // tapping a name should not be what asks to remove it. This phone leaves with
+            // Unpair instead, which also wipes what it holds.
+            if (ep.uninstalledAt != null && ep.id != selfId) row.addView(removeButton(ep))
+            row.addView(moreButton(ep, selfId))
             binding.devicesList.addView(row)
         }
+    }
+
+    /**
+     * The Remove button on the row of a phone Tabsend was uninstalled from (P-31 item 3):
+     * the one fix there is, so it is on the row rather than only in the More menu. Asks
+     * first, like the menu's Remove.
+     */
+    private fun removeButton(ep: Endpoint): MaterialButton =
+        MaterialButton(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            text = getString(R.string.remove_device_action)
+            setTextColor(getColor(R.color.ts_danger))
+            contentDescription = getString(R.string.device_remove_for, ep.label)
+            minHeight = dp(48)
+            setOnClickListener { confirmRemove(ep.id, ep.label) }
+        }
+
+    /** The three-dot button at the end of a device row. */
+    private fun moreButton(ep: Endpoint, selfId: String): ImageButton =
+        ImageButton(this).apply {
+            setImageResource(R.drawable.ic_more_vert)
+            imageTintList = ColorStateList.valueOf(getColor(R.color.ts_phone_muted))
+            val tv = TypedValue()
+            if (theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true)) {
+                setBackgroundResource(tv.resourceId)
+            } else {
+                background = null
+            }
+            // 48dp is the least a finger can be asked to hit.
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            // So a screen reader says which device, not "More, More".
+            contentDescription = getString(R.string.device_more_for, ep.label)
+            setOnClickListener { showRowMenu(this, ep, selfId) }
+        }
+
+    private fun showRowMenu(anchor: View, ep: Endpoint, selfId: String) {
+        val popup = PopupMenu(this, anchor)
+        val actions = DeviceRowActions.actions(isThisPhone = ep.id == selfId)
+        actions.forEachIndexed { index, action ->
+            popup.menu.add(0, index, index, getString(rowActionLabel(action)))
+        }
+        popup.setOnMenuItemClickListener { item ->
+            when (actions[item.itemId]) {
+                DeviceRowAction.RENAME -> promptRename(ep.id, ep.label, ep.id == selfId)
+                DeviceRowAction.REMOVE -> confirmRemove(ep.id, ep.label)
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private fun rowActionLabel(action: DeviceRowAction): Int = when (action) {
+        DeviceRowAction.RENAME -> R.string.device_action_rename
+        DeviceRowAction.REMOVE -> R.string.device_action_remove
     }
 
     /**
@@ -1006,10 +1210,7 @@ class MainActivity : AppCompatActivity() {
         if (endpointId == reg.endpointId) return // never this phone; Unpair is the way out
         lifecycleScope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    val api = ApiClient.forRegistration(reg)
-                    NewDeviceWatcher.removeFromGroup(store, endpointId) { api.deleteEndpoint(reg.deviceToken, it) }
-                }
+                removeFromGroup(reg, endpointId)
             } catch (e: ApiException) {
                 toastLong(RelayErrorText.line(texts(), e.code, RelayErrorText.Action.REMOVE_DEVICE))
                 return@launch
@@ -1023,6 +1224,116 @@ class MainActivity : AppCompatActivity() {
             renderDevices(remaining, reg.endpointId)
             Toast.makeText(this@MainActivity, getString(R.string.remove_device_done, label), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /**
+     * "Is this phone replacing Pixel 8?" (PLANS.md P-31 item 2): asked once, right after
+     * this phone paired, when the group still holds an old offline copy of it (a
+     * reinstall). The rule is [Replacing.findReplacedSelf]; "Keep both" only closes.
+     */
+    private fun offerReplace(endpoints: List<Endpoint>, reg: Registration) {
+        if (isFinishing || isDestroyed) return
+        val old = Replacing.findReplacedSelf(
+            reg.endpointId,
+            endpoints,
+            NewDeviceWatcher.removedHere(store),
+            System.currentTimeMillis(),
+        ) ?: return
+        val seenMs = Replacing.strictIsoMillis(old.lastSeenAt) ?: return
+        val seen = GroupService.shortDay(seenMs, locale = uiLocale())
+        val app = Replacing.appNameOf(old.label)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        container.addView(
+            TextView(this).apply {
+                text = getString(R.string.replace_offer_body, old.label, seen)
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+            },
+        )
+        container.addView(
+            TextView(this).apply {
+                text = getString(R.string.replace_offer_note, old.label)
+                setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodySmall)
+                setTextColor(getColor(R.color.ts_phone_muted))
+                setPadding(0, dp(12), 0, 0)
+            },
+        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.replace_offer_title, app))
+            .setView(container)
+            .setPositiveButton(getString(R.string.replace_offer_replace, app)) { _, _ -> replaceOldCopy(old.id, old.label) }
+            .setNegativeButton(R.string.replace_offer_keep_both, null)
+            .show()
+    }
+
+    /**
+     * "Replace": look again, remove the old entry through the device row's own Remove
+     * ([removeFromGroup], so the removal is recorded and the group key
+     * rotates), and only then take its name through the device row's rename. The order
+     * is [Replacing.replace]'s. It never answers or accepts any device (L1).
+     */
+    private fun replaceOldCopy(oldId: String, oldLabel: String) {
+        val reg = store.registration ?: return
+        lifecycleScope.launch {
+            val api = ApiClient.forRegistration(reg)
+            val outcome = Replacing.replace(
+                selfId = reg.endpointId,
+                oldId = oldId,
+                nowMs = System::currentTimeMillis,
+                list = {
+                    withContext(Dispatchers.IO) {
+                        api.listEndpoints(reg.deviceToken).also { NewDeviceWatcher.record(applicationContext, it) }
+                    }
+                },
+                removed = { NewDeviceWatcher.removedHere(store) },
+                remove = { id -> removeFromGroup(reg, id) },
+                rename = { label -> Registrar.rename(this@MainActivity, reg.endpointId, label) },
+            )
+            when (outcome) {
+                // Nothing was done: the list changed, so the question no longer stands.
+                Replacing.Outcome.NoLongerOffered -> return@launch
+                // Not removed, so not renamed either: the device row's Remove error text.
+                is Replacing.Outcome.ListFailed -> {
+                    toastLong(removeFailedText(outcome.error, oldLabel))
+                    return@launch
+                }
+                is Replacing.Outcome.RemoveFailed -> {
+                    toastLong(removeFailedText(outcome.error, oldLabel))
+                    return@launch
+                }
+                is Replacing.Outcome.RenameFailed -> {
+                    val e = outcome.error
+                    if (e is ApiException) {
+                        toastLong(RelayErrorText.line(texts(), e.code, RelayErrorText.Action.RENAME_DEVICE))
+                    } else {
+                        Toast.makeText(this@MainActivity, R.string.rename_unreachable, Toast.LENGTH_SHORT).show()
+                    }
+                }
+                Replacing.Outcome.Replaced -> Unit
+            }
+            ShareShortcuts.sync(this@MainActivity, store.cachedEndpoints)
+            render()
+        }
+    }
+
+    /** What the device row's Remove says when the relay refused it or could not be reached. */
+    private fun removeFailedText(e: IOException, label: String): String =
+        if (e is ApiException) {
+            RelayErrorText.line(texts(), e.code, RelayErrorText.Action.REMOVE_DEVICE)
+        } else {
+            getString(R.string.remove_device_offline, label)
+        }
+
+    /**
+     * The one removal path on this screen: the relay's DELETE and the removal written
+     * into the new-device watch, so the group key rotates (L7, X13). The device row's
+     * Remove and "Replace" (P-31) both come here. Throws on a refusal or no connection.
+     */
+    private suspend fun removeFromGroup(reg: Registration, endpointId: String) = withContext(Dispatchers.IO) {
+        val api = ApiClient.forRegistration(reg)
+        NewDeviceWatcher.removeFromGroup(store, endpointId) { api.deleteEndpoint(reg.deviceToken, it) }
     }
 
     private fun toastLong(message: String) {
@@ -1143,22 +1454,23 @@ class MainActivity : AppCompatActivity() {
         timer.postDelayed(expire, Pairing.qrLifetimeMillis(resp.expiresAt, System.currentTimeMillis()))
     }
 
-    private fun promptRename() {
-        val reg = store.registration ?: return
+    /** Rename this phone or any other device in the group. */
+    private fun promptRename(endpointId: String, currentLabel: String, isThisPhone: Boolean) {
         val input = EditText(this).apply {
-            setText(reg.label)
+            setText(currentLabel)
             setSelection(text.length)
         }
         MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.rename_device)
+            .setTitle(if (isThisPhone) R.string.rename_device else R.string.rename_other_device)
             .setView(input)
             .setPositiveButton(R.string.rename_save) { _, _ ->
-                val label = input.text.toString().trim()
-                if (label.isEmpty()) return@setPositiveButton
+                val label = DeviceRowActions.cleanedName(input.text.toString()) ?: return@setPositiveButton
                 lifecycleScope.launch {
                     try {
-                        Registrar.rename(this@MainActivity, label)
+                        Registrar.rename(this@MainActivity, endpointId, label)
                         render()
+                    } catch (e: ApiException) {
+                        toastLong(RelayErrorText.line(texts(), e.code, RelayErrorText.Action.RENAME_DEVICE))
                     } catch (e: IOException) {
                         Toast.makeText(this@MainActivity, R.string.rename_unreachable, Toast.LENGTH_SHORT).show()
                     }
@@ -1589,6 +1901,10 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_TAB = "tab"
         private const val EXTRA_OPEN_HISTORY = "io.tabsend.app.OPEN_HISTORY"
         private const val TIMELINE_REDRAW_MS = 150L
+
+        /** Per app run: the share box showed, or the review card was asked for. The two never share a session. */
+        @Volatile private var shareBoxShownThisSession = false
+        @Volatile private var reviewAskedThisSession = false
 
         /** Open the app on its History tab, for a notice that says to look there. */
         fun historyIntent(context: Context): Intent =

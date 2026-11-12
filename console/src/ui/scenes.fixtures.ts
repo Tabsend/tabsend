@@ -99,10 +99,23 @@ function devices(): Endpoint[] {
       presence: 'offline',
       lastSeenAt: ago(5 * DAY),
     }),
+    // Google proved Tabsend uninstalled from it (P-31 item 3): a red tag, and Remove.
+    {
+      ...makeEndpoint({
+        id: 'phone-3' as EndpointId,
+        kind: 'mobile',
+        browser: null,
+        platform: 'android',
+        label: 'Galaxy S24',
+        presence: 'offline',
+        lastSeenAt: ago(9 * DAY),
+      }),
+      uninstalledAt: ago(2 * DAY),
+    },
   ]
   // makeEndpoint turns a null browser into Chrome; the rows without a browser are real.
   for (const e of list)
-    if (['console-1', 'phone-1', 'phone-2', 'console-2'].includes(e.id)) e.browser = null
+    if (['console-1', 'phone-1', 'phone-2', 'phone-3', 'console-2'].includes(e.id)) e.browser = null
   return list
 }
 

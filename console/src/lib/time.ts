@@ -58,3 +58,10 @@ export function absoluteTime(iso: string): string {
   if (Number.isNaN(then.getTime())) return iso
   return then.toLocaleString(dateLocale())
 }
+
+/** "October 30", in the language on screen and the browser's regional form of it. An unreadable time is shown as sent. */
+export function monthDay(iso: string): string {
+  const then = new Date(iso)
+  if (Number.isNaN(then.getTime())) return iso
+  return then.toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric' })
+}

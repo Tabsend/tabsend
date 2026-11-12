@@ -408,4 +408,25 @@ struct HeldTargetsTests {
         #expect(targets.choices.isEmpty)
         #expect(!targets.isGone(item), "an empty list proves nothing")
     }
+
+    // PLANS P-31 item 4: History's "Send again" on a tab whose device left the group.
+    @Test func sendAgainGoesToTheSameDeviceWhileItIsInTheGroup() {
+        let phone = Phone([Device("a"), Device("b")])
+        #expect(HeldTargets(store: phone.store).sendAgainChoices(for: "a") == nil)
+    }
+
+    @Test func sendAgainOffersTheOthersOnceTheDeviceIsGoneOrRemovedHere() {
+        let phone = Phone([Device("a"), Device("b"), Device("old")])
+        NewDevices.recordRemoval(id: "old", store: phone.store)
+        phone.relayLists(["a", "b", "old"]) // the relay still lists it
+        let targets = HeldTargets(store: phone.store)
+        #expect(targets.sendAgainChoices(for: "old")?.map(\.id) == ["a", "b"])
+        #expect(targets.sendAgainChoices(for: "never-listed")?.map(\.id) == ["a", "b"])
+    }
+
+    @Test func sendAgainWithNoWatchOfThisPairingCountsNothingAsGone() {
+        let phone = Phone([Device("a")])
+        phone.store.newDeviceWatch?.selfId = "someone-else"
+        #expect(HeldTargets(store: phone.store).sendAgainChoices(for: "gone") == nil)
+    }
 }

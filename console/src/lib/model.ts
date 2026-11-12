@@ -119,3 +119,13 @@ export type ConnectionMode = 'live' | 'polling' | 'offline'
 
 /** Re-exports so UI code imports view enums from one place. */
 export type { BrowserFamily, EndpointKind, IsoTimestamp, Platform, PresenceStatus }
+
+/** An old offline copy of this console, offered for replacing right after pairing (P-31 item 2). */
+export interface ReplaceOfferView {
+  endpointId: string
+  /** Its whole label: what this console is renamed to. */
+  label: string
+  /** The name half, for the question and the button. */
+  appName: string
+  lastSeenAt: string
+}

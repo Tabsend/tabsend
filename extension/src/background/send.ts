@@ -18,7 +18,7 @@ import { ext } from '../lib/ext'
 import { classifySendFailure } from '../lib/health'
 import { t } from '../lib/i18n'
 import { pictureAddress } from '../lib/link-preview'
-import type { FeedbackOrigin, OutboundItem, SendResult } from '../lib/model'
+import type { FeedbackOrigin, OutboundItem, ResendChoices, SendResult } from '../lib/model'
 import {
   applyDrain,
   cancelOutbound,
@@ -873,6 +873,43 @@ async function acceptedGroup(
   ])
   const watch = stored?.selfId === selfId ? stored : undefined
   return { acceptedIds: new Set(endpointsKnownTo(watch, list).map((e) => e.id)), watch, list }
+}
+
+/**
+ * What "Send again" on a History row may do (PLANS P-31 item 4). While the device
+ * the tab was for is still in the group as this browser accepts it, the same device
+ * again; once it is gone, the devices a held tab whose device is gone may move to
+ * (`heldTabChoices`, L3), so a relay that drops a device from its list never gets
+ * to pick where the tab goes instead. In list order. Android's and the iPhone's
+ * `sendAgainTarget` / `sendAgainChoices` decide the same way.
+ */
+export async function resendChoices(targetEndpointId: string): Promise<ResendChoices> {
+  const session = await requireSession()
+  const selfId = session.registration.endpointId
+  const { acceptedIds, watch, list } = await acceptedGroup(selfId)
+  // With nothing accepted (no watch of this pairing) nothing counts as gone, as for
+  // a held tab: the same device again, and the relay refuses it if it has left.
+  if (acceptedIds.size === 0 || acceptedIds.has(targetEndpointId)) {
+    return { gone: false, removedHere: false, choices: [] }
+  }
+  return {
+    gone: true,
+    removedHere: watch?.removed?.includes(targetEndpointId) ?? false,
+    choices: heldTabChoices(watch, list, selfId).map((e) => ({ id: e.id, label: e.label })),
+  }
+}
+
+/**
+ * "Send again" to another device than the one a tab was for: only one of the
+ * `resendChoices`, checked again here rather than trusted from the page.
+ */
+export async function mayResendTo(
+  originalTargetEndpointId: string,
+  targetEndpointId: string,
+): Promise<boolean> {
+  if (originalTargetEndpointId === targetEndpointId) return true
+  const allowed = await resendChoices(originalTargetEndpointId)
+  return allowed.gone && allowed.choices.some((c) => c.id === targetEndpointId)
 }
 
 /** "Your tab is waiting for a new device": said once, when the drain finds out. */

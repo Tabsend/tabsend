@@ -35,6 +35,7 @@
   "deliveryBadge/waiting.note": "The relay is holding this tab until the receiving device picks it up.",
   "deliveryBadge/never-arrived.label": "Never arrived",
   "deliveryBadge/never-arrived.note": "The receiving device never confirmed this tab, and the relay has stopped holding it.",
+  "deliveryBadge/never-arrived.goneNote": "T is no longer in your group, so this tab can't arrive.",
   "deliveryBadge/copy": "null",
   "SEALED_ROW_TITLE": "Waiting for the key that opens this one",
   "SEALED_ROW_NOTE": "This console can see that a tab was sent, not what it was. The key comes from another paired device.",

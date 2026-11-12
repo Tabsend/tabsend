@@ -48,7 +48,9 @@ vi.mock('./history', () => ({ refreshHistory: vi.fn(async () => undefined) }))
 vi.mock('./prefs', () => ({ setPrimary: vi.fn() }))
 vi.mock('./send', () => ({
   cancelHeldTab: vi.fn(),
+  mayResendTo: vi.fn(async () => false),
   processOutbound: vi.fn(),
+  resendChoices: vi.fn(),
   retargetHeldTab: vi.fn(),
   selectedTabCount: vi.fn(),
   sendToTarget: vi.fn(),
@@ -62,6 +64,7 @@ import { rebuildMenus } from './menus'
 import { ensureOffscreen, pushConfigToOffscreen } from './offscreen'
 import { ensurePushSubscription } from './push'
 import { handleRpc } from './rpc'
+import { mayResendTo, sendToTarget } from './send'
 
 const requests: Record<string, RpcRequest> = {
   joinGroup: {
@@ -132,5 +135,34 @@ describe('removeEndpoint', () => {
       ok: true,
     })
     expect(removeEndpoint).toHaveBeenCalledWith('ep-phone')
+  })
+})
+
+// PLANS P-31 item 4: "Send again" to another device than the tab was for.
+describe('sendAgain instead of a gone device', () => {
+  const payload = { url: 'https://example.com/', sentAt: '2026-11-07T00:00:00.000Z' } as const
+
+  it('sends nothing to a device the background did not offer', async () => {
+    vi.mocked(mayResendTo).mockResolvedValueOnce(false)
+    const reply = await handleRpc({
+      type: 'sendAgain',
+      targetEndpointId: 'stranger',
+      insteadOf: 'old-dia',
+      payload: payload as never,
+    })
+    expect(reply).toEqual({ ok: true, moved: false })
+    expect(mayResendTo).toHaveBeenCalledWith('old-dia', 'stranger')
+    expect(sendToTarget).not.toHaveBeenCalled()
+  })
+
+  it('sends to one it offered', async () => {
+    vi.mocked(mayResendTo).mockResolvedValueOnce(true)
+    await handleRpc({
+      type: 'sendAgain',
+      targetEndpointId: 'dia-2',
+      insteadOf: 'old-dia',
+      payload: payload as never,
+    })
+    expect(vi.mocked(sendToTarget).mock.calls[0]?.[0]).toBe('dia-2')
   })
 })

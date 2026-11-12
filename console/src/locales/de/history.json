@@ -57,6 +57,9 @@
   "history.state.neverArrived": {
     "message": "Nie angekommen"
   },
+  "history.state.neverArrivedGoneNote": {
+    "message": "{device} gehört nicht mehr zu deiner Gruppe, daher kann dieser Tab nicht ankommen."
+  },
   "history.state.neverArrivedNote": {
     "message": "Das Zielgerät hat diesen Tab nie bestätigt, und das Relay hält ihn nicht mehr bereit."
   },

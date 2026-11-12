@@ -187,6 +187,16 @@ export interface Endpoint {
 
   /** Server-derived presence; do not set client-side. */
   presence: PresenceStatus;
+
+  /**
+   * Set when Apple or Google proved the app uninstalled from this phone (PLANS P-31
+   * item 3): its wake-up forwarder ring was answered `410 Unregistered` or
+   * `UNREGISTERED`. Sends to it are refused with `target_uninstalled`. ADDITIVE and
+   * optional: absent on every other device and from an older relay. Cleared as soon as
+   * the device itself calls the relay. Never set for a browser. The relay does not
+   * remove the device; the user does, with Remove.
+   */
+  uninstalledAt?: IsoTimestamp;
   lastSeenAt: IsoTimestamp;
 
   createdAt: IsoTimestamp;
@@ -630,6 +640,15 @@ export interface ServerConfigResponse {
    */
   wakeForwarder?: boolean;
   /**
+   * Does this relay serve the `/goodbye` page and its leave token? [PLANS P-31 item 1]
+   *
+   * True on relays that have `POST /v1/endpoints/:id/leave-token`,
+   * `POST /v1/endpoints/leave` and `GET /goodbye`. The browser extension reads it before
+   * asking for a leave token: absent (an older relay) means it sets no uninstall page,
+   * so an uninstall there opens nothing rather than a page that cannot work.
+   */
+  goodbyePage?: boolean;
+  /**
    * Stable random id minted on this relay's first boot and never changed.
    * NOT a credential and NOT secret — it exists so a client can tell "the
    * same relay at a new address" from "a different relay" without re-pairing:
@@ -719,6 +738,43 @@ export interface RegisterResponse {
   label?: string;
 }
 
+/**
+ * POST /v1/endpoints/:id/leave-token — the caller's own leave token [PLANS P-31 item 1].
+ * Auth: the device token, and only for the caller's own endpoint. No body.
+ *
+ * A leave token can do exactly one thing: remove that endpoint, through
+ * `POST /v1/endpoints/leave`. The browser extension puts it in the fragment of the page
+ * its browser opens after an uninstall (`goodbyeUrl`), so that page can remove the
+ * device whose storage the uninstall just wiped. Asking again replaces the earlier one.
+ * The relay stores only its hash.
+ */
+export interface LeaveTokenResponse {
+  leaveToken: string;
+}
+
+/** POST /v1/endpoints/leave — remove the endpoint a leave token names. No auth. */
+export interface LeaveRequest {
+  leaveToken: string;
+}
+/**
+ * `removed` is false when the token names nothing (the device was already removed, or
+ * the token was replaced). The page says the same either way: the device is gone.
+ * `label` is the removed device's name, for the page's heading; present only when
+ * `removed` is true.
+ */
+export interface LeaveResponse {
+  removed: boolean;
+  label?: string;
+}
+
+/**
+ * POST /goodbye/note — an optional note from the hosted `/goodbye` page. No auth. The
+ * relay keeps the text and the time, nothing else. Only a hosted relay accepts it.
+ */
+export interface GoodbyeNoteRequest {
+  note: string;
+}
+
 /** POST /v1/endpoints/:id/heartbeat — refresh presence + (optionally) push subscription. */
 export interface HeartbeatRequest {
   pushSubscription?: PushSubscription;   // resend if it rotated
@@ -782,7 +838,12 @@ export type SendRejectionReason =
   | 'unknown_target'   // no such endpoint in the caller's group (or none anywhere) [0029]
   | 'expired_key'      // the envelope is sealed to a key the target has replaced
   | 'not_in_group'     // RETIRED as an answer [0029]; kept as a literal, never emitted
-  | 'limit_reached';   // a per-group cap would be exceeded by this item [0030]
+  | 'limit_reached'    // a per-group cap would be exceeded by this item [0030]
+  // The target is a phone its push service proved uninstalled (`Endpoint.uninstalledAt`,
+  // PLANS P-31 item 3). FINAL, like `unknown_target`: the link would wait for a device
+  // that cannot take it. ADDITIVE [P-6]: every client reads the reason as a plain string,
+  // and one that does not know it shows its generic failure line and drops the item.
+  | 'target_uninstalled';
 
 /**
  * Which cap refused the item, alongside `limit_reached` [0030] (HOSTED_PLAN §4.3).

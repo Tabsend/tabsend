@@ -119,6 +119,40 @@ describe('group history', () => {
     expect(res.body[0]?.ackedAt).toBeNull()
   })
 
+  // PLANS P-31 item 4: a reinstalled browser left its old entry behind, the phone kept
+  // sending to it, and each tab read "Waiting" for a week after the old one was removed.
+  it('ends the tabs still waiting for a device the moment it is removed', async () => {
+    const { a, b, c } = await trio()
+    await send(a, b, 'waiting', blob('for-b'))
+    await send(a, b, 'arrived', blob('for-b-too'))
+    await send(a, c, 'other-device', blob('for-c'))
+    await http.get(server.baseUrl, '/v1/messages?pending=1', b.token)
+    await http.post(server.baseUrl, '/v1/messages/arrived/ack', undefined, b.token)
+    const removed = await http.del(server.baseUrl, `/v1/endpoints/${b.endpointId}`, a.token)
+    expect(removed.status).toBe(200)
+
+    const byId = new Map((await historyOf(c.token)).body.map((e) => [e.id as string, e]))
+    // Every client reads "never arrived" from an expiry in the past, and nothing else.
+    const waiting = byId.get('waiting')
+    expect(waiting?.ackedAt).toBeNull()
+    // (The test relay's clock is fixed, so "now" is the send's own time.)
+    expect(waiting?.expiresAt).toBe(waiting?.createdAt)
+    // The sender can still read what it sent, to send it again.
+    expect(waiting?.blob).toEqual(blob('for-b'))
+    // A tab that arrived, and one for a device still in the group, are untouched.
+    expect(byId.get('arrived')?.ackedAt).not.toBeNull()
+    const other = byId.get('other-device')
+    expect(Date.parse(other?.expiresAt ?? '')).toBeGreaterThan(Date.parse(other?.createdAt ?? ''))
+
+    // And the sealed copy for the removed device is gone, not kept for nobody.
+    const row = await server.db
+      .selectFrom('messages')
+      .select(['envelope'])
+      .where('id', '=', 'waiting')
+      .executeTakeFirstOrThrow()
+    expect(row.envelope).toBeNull()
+  })
+
   it('omits sends that carried no history blob, rather than inventing rows', async () => {
     const { a, b, c } = await trio()
     await send(a, b, 'no-blob') // a pre-0028 client, or a group with no key yet

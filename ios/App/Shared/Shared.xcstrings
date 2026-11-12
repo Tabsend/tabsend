@@ -154,6 +154,23 @@
         }
       }
     },
+    "Uninstalled" : {
+      "comment" : "Status of a phone when Google or Apple reported that Tabsend was removed from it: \"Phone · Uninstalled\". Shown in red; links can't be sent to it. One word if possible.",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deinstalliert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uninstalled"
+          }
+        }
+      }
+    },
     "inactive" : {
       "comment" : "Added after a device's status when it has not been seen for a long time: \"Chrome · Offline · inactive\". One word.",
       "localizations" : {

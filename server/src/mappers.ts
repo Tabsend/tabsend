@@ -45,6 +45,8 @@ export function toEndpoint(row: EndpointRow, now: Date, liveSocket: boolean): En
   // ADDITIVE (5-ext): only project the grouping hint when set — a null column
   // (pre-existing rows) stays absent on the wire, matching the optional field.
   if (row.device_name) endpoint.deviceName = row.device_name
+  // ADDITIVE [P-31 item 3]: only when its push service proved the app uninstalled.
+  if (row.uninstalled_at) endpoint.uninstalledAt = row.uninstalled_at as IsoTimestamp
   return endpoint
 }
 

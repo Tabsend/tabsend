@@ -14,3 +14,6 @@ export * from './newdevices';
 export * from './keyrecord';
 export * from './homenetwork';
 export * from './i18n';
+export * from './replacing';
+export * from './goodbye';
+export * from './sharebox';

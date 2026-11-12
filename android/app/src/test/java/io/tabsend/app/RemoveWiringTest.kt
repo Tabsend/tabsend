@@ -7,7 +7,7 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The home screen's Remove buttons, as far as `MainActivity` takes them
+ * The home screen's Remove menu items, as far as `MainActivity` takes them
  * (SECURITY_REVIEW L7, X13). The rule itself, the relay's DELETE and then the
  * removal written into the new-device watch, lives in
  * `NewDeviceWatcher.removeFromGroup` and is tested in [NewDevicesTest]. What is
@@ -33,26 +33,21 @@ class RemoveWiringTest {
         return file.substring(start, next?.range?.first ?: file.length)
     }
 
-    /** The code of the click handler of every button labelled [label]. */
-    private fun handlers(file: String, label: String): List<String> =
-        Regex("""cardButton\(getString\(R\.string\.$label\)[^{]*\{([^}]*)\}""")
-            .findAll(file)
-            .map { it.groupValues[1].trim() }
-            .toList()
-
     @Test
     fun `every Remove on the home screen asks first`() {
         // Since P-23 the device row's Remove is the only one: the first-look card and
-        // the new-device banner, which had their own, are gone.
-        val removes = handlers(activity, "review_remove")
-        assertEquals("the device row", 1, removes.size)
-        for (handler in removes) {
-            assertTrue("a Remove must open the question: $handler", handler.startsWith("confirmRemove("))
-        }
-        assertTrue(handlers(activity, "new_device_remove").isEmpty())
-        // The device row in particular.
+        // the new-device banner, which had their own, are gone. It sits in the row's More
+        // menu, next to Rename, and never removes without the question.
+        val menu = body(activity, "private fun showRowMenu(")
+        val removes = Regex("""DeviceRowAction\.REMOVE ->([^\n]*)""").findAll(menu).map { it.groupValues[1].trim() }.toList()
+        assertEquals("the device row's menu", 1, removes.size)
+        assertEquals("confirmRemove(ep.id, ep.label)", removes.single())
+        assertFalse("no Remove button of its own", activity.contains("R.string.review_remove"))
+        assertTrue(Regex("""cardButton\(getString\(R\.string\.new_device_remove\)""").findAll(activity).none())
+        // The menu is built for each row from the shared rule, so this phone gets no Remove.
         val rows = body(activity, "private fun renderDevices(")
-        assertTrue(handlers(rows, "review_remove").single().startsWith("confirmRemove(ep.id"))
+        assertTrue(rows.contains("moreButton(ep, selfId)"))
+        assertTrue(menu.contains("DeviceRowActions.actions(isThisPhone = ep.id == selfId)"))
     }
 
     @Test
@@ -81,7 +76,9 @@ class RemoveWiringTest {
 
     @Test
     fun `removing goes through removeFromGroup, which records it in the watch`() {
-        val remove = body(activity, "private fun removeDevice(")
+        // The row's Remove and "Replace" (P-31) share one helper; the rule is checked there.
+        assertTrue(body(activity, "private fun removeDevice(").contains("removeFromGroup(reg, endpointId)"))
+        val remove = body(activity, "private suspend fun removeFromGroup(")
         assertTrue(
             "removeDevice must remove through NewDeviceWatcher.removeFromGroup",
             remove.contains("NewDeviceWatcher.removeFromGroup(store, endpointId) {"),

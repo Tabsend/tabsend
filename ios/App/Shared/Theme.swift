@@ -523,6 +523,9 @@ struct DeviceRow: View {
     var pausedLine: String?
     var isMain = false
     var isStale = false
+    /// Google or Apple proved Tabsend uninstalled there (PLANS P-31 item 3): the status
+    /// says so in red, in place of presence.
+    var isUninstalled = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -564,6 +567,14 @@ struct DeviceRow: View {
             text = Text(verbatim: kind).foregroundColor(Palette.muted)
             if let note {
                 text = Self.joined(text, Text(verbatim: note).foregroundColor(Palette.muted))
+            } else if isUninstalled {
+                let uninstalled = Text(
+                    "Uninstalled",
+                    tableName: "Shared",
+                    comment: "Status of a phone when Google or Apple reported that Tabsend was removed from it: \"Phone · Uninstalled\". Shown in red; links can't be sent to it. One word if possible."
+                )
+                return Self.joined(text, uninstalled.foregroundColor(Palette.danger))
+                    .foregroundColor(Palette.muted)
             } else if let presence {
                 text = Self.joined(
                     text,

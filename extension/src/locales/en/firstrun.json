@@ -79,6 +79,26 @@
     "message": "You are “{device}”.",
     "description": "Setup page, last step: tells the person the name of this browser in the group. {device} is the name, such as “Chrome · Mac”."
   },
+  "firstrun.replace.title": {
+    "message": "Is this browser replacing {app}?",
+    "description": "Setup page, last step: heading of a box shown right after pairing when the group already has an older, offline entry with this browser's name on this computer, likely left behind by a reinstall. {app} is the browser name, such as “Dia”. A question: it must not claim the two are the same."
+  },
+  "firstrun.replace.body": {
+    "message": "“{old}” hasn't been online since {date}. If Tabsend was reinstalled here, replace it so links come to this browser.",
+    "description": "Setup page, replace box: text under the heading. {old} is the old entry's whole name, such as “Dia · MacBook Pro M1 Pro”. {date} is a month and day, such as “October 30”."
+  },
+  "firstrun.replace.confirm": {
+    "message": "Replace {app}",
+    "description": "Setup page, replace box: main button. Removes the old entry from the group and gives this browser its name. {app} is the browser name, such as “Dia”. Short."
+  },
+  "firstrun.replace.keep": {
+    "message": "Keep both",
+    "description": "Setup page, replace box: second button. Closes the box and changes nothing. Short."
+  },
+  "firstrun.replace.note": {
+    "message": "This browser takes the name {app}. The old one is removed from your devices.",
+    "description": "Setup page, replace box: small line under the buttons, saying what the main button does. {app} is the browser name, such as “Dia”."
+  },
   "firstrun.pin.body": {
     "message": "Pin Tabsend to your toolbar so it is always one click away. Find it in your browser's extensions menu, the puzzle piece next to the address bar.",
     "description": "Setup page, last step: a short tip under the name line, shown only while Tabsend is not pinned to the toolbar. “Pin” is the browser's own word for keeping an extension's icon visible on the toolbar. The puzzle piece is the icon of the extensions menu in Chrome, Edge, Brave, Firefox and similar browsers; use your language's usual wording for it."

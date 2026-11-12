@@ -21,6 +21,7 @@ const PERSON_AND_PRODUCT_WORDS = [
   'iPhone',
   'Kitchen console',
   'Edge',
+  'Galaxy S24',
   'Old tablet',
   'Mystery laptop',
   'Broken clock',

@@ -21,6 +21,18 @@ public enum LinkPreviewMetadata {
         return eligible(url) && !text.contains("?") && !text.contains("#")
     }
 
+    /// Where the site's own icon may be, for a tab with no picture: most pages a person sends
+    /// offer none to a visitor who is not signed in (owner, 2026-11-06). Only the site's
+    /// address is used, never the page's path or query. The browsers and Android ask the
+    /// same places.
+    public static func siteIcons(for page: URL) -> [URL] {
+        guard eligible(page), let host = page.host?.lowercased() else { return [] }
+        return ["apple-touch-icon.png", "favicon.ico"].compactMap { URL(string: "https://\(host)/\($0)") }
+    }
+
+    /// How many redirects a preview request follows. Each hop is checked like the first.
+    public static let maxRedirects = 4
+
     /// The longest picture address a sender passes along or a receiver accepts.
     public static let maxImageAddressLength = 2048
 

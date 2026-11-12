@@ -191,6 +191,12 @@ export async function collectStrings(): Promise<Record<string, string>> {
     put(`deliveryBadge/${name}.label`, badge?.label ?? '(none)')
     put(`deliveryBadge/${name}.note`, badge?.note ?? '(none)')
   }
+  put(
+    'deliveryBadge/never-arrived.goneNote',
+    view.deliveryBadge(entry({ delivery: never }), NOW, [
+      makeEndpoint({ id: 'someone-else' as EndpointId }),
+    ])?.note ?? '(none)',
+  )
   put('deliveryBadge/copy', String(view.deliveryBadge(entry())))
 
   put('SEALED_ROW_TITLE', view.sealedRowTitle())

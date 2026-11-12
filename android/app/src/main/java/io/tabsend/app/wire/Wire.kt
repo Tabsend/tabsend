@@ -109,6 +109,12 @@ data class Endpoint(
     val presence: String,
     val lastSeenAt: String,
     val createdAt: String,
+    /**
+     * Set when Google or Apple proved Tabsend uninstalled from this phone (PLANS P-31
+     * item 3). The relay refuses sends to it (`target_uninstalled`); the list shows it in
+     * red with Remove. Absent from an older relay.
+     */
+    val uninstalledAt: String? = null,
 )
 
 @Serializable

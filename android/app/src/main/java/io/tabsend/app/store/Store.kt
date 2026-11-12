@@ -2,6 +2,7 @@ package io.tabsend.app.store
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.tabsend.app.logic.AccountSetup
 import io.tabsend.app.logic.GroupResetRecord
 import io.tabsend.app.logic.HistoryItem
 import io.tabsend.app.logic.InboxItem
@@ -496,6 +497,18 @@ class Store private constructor(private val prefs: SharedPreferences) {
             .apply()
     }
 
+    /**
+     * Show a new name for one device in the cached list (this phone just renamed it)
+     * without restamping it, like [dropCachedEndpoint]. A device not in the list is left alone.
+     */
+    @Synchronized
+    fun renameCachedEndpoint(id: String, label: String) {
+        val next = cachedEndpoints.map { if (it.id == id) it.copy(label = label) else it }
+        prefs.edit()
+            .putString(K_ENDPOINTS, json.encodeToString(ListSerializer(Endpoint.serializer()), next))
+            .apply()
+    }
+
     /** When `cachedEndpoints` was last taken from the relay, epoch ms; 0 if unknown. */
     val cachedEndpointsAt: Long
         get() = prefs.getLong(K_ENDPOINTS_AT, 0L)
@@ -598,6 +611,74 @@ class Store private constructor(private val prefs: SharedPreferences) {
             if (value == null) remove(K_ACCOUNT_STARTED) else putLong(K_ACCOUNT_STARTED, value)
         }.apply()
 
+    /**
+     * This phone's number for account links (review AL1, AL3): made on the first account sheet,
+     * reused by every sheet after it, and good for [io.tabsend.app.logic.AccountSetup.PENDING_WINDOW_MS]
+     * from the last time a sheet asked for it. The sheets send it to the account site and the app
+     * sends it back when it uses an emailed link, so a link made for another phone fails. Kept
+     * until the pairing finishes ([forgetPhoneNumber]) and wiped with it ([clear]).
+     */
+    @Synchronized
+    fun phoneNumber(now: Long = System.currentTimeMillis()): String {
+        val live = livePhoneNumber(now)
+        val number = live ?: AccountSetup.newNumber()
+        // Asking again keeps the number, and moves its day on: a sign-up that starts late must not
+        // outlive its number.
+        prefs.edit()
+            .putString(K_PHONE_NUMBER, number)
+            .putLong(K_PHONE_NUMBER_AT, now)
+            .apply()
+        return number
+    }
+
+    /** The number, if it is still good; never makes one. */
+    @Synchronized
+    fun livePhoneNumber(now: Long = System.currentTimeMillis()): String? {
+        val number = prefs.getString(K_PHONE_NUMBER, null)
+        val at = if (prefs.contains(K_PHONE_NUMBER_AT)) prefs.getLong(K_PHONE_NUMBER_AT, 0L) else null
+        return AccountSetup.liveNumber(number, at, now)
+    }
+
+    /** The sign-up is done or given up: the number goes. */
+    @Synchronized
+    fun forgetPhoneNumber() {
+        prefs.edit().remove(K_PHONE_NUMBER).remove(K_PHONE_NUMBER_AT).apply()
+    }
+
+
+    // --- in-app asks: the share box and the review card [P-22] ---
+
+    /** When this phone first drew the paired Home, or null. The asks count their days from it. Wiped with the pairing. */
+    var firstHomeAt: Long?
+        get() = if (prefs.contains(K_FIRST_HOME)) prefs.getLong(K_FIRST_HOME, 0L) else null
+        set(value) = prefs.edit().apply {
+            if (value == null) remove(K_FIRST_HOME) else putLong(K_FIRST_HOME, value)
+        }.apply()
+
+    /** When the share box was dismissed or Share was tapped, or null. Kept across a re-pairing. */
+    var shareBoxDismissedAt: Long?
+        get() = if (prefs.contains(K_SHARE_DISMISSED)) prefs.getLong(K_SHARE_DISMISSED, 0L) else null
+        set(value) = prefs.edit().apply {
+            if (value == null) remove(K_SHARE_DISMISSED) else putLong(K_SHARE_DISMISSED, value)
+        }.apply()
+
+    /** Every time the review card was asked for, in epoch milliseconds. Kept across a re-pairing. */
+    var reviewAskTimes: List<Long>
+        get() = prefs.getString(K_REVIEW_ASKS, null)?.split(',')?.mapNotNull { it.toLongOrNull() } ?: emptyList()
+        set(value) = prefs.edit().putString(K_REVIEW_ASKS, value.joinToString(",")).apply()
+
+    /**
+     * Set by the sender: true after a send the relay took and the target was online, false after
+     * anything else. [reviewMoment] is true until the home screen has looked at that success once.
+     */
+    var lastSendSucceeded: Boolean
+        get() = prefs.getBoolean(K_LAST_SEND_OK, false)
+        set(value) = prefs.edit().putBoolean(K_LAST_SEND_OK, value).putBoolean(K_REVIEW_MOMENT, value).apply()
+
+    var reviewMoment: Boolean
+        get() = prefs.getBoolean(K_REVIEW_MOMENT, false)
+        set(value) = prefs.edit().putBoolean(K_REVIEW_MOMENT, value).apply()
+
     // --- source-side outbound queue (send while offline) ---
     var outbound: List<OutboundItem>
         get() = prefs.getString(K_OUTBOUND, null)
@@ -647,11 +728,16 @@ class Store private constructor(private val prefs: SharedPreferences) {
         val avoid = if (prefs.contains(K_AVOID_GOOGLE)) prefs.getBoolean(K_AVOID_GOOGLE, false) else null
         val images = if (prefs.contains(K_WEBSITE_IMAGES)) prefs.getBoolean(K_WEBSITE_IMAGES, true) else null
         val retiring = prefs.getString(K_PUSH_RETIRING, null)
+        val shareDismissed = shareBoxDismissedAt
+        val reviewAsks = prefs.getString(K_REVIEW_ASKS, null)
         // An editor applies clear() before its puts, whatever the order they were called in.
         prefs.edit().clear().apply {
             if (avoid != null) putBoolean(K_AVOID_GOOGLE, avoid)
             if (images != null) putBoolean(K_WEBSITE_IMAGES, images)
             if (retiring != null) putString(K_PUSH_RETIRING, retiring)
+            // The asks' own history is about the person, not the pairing: a fresh pairing does not reset it.
+            if (shareDismissed != null) putLong(K_SHARE_DISMISSED, shareDismissed)
+            if (reviewAsks != null) putString(K_REVIEW_ASKS, reviewAsks)
         }.apply()
     }
 
@@ -716,6 +802,13 @@ class Store private constructor(private val prefs: SharedPreferences) {
         private const val K_GROUP_RESET = "group.reset"
         private const val K_GROUP_SERVICE = "group.service"
         private const val K_ACCOUNT_STARTED = "account.startedAt"
+        private const val K_PHONE_NUMBER = "account.phoneNumber"
+        private const val K_PHONE_NUMBER_AT = "account.phoneNumberAt"
+        private const val K_FIRST_HOME = "asks.firstHomeAt"
+        private const val K_SHARE_DISMISSED = "asks.shareDismissedAt"
+        private const val K_REVIEW_ASKS = "asks.reviewTimes"
+        private const val K_LAST_SEND_OK = "asks.lastSendOk"
+        private const val K_REVIEW_MOMENT = "asks.reviewMoment"
 
         @Volatile
         private var instance: Store? = null

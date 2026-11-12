@@ -100,9 +100,36 @@ export interface EndpointsTable {
   /** Consecutive 404/410 push failures. At the dead threshold the relay stops waking
    *  this subscription (client heartbeat rotates a fresh one → resets to 0). ADDITIVE (6b). */
   push_failures: number
+  /**
+   * ISO time Apple or Google proved this phone's app uninstalled, through the wake-up
+   * forwarder's `POST /v1/status` (PLANS P-31 item 3), or null. Sends to it are refused
+   * with `target_uninstalled`. Cleared by any authenticated call from the device, which
+   * proves it is installed after all. Never set for a browser: Web Push's 404/410 is not
+   * proof (`wake.ts`). The relay never removes the device on its own. ADDITIVE.
+   */
+  uninstalled_at: string | null
   /** SHA-256(base64url) of the device token; the raw token is never stored. */
   device_token_hash: string
+  /**
+   * SHA-256(base64url) of the device's leave token [PLANS P-31 item 1], or null when it
+   * never asked for one. The token can do one thing: remove this endpoint, from the
+   * `/goodbye` page a browser opens after the extension is uninstalled. Asking again
+   * replaces it. ADDITIVE, nullable: every older row has none.
+   */
+  leave_token_hash: string | null
   last_seen_at: string
+  created_at: string
+}
+
+/**
+ * Optional notes left on the `/goodbye` page of a HOSTED relay [PLANS P-31 item 1]: why
+ * someone removed Tabsend. Deliberately tied to nothing: no group, no endpoint, no
+ * address, so a note cannot be traced back to a person. Self-hosted relays never show
+ * the box, so they never write a row.
+ */
+export interface GoodbyeNotesTable {
+  id: string
+  note: string
   created_at: string
 }
 
@@ -248,6 +275,7 @@ export interface Database {
   meta: MetaTable
   quota_counters: QuotaCountersTable
   provisioning_idempotency: ProvisioningIdempotencyTable
+  goodbye_notes: GoodbyeNotesTable
 }
 
 export type GroupRow = Selectable<GroupsTable>

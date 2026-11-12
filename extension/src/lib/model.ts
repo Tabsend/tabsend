@@ -60,6 +60,13 @@ export interface Registration {
    * `shouldWarnSoloGroup`). Absent on registrations made before this field.
    */
   registeredAt?: string
+  /**
+   * This endpoint's leave token [PLANS P-31 item 1]: it can only remove this device,
+   * from the relay's `/goodbye` page that the browser opens after an uninstall. Minted
+   * after pairing (`background/goodbye.ts`). Absent until then, and for good on a relay
+   * that has no goodbye page.
+   */
+  leaveToken?: string
 }
 
 /** One message we've already opened (idempotency set, pruned by age). */
@@ -262,6 +269,19 @@ export interface GroupResetRecord {
   dismissedFor?: string
 }
 
+/**
+ * An old offline copy of this browser, offered for replacing during setup
+ * (PLANS.md P-31 item 2, `background/replacing.ts`).
+ */
+export interface ReplaceOffer {
+  endpointId: string
+  /** Its whole label, "Dia · MacBook Pro M1 Pro": what this browser is renamed to. */
+  label: string
+  /** The browser half, "Dia", for the question and the button. */
+  appName: string
+  lastSeenAt: string
+}
+
 // --- page <-> SW RPC ------------------------------------------------------
 
 export type RpcRequest =
@@ -280,6 +300,9 @@ export type RpcRequest =
   | { type: 'getDevices'; cached?: boolean }
   | { type: 'renameEndpoint'; endpointId: string; label: string }
   | { type: 'removeEndpoint'; endpointId: string }
+  // "Is this browser replacing Dia?" on the setup page (PLANS.md P-31 item 2).
+  | { type: 'getReplaceOffer' }
+  | { type: 'replaceSelf'; endpointId: string }
   // "Yes, it's mine" on a new-device banner (PLANS.md P-10). Local only.
   | { type: 'confirmNewDevice'; endpointId: string }
   | { type: 'confirmReview' }
@@ -301,7 +324,12 @@ export type RpcRequest =
   // "Send again" on a history row that never arrived [ADR-0028 §8]. Carries the
   // payload because the tab it came from is long closed — being able to offer
   // this at all is the point of keeping a readable copy of what was sent.
-  | { type: 'sendAgain'; targetEndpointId: string; payload: SendPayload }
+  // `insteadOf`: the device the tab was for, when it is gone and the user picked
+  // another (PLANS P-31 item 4). The background checks the pick (`mayResendTo`).
+  | { type: 'sendAgain'; targetEndpointId: string; payload: SendPayload; insteadOf?: string }
+  // What Send again may do for a row whose tab was for this device: the same device
+  // again, or, once it has left the group, a choice of others (P-31 item 4).
+  | { type: 'resendChoices'; targetEndpointId: string }
   | { type: 'getSettings' }
   | { type: 'setSettings'; settings: Partial<ClientSettings> }
   | { type: 'setPrimary'; targetEndpointId: string | null; pinned: boolean }
@@ -380,6 +408,8 @@ export interface DeviceRow {
   presenceKnown: boolean
   /** e.g. "online", "last seen 2h ago", or "inactive" past the stale horizon. */
   presenceLabel: string
+  /** Google or Apple proved Tabsend uninstalled on this phone (P-31 item 3). */
+  uninstalled?: boolean
 }
 
 /**
@@ -420,6 +450,16 @@ export interface ChooserRow {
 }
 
 /** One tab still sitting on this browser, for the "waiting here" list. */
+/** The answer to `resendChoices` (P-31 item 4). */
+export interface ResendChoices {
+  /** The device the tab was for is no longer in the group this browser accepts. */
+  gone: boolean
+  /** This browser removed it, so the line may say "was removed" (as for held tabs). */
+  removedHere: boolean
+  /** The devices it may go to instead (`heldTabChoices`), in list order. Empty when not gone. */
+  choices: Array<{ id: string; label: string }>
+}
+
 export interface HeldTab {
   id: string
   targetEndpointId: string
@@ -570,5 +610,8 @@ export type RpcResponse =
   | { ok: true; settings: ClientSettings }
   | { ok: true; onboarding: { canCreate: boolean } }
   | { ok: true; moved: boolean }
+  | { ok: true; replaceOffer: ReplaceOffer | null }
+  | { ok: true; replaced: boolean }
+  | { ok: true; resend: ResendChoices }
   | { ok: true }
   | { ok: false; error: string }

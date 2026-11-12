@@ -83,6 +83,9 @@ The same two checks passed for v0.8.0 on 2026-10-23 (public tag `v0.8.0`, `707f9
 `tabsend-firefox-0.8.0.zip` sha256 `a01a903f…7163`, `tabsend-source-0.8.0.zip` `7798cb61…9c57`).
 And for v0.8.1 on 2026-10-27 (public tag `v0.8.1`, `b32d815`; `tabsend-firefox-0.8.1.zip`
 `ecf186d7…2f2e`, `tabsend-source-0.8.1.zip` `544a6f8f…96b9`).
+And for v0.11.0 on 2026-11-06, in an empty folder on macOS only (public tag `v0.11.0`,
+`644619b`; `tabsend-source-0.11.0.zip` `83023f6f…018c`): the Firefox package rebuilt from the
+source archive matches the uploaded one file for file.
 
 ## Notes a reviewer will want
 

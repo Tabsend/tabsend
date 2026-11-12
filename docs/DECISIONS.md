@@ -4,6 +4,29 @@ Lightweight ADR-style record of committed decisions. Newest at top. Each entry: 
 
 ---
 
+## 0036 — An uninstalled browser removes itself, with a token that can do nothing else
+
+**Status:** Accepted · 2026-11-09 (owner approved `docs/PLANS.md` P-31 and the page sketch; number claimed against `origin/main` at merge)
+**Relates to:** ADR-0003 (the device token is the only credential), the tombstone and removal rules (`DELETE /v1/endpoints/:id`), ADR-0028 (removal triggers a key rotation), `docs/PLANS.md` P-31 item 1; `server/src/removal.ts`, `server/src/routes/goodbye.ts`, `shared/src/goodbye.ts`, `extension/src/background/goodbye.ts`.
+
+### Context
+Uninstalling the extension wipes its storage, so the device it was can never come back, yet it stayed in the group and the other devices kept sending it links that waited forever (owner, 2026-11-07). Chrome, Edge, Dia and Firefox open a page of the extension's choosing after an uninstall (`runtime.setUninstallURL`), but nothing of the extension runs any more, so that page has to do the removal on its own.
+
+### Decision
+1. **A leave token per device.** `POST /v1/endpoints/:id/leave-token` (device token, own endpoint only) mints one; the relay stores only its hash (`endpoints.leave_token_hash`) and a new one replaces the old. It can do one thing: `POST /v1/endpoints/leave` removes that endpoint. The device token is never put in a URL.
+2. **The same removal as any other.** Both routes go through `removeEndpoint` (`server/src/removal.ts`): tombstone, group-key copies gone, `endpoint_removed` to the group, sockets closed, doorbell revoked. Other devices rotate the key as for any removal. A token that names nothing answers `removed: false`, not an error.
+3. **The token rides in the fragment.** The extension sets `<relay>/goodbye#t=<token>` (at most 1023 characters, else nothing). The page's script reads it, clears it from the address bar and posts it, so it never reaches the relay's request log. It stays in browser history; the worst it can do there is remove a device that is already gone.
+4. **Only where the relay has it.** `/v1/config` says `goodbyePage: true`; an older relay gets no uninstall page.
+5. **Feedback stays with the operator who asked for it.** The optional box shows only on a hosted relay (`TABSEND_PROFILE=hosted`), which keeps the note and its time, nothing else. A self-hosted relay shows no box, since the note would go to the person who just uninstalled.
+
+### Consequences / follow-ups
+- Does not fire when the browser itself is deleted, the computer wiped, or the relay out of reach at that moment (P-31 item 2 is the catch for those). A browser that never opens the page (some forks) is the same.
+- Anyone holding the leave token (the uninstalled browser's history) can remove that device. Accepted: it is the device being removed.
+- The hosted Caddyfiles pass `/goodbye` to the relay; a self-hoster behind their own proxy has to pass it too, or the page falls through to whatever else serves that path.
+- Not yet seen on a real browser uninstall (Chrome, Dia, Edge, Firefox).
+
+---
+
 ## 0035 — A hosted group can be reset, but only after a wait every paired device can stop
 
 **Status:** Accepted · 2026-10-27 (owner's picks: the reset that waits, sketch 1B, card layout A; claimed against `origin/main` at merge)
@@ -271,6 +294,19 @@ What changes in this record: the wake is no longer always *empty*. It still carr
 Not yet done (P-29 steps 3, 4 and 6): a lock so the app and the extension cannot drain at the same moment, an acknowledgement that waits until iOS has shown the first link, and the TestFlight checks on a real iPhone.
 
 ---
+
+
+### Amendment — 2026-11-09 · the relay may learn that a phone was uninstalled (P-31 item 3)
+
+Decision 4's "no answer the forwarder gives is evidence about the endpoint" stays true of
+`POST /v1/wake`. A second route, `POST /v1/status` (forwarder `PROTOCOL.md` §3.5), answers
+`gone: true` only for a wake token whose ring Apple answered 410 or Google `UNREGISTERED`,
+and `gone: false` for every other token. The relay asks after each forwarder ring, marks the
+endpoint `uninstalled_at`, lists it (`Endpoint.uninstalledAt`) and refuses sends to it with
+`target_uninstalled`. It never removes the device. Without it, links to an uninstalled
+phone waited until they expired (`PLANS.md` P-20, P-31). The cost, a token holder learning
+that its phone uninstalled Tabsend, is stated in `PROTOCOL.md` §4. Web Push 404/410 is still
+not counted as uninstalled.
 
 ## 0031 — Provisioning needs two factors, suspension deletes nothing, and deletion is one cascade that is safe to re-run
 

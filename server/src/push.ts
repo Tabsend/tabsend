@@ -20,6 +20,14 @@ export interface PushSender {
    * subscription belongs to the browser, and nothing the relay holds can end it.
    */
   revoke?(subscription: PushSubscription): Promise<void>
+  /**
+   * Whether the phone behind this subscription was PROVED uninstalled by its push
+   * service (PLANS P-31 item 3). Only the wake-up forwarder can say
+   * ({@link ForwarderWakeSender.isGone}); `false` means "not known to be gone", never
+   * "installed". Web Push has no such answer: its 404/410 means the subscription
+   * expired, which happens to installed browsers too.
+   */
+  isGone?(subscription: PushSubscription): Promise<boolean>
 }
 
 /**
@@ -190,6 +198,15 @@ export class FakePushSender implements PushSender {
   failNext = false
   /** When set, the NEXT wake throws a DeadSubscriptionError with this status (404/410). */
   failDeadNextStatus: number | null = null
+  /** Wake tokens the fake forwarder reports gone (P-31 item 3). */
+  readonly goneWakeTokens = new Set<string>()
+  /** Every `isGone` question asked, for assertions. */
+  readonly goneChecks: PushSubscription[] = []
+
+  async isGone(subscription: PushSubscription): Promise<boolean> {
+    this.goneChecks.push(subscription)
+    return subscription.transport === 'forwarder' && this.goneWakeTokens.has(subscription.wakeToken)
+  }
 
   async wake(subscription: PushSubscription): Promise<void> {
     if (this.failDeadNextStatus !== null) {
@@ -291,6 +308,7 @@ const FORWARDER_WAKE_TIMEOUT_MS = 3_000
 export class ForwarderWakeSender implements PushSender {
   private readonly wakeUrl: string
   private readonly revokeUrl: string
+  private readonly statusUrl: string
 
   constructor(
     forwarderUrl: string,
@@ -304,6 +322,7 @@ export class ForwarderWakeSender implements PushSender {
     // would 404 against a service that answers 202 to everything else.
     this.wakeUrl = `${forwarderUrl.replace(/\/+$/, '')}/v1/wake`
     this.revokeUrl = `${forwarderUrl.replace(/\/+$/, '')}/v1/revoke`
+    this.statusUrl = `${forwarderUrl.replace(/\/+$/, '')}/v1/status`
   }
 
   async wake(subscription: PushSubscription): Promise<void> {
@@ -372,10 +391,44 @@ export class ForwarderWakeSender implements PushSender {
     })
     if (response.status !== 200) throw new ForwarderRevokeError(response.status)
   }
+
+  /** See {@link PushSender.isGone} and {@link askGone}. */
+  async isGone(subscription: PushSubscription): Promise<boolean> {
+    if (subscription.transport !== 'forwarder') return false
+    return askGone(this.fetchImpl, this.statusUrl, subscription.wakeToken, this.timeoutMs)
+  }
+}
+
+/**
+ * Ask the forwarder whether Apple or Google proved this phone uninstalled
+ * (forwarder `PROTOCOL.md` §3.5, PLANS P-31 item 3). Its own function rather than inline in
+ * the class only so the comment has room.
+ *
+ * Exactly one answer counts: 200 with `{"gone": true}`. Everything else is `false`, not
+ * an error: an older forwarder answers 404 to the route, and "not known" is what the
+ * relay believed before the route existed. Throws only what fetch throws (a timeout, a
+ * refused connection), which the caller logs.
+ */
+async function askGone(
+  fetchImpl: typeof fetch,
+  url: string,
+  wakeToken: string,
+  timeoutMs: number,
+): Promise<boolean> {
+  const response = await fetchImpl(url, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${wakeToken}`, 'content-type': 'application/json' },
+    body: '{}',
+    signal: AbortSignal.timeout(timeoutMs),
+    redirect: 'manual',
+  })
+  if (response.status !== 200) return false
+  const body = (await response.json().catch(() => null)) as { gone?: unknown } | null
+  return body?.gone === true
 }
 
 /** Where {@link revokeDeleted} writes its one line per failure. */
-interface RevokeLog {
+export interface RevokeLog {
   warn(fields: object, message: string): void
 }
 
